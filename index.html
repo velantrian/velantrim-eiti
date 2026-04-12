@@ -702,8 +702,7 @@
             box-shadow: 0 4px 20px rgba(255,200,0,0.4), inset 0 1px 0 rgba(255,240,100,0.5);
             border-bottom: 1px solid #8b6a00;
         }
-        body.design-glossy-gold .folder-card,
-        body.design-glossy-gold .msg-btn {
+        body.design-glossy-gold .folder-card {
             background: linear-gradient(145deg, #8b6a00 0%, #ffd700 45%, #c9a700 55%, #6a5000 100%);
             box-shadow: 0 6px 20px rgba(255,200,0,0.5), 0 2px 0 rgba(255,255,100,0.6) inset, 0 -2px 0 rgba(80,60,0,0.8) inset;
             border: 1px solid #8b6a00;
@@ -713,10 +712,22 @@
             border-radius: 14px;
             transition: transform 0.12s, box-shadow 0.12s;
         }
-        body.design-glossy-gold .folder-card:active,
-        body.design-glossy-gold .msg-btn:active {
+        body.design-glossy-gold .folder-card:active {
             transform: translateY(2px) scale(0.97);
             box-shadow: 0 2px 8px rgba(255,200,0,0.3), inset 0 3px 8px rgba(0,0,0,0.4);
+        }
+        body.design-glossy-gold .msg-btn {
+            background: rgba(255,215,0,0.08);
+            border: 1px solid rgba(255,200,0,0.25);
+            box-shadow:
+                inset 0 1px 0 rgba(255,240,150,0.2),
+                inset 0 -1px 0 rgba(0,0,0,0.3),
+                0 2px 5px rgba(0,0,0,0.35);
+            color: #ffd700;
+        }
+        body.design-glossy-gold .msg-btn:active {
+            transform: scale(0.94);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.4);
         }
         body.design-glossy-gold .tab-bar {
             background: linear-gradient(180deg, #2a2000 0%, #1a1400 100%);
@@ -732,6 +743,30 @@
         body.design-glossy-gold .chat-input {
             box-shadow: 0 0 0 2px rgba(255,215,0,0.25), inset 0 2px 6px rgba(0,0,0,0.5);
             border: 1px solid #5a4400;
+        }
+        body.design-glossy-gold .chat-send-btn {
+            background: linear-gradient(145deg, #ffe066 0%, #ffd700 40%, #c9a700 70%, #8b6a00 100%);
+            box-shadow:
+                0 6px 18px rgba(255,200,0,0.55),
+                inset 0 1px 0 rgba(255,255,210,0.55),
+                inset 0 -2px 4px rgba(70,50,0,0.5);
+            border: 1px solid #8b6a00;
+            color: #1a1000;
+        }
+        body.design-glossy-gold .chat-send-btn:active {
+            box-shadow:
+                0 2px 6px rgba(255,200,0,0.3),
+                inset 0 3px 8px rgba(0,0,0,0.45);
+        }
+        body.design-glossy-gold .tab-item.active .tab-icon-wrapper {
+            background: rgba(255,215,0,0.12);
+            border-radius: 14px;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.3), 0 0 10px rgba(255,200,0,0.15);
+        }
+        body.design-glossy-gold .app-header h1 {
+            background: linear-gradient(180deg, #ffe680 0%, #ffd700 50%, #b8860b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         /* === 3D GLOSSY — Синий металлик === */
@@ -909,7 +944,7 @@
         .app-header h1 {
             font-size: 28px;
             font-weight: 700;
-            background: linear-gradient(180deg, #f5e6d3 0%, #d4b896 100%);
+            background: linear-gradient(180deg, var(--text-color) 0%, var(--accent-color) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: 1.5px;
@@ -1372,7 +1407,7 @@
             font-size: 28px;
             opacity: 0.55;
             transition: all 0.3s;
-            filter: grayscale(1) drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+            filter: grayscale(0.5) drop-shadow(0 2px 3px rgba(0,0,0,0.45));
         }
         
         .tab-item.active .tab-icon {
@@ -1527,15 +1562,18 @@
             width:26px;
             height:26px;
             border-radius:8px;
-            border: 1px solid rgba(0,0,0,0.25);
-            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.07);
             color: inherit;
             cursor:pointer;
             display:flex;
             align-items:center;
             justify-content:center;
             font-size:14px;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.15),
+                inset 0 -1px 0 rgba(0,0,0,0.2),
+                0 2px 5px rgba(0,0,0,0.3);
         }
         .msg-btn:active{ transform: scale(0.96); }
 
