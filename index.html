@@ -522,6 +522,19 @@
         /* select/toggle inside settings */
         body.design-skeuomorph select { color: #2a1e10; background: #f0e8d8; border: 1px solid #b0a880; }
         body.design-skeuomorph input[type="range"] { accent-color: #6a4a20; }
+        /* Skeuomorph: fix CSS vars inherited as white from :root */
+        body.design-skeuomorph {
+            --text-color: #2a1e10;
+            --border-color: #b0a080;
+        }
+        /* _lsExplainBtn has inline rgba(255,255,255,0.07) bg + color:var(--text-color).
+           On beige background that's near-invisible — override with !important */
+        body.design-skeuomorph ._lsExplainBtn {
+            background: linear-gradient(180deg, #f0e8d8 0%, #d8cfc0 100%) !important;
+            color: #3a2a10 !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.45);
+            opacity: 1 !important;
+        }
 
         /* === PAPER PRESSED (утопленный) — Бежевый === */
         body.design-paper-warm {
@@ -870,6 +883,27 @@
         body.design-glossy-violet .chat-input {
             box-shadow: 0 0 0 2px rgba(180,180,190,0.2), inset 0 2px 6px rgba(0,0,0,0.5);
             border: 1px solid #505055;
+        }
+
+        /* === GLOSSY SHARED: message padding + explain button === */
+        body.design-glossy-gold .message,
+        body.design-glossy-blue .message,
+        body.design-glossy-violet .message {
+            padding: 12px 16px;
+        }
+        /* _lsExplainBtn: neutralise any accidental glow in glossy themes */
+        body.design-glossy-gold ._lsExplainBtn,
+        body.design-glossy-blue ._lsExplainBtn,
+        body.design-glossy-violet ._lsExplainBtn {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.4) !important;
+        }
+        /* Global: subtle hover for _lsExplainBtn */
+        ._lsExplainBtn:hover {
+            background: rgba(255,255,255,0.14) !important;
+        }
+        /* Global: .msg-btn hover */
+        .msg-btn:hover {
+            background: rgba(255,255,255,0.14);
         }
 
         /* Timeline columns */
@@ -1408,6 +1442,8 @@
             opacity: 0.55;
             transition: all 0.3s;
             filter: grayscale(0.5) drop-shadow(0 2px 3px rgba(0,0,0,0.45));
+            flex-shrink: 0;
+            aspect-ratio: 1 / 1;
         }
         
         .tab-item.active .tab-icon {
