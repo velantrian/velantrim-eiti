@@ -1,7 +1,7 @@
 // VELANTRIM EITI — Service Worker v12.0
 // v12.0: EITI Memory (Personal Storage), \x08 regex fix
 
-const CACHE_NAME = 'eiti-cache-v12.0';
+const CACHE_NAME = 'eiti-cache-v12.1';
 const SW_VERSION = '12.0';
 const TRANSFORMERS_CACHE = 'eiti-transformers-v1'; // отвязан от версии — модели не перекачиваются при обновлении UI
 const TRANSFORMERS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 дней
@@ -27,7 +27,12 @@ var ASSETS = [
     './index.html',
     './manifest.json',
     './sql-wasm.js',
-    './sql-wasm.wasm'
+    './sql-wasm.wasm',
+    './eiti_kb.json',
+    './lemma.json',
+    './mosc_graph.json',
+    './icon-192.png',
+    './icon-512.png'
 ];
 
 self.addEventListener('install', function(e) {

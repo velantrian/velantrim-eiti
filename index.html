@@ -12708,7 +12708,7 @@ window.eitiClearAllModelCache = async function() {
                 return eitiKBInit();
             }).then(function() {
                 if (_kbMemCache && _kbMemCache.length === 0) {
-                    fetch('./eiti_kb_v3.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
+                    fetch('./eiti_kb.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
                         if (!data) return;
                         var facts = Array.isArray(data) ? data : (data.facts || []);
                         if (facts.length > 0) {
@@ -12718,7 +12718,7 @@ window.eitiClearAllModelCache = async function() {
                     }).catch(function(){});
                 }
                 if (!window._moscGraph || Object.keys(window._moscGraph).length === 0) {
-                    fetch('./mosc_graph_v3.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
+                    fetch('./mosc_graph.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
                         if (!data || !data.graph) return;
                         window._moscGraph = data.graph;
                         console.info('[EITI] ✅ MOSC auto-loaded:', Object.keys(data.graph).length, 'узлов');
@@ -19539,7 +19539,7 @@ async function _initSQL() {
     try {
         var SQL = await initSqlJs({
             locateFile: function(f) {
-                return './' + f; // локальный файл из SW-кэша, без CDN
+                return f === 'sqlwasm.wasm' ? './sql-wasm.wasm' : './' + f; // локальный файл из SW-кэша, без CDN
             }
         });
         // Пробуем загрузить из IDB, fallback — localStorage
