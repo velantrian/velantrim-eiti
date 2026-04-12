@@ -522,6 +522,8 @@
         /* select/toggle inside settings */
         body.design-skeuomorph select { color: #2a1e10; background: #f0e8d8; border: 1px solid #b0a880; }
         body.design-skeuomorph input[type="range"] { accent-color: #6a4a20; }
+        /* Readability fix: option-card text on dark background */
+        body.design-skeuomorph .option-card { color: #e8e4dc; }
 
         /* === PAPER PRESSED (утопленный) — Бежевый === */
         body.design-paper-warm {
@@ -718,6 +720,21 @@
             transform: translateY(2px) scale(0.97);
             box-shadow: 0 2px 8px rgba(255,200,0,0.3), inset 0 3px 8px rgba(0,0,0,0.4);
         }
+        /* Subtle msg-btn: override gold metallic for action buttons only */
+        body.design-glossy-gold .msg-btn {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-color);
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: none;
+            filter: none;
+            font-weight: normal;
+            text-shadow: none;
+        }
+        body.design-glossy-gold .msg-btn:active {
+            transform: scale(0.96);
+            background: rgba(255,255,255,0.12);
+            box-shadow: none;
+        }
         body.design-glossy-gold .tab-bar {
             background: linear-gradient(180deg, #2a2000 0%, #1a1400 100%);
             border-top: 1px solid #5a4400;
@@ -728,6 +745,8 @@
             border-radius: 18px;
             box-shadow: 0 4px 16px rgba(255,200,0,0.2), inset 0 1px 0 rgba(255,240,100,0.15);
             border: 1px solid #3a2a00;
+            padding: 14px 18px;
+            line-height: 1.5;
         }
         body.design-glossy-gold .chat-input {
             box-shadow: 0 0 0 2px rgba(255,215,0,0.25), inset 0 2px 6px rgba(0,0,0,0.5);
@@ -766,6 +785,21 @@
             transform: translateY(2px) scale(0.97);
             box-shadow: 0 2px 8px rgba(0,100,255,0.3), inset 0 3px 8px rgba(0,0,0,0.5);
         }
+        /* Subtle msg-btn: override blue metallic for action buttons only */
+        body.design-glossy-blue .msg-btn {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-color);
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: none;
+            filter: none;
+            font-weight: normal;
+            text-shadow: none;
+        }
+        body.design-glossy-blue .msg-btn:active {
+            transform: scale(0.96);
+            background: rgba(255,255,255,0.12);
+            box-shadow: none;
+        }
         body.design-glossy-blue .tab-bar {
             background: linear-gradient(180deg, #001848 0%, #000e30 100%);
             border-top: 1px solid #004488;
@@ -776,6 +810,8 @@
             border-radius: 18px;
             box-shadow: 0 4px 16px rgba(0,120,255,0.25), inset 0 1px 0 rgba(100,180,255,0.15);
             border: 1px solid #002060;
+            padding: 14px 18px;
+            line-height: 1.5;
         }
         body.design-glossy-blue .chat-input {
             box-shadow: 0 0 0 2px rgba(0,122,255,0.3), inset 0 2px 6px rgba(0,0,0,0.5);
@@ -1373,6 +1409,9 @@
             opacity: 0.55;
             transition: all 0.3s;
             filter: grayscale(1) drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .tab-item.active .tab-icon {
@@ -1526,7 +1565,7 @@
         .msg-btn{
             width:26px;
             height:26px;
-            border-radius:8px;
+            border-radius:10px;
             border: 1px solid rgba(0,0,0,0.25);
             background: rgba(255,255,255,0.10);
             color: inherit;
@@ -1536,6 +1575,7 @@
             justify-content:center;
             font-size:14px;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+            padding: 6px 10px;
         }
         .msg-btn:active{ transform: scale(0.96); }
 
