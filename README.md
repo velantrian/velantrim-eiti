@@ -1,8 +1,17 @@
 # 🧠 VELANTRIM EITI
-![EITI](./icon-512.png)
-Offline-first modular AI system
-Knowledge · Memory · Reasoning · Local Intelligence
 
+<p align="center">
+  <img src="./icon-512.png" width="120"/>
+</p>
+
+![Offline](https://img.shields.io/badge/offline-first-green)
+![PWA](https://img.shields.io/badge/PWA-supported-blue)
+![Version](https://img.shields.io/badge/version-v12-orange)
+![Status](https://img.shields.io/badge/status-experimental-yellow)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
+Offline-first modular AI system  
+Knowledge · Memory · Reasoning · Local Intelligence
 ---
 
 ⚡ Overview
