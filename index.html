@@ -22,7 +22,8 @@
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
         window._eitiLemma = {};                 // словарь из lemma.json (или IDB)
         window._eitiLemmaPending = null;        // ожидает подтверждения обогащения
-        (function _firstLaunchDefaults(){if(localStorage.getItem("eiti_v118_init"))return;localStorage.setItem("eiti_v118_init","1");localStorage.setItem("eiti_offline_mode","1");localStorage.setItem("eiti_icon_mode","classic");if(typeof showToast==="function")setTimeout(function(){showToast("✈️ Офлайн-режим включён по умолчанию");},1200);})();
+        const AI_MODE = 'restricted'; // AI proposes; user confirms all mutations
+        (function _firstLaunchDefaults(){if(localStorage.getItem("eiti_v118_init"))return;localStorage.setItem("eiti_v118_init","1");localStorage.setItem("eiti_offline_mode","1");localStorage.setItem("eiti_icon_mode","classic");localStorage.setItem("theme","metal");localStorage.setItem("eiti_icon_3d","0");if(typeof showToast==="function")setTimeout(function(){showToast("✈️ Офлайн-режим включён по умолчанию");},1200);})();
         var EITI_BUILD_DATE = "2026-04-11"; // v12.0
     </script>
     <!-- sql.js — SQLite WASM для FTS5 поиска, Attention Graph, эпистемических статусов -->
@@ -31,7 +32,7 @@
     <script src="./sql-wasm.js" async></script>
 <script>
 (function(){
-  var t=localStorage.getItem('theme')||'ios6-leather';
+  var t=localStorage.getItem('theme')||'metal';
   var ui;try{ui=JSON.parse(localStorage.getItem('velantrim_messenger_ui_v1')||'{}')}catch(e){ui={};}
   document.addEventListener('DOMContentLoaded',function(){
     var b=document.body;
@@ -924,7 +925,7 @@
         body.notes-fullscreen .tab-bar,
         body.notes-fullscreen .notes-header { display: none !important; }
         body.notes-fullscreen #view-notes { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 900; }
-        body.notes-fullscreen .notes-list { max-height: 100vh !important; height: calc(100vh - 20px) !important; }
+        body.notes-fullscreen .notes-list { max-height: 100dvh !important; height: calc(100dvh - 20px) !important; }
 
         body {
             font-family: 'Helvetica Neue', 'Roboto', sans-serif;
@@ -1002,13 +1003,22 @@
         
         .message {
             max-width: 90%;
-            padding: 10px 12px;
+            padding: 14px 18px;
             border-radius: 18px;
             animation: messageAppear 0.3s ease-out;
-            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.5;
+            box-sizing: border-box;
             user-select: text;
             -webkit-user-select: text;
         }
+        .message p { margin: 0; padding: 0; }
+        .message div { margin: 0; padding: 0; }
+        .message span { margin: 0; padding: 0; }
+        /* Restore specific spacers that need margin/padding */
+        .message .message-time { margin-top: 4px !important; }
+        .message .message-sender { margin-bottom: 4px !important; }
+        .message-content { padding-right: 44px; }
         .message-body, .message-body * {
             user-select: text !important;
             -webkit-user-select: text !important;
@@ -1398,6 +1408,13 @@
             justify-content: space-around;
             padding: 8px 0;
             box-shadow: 0 -4px 16px var(--shadow-color);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            transform: translateZ(0);
+            padding-bottom: env(safe-area-inset-bottom);
         }
         
         .tab-item {
@@ -1597,8 +1614,8 @@
 
         /* === SEARCH EXPLAIN BUTTON === */
         ._lsExplainBtn {
-            background: rgba(0,0,0,0.35) !important;
-            color: var(--text-color) !important;
+            background: rgba(0,0,0,0.6) !important;
+            color: #fff !important;
             border: 1px solid rgba(255,255,255,0.18) !important;
             opacity: 1 !important;
             backdrop-filter: none !important;
@@ -1930,7 +1947,7 @@
         /* FIX: nav arrows controlled by JS only — not forced by CSS */
         .note-editor-overlay.editor-fullscreen #noteScrollBtn { display: none; }
         .note-editor-overlay.editor-fullscreen #noteFsNav { display: none; }
-        .note-editor-overlay.editor-fullscreen .note-editor-body { height: 100vh !important; font-size: 16px !important; padding: 20px !important; }
+        .note-editor-overlay.editor-fullscreen .note-editor-body { height: 100dvh !important; font-size: 16px !important; padding: 20px !important; }
         .note-editor-card { display: flex; flex-direction: column; height: 100%; position: relative; }
         .note-editor-topbar {
             display: flex;
@@ -2161,7 +2178,7 @@
         @keyframes obIn{from{opacity:0;transform:scale(0.92) translateY(12px)}to{opacity:1;transform:none}}
 </style>
 </head>
-<body class="theme-ios6-leather">
+<body class="theme-metal">
     <!-- Splash Screen -->
     <div class="splash-screen" id="splash">
         <div class="splash-logo" style="font-size:72px;animation:bounce 1.2s ease 2;color:#ffd700;text-shadow:0 0 40px rgba(255,215,0,0.7)">𓆩</div>
@@ -4968,7 +4985,7 @@
         
         function initApp() {
             // Load saved theme
-            const savedTheme = localStorage.getItem('theme') || 'ios6-leather';
+            const savedTheme = localStorage.getItem('theme') || 'metal';
             changeTheme(savedTheme);
             // Apply saved UI profile
             const ui = getUIState();
@@ -5300,7 +5317,21 @@
                 // drawEq();
             })();
         }
-        
+
+        // PWA restore: re-apply theme/KB stats when page is brought back from bfcache
+        window.addEventListener('pageshow', function(e) {
+            if (e.persisted) {
+                var t = localStorage.getItem('theme') || 'metal';
+                if (typeof setTheme === 'function') setTheme(t);
+                var ui; try { ui = JSON.parse(localStorage.getItem('velantrim_messenger_ui_v1') || '{}'); } catch(_) { ui = {}; }
+                var d = ui.design || 'kim3-metal';
+                ['classic','kim3-metal','skeuomorph','samsung','paper-warm','paper-white','paper-kraft','glossy-gold','glossy-blue','glossy-violet']
+                    .forEach(function(x){ document.body.classList.remove('design-' + x); });
+                document.body.classList.add('design-' + d);
+                if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
+            }
+        });
+
         // File Manager
         function openFolder(type) {
             const input = document.createElement('input');
@@ -5407,25 +5438,31 @@
             }
         }
         
-        // Theme System
-        function changeTheme(theme) {
-            // Preserve other body classes (design/immersive/reader)
-            const keep = new Set(
-                document.body.className
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .filter(c => !c.startsWith('theme-'))
-            );
-
-            // Map theme ids to classes
-            const cls = 'theme-' + theme;
-            keep.add(cls);
-            document.body.className = Array.from(keep).join(' ');
-
+        // Theme System — единственный разрешённый способ смены темы
+        function setTheme(theme) {
+            var cls = document.body.className.replace(/theme-\S+/g, '').trim();
+            document.body.className = (cls ? cls + ' ' : '') + 'theme-' + theme;
             localStorage.setItem('theme', theme);
+        }
+
+        function changeTheme(theme) {
+            setTheme(theme);
             showToast('Тема: ' + theme);
             vibrate();
         }
+
+        // Confirm helper for destructive actions
+        function confirmAction(type, payload) {
+            return window.confirm('Подтвердить ' + type + (payload ? ': ' + payload : '') + '?');
+        }
+
+        // Viewport height fix for Firefox / mobile browsers
+        function setViewportHeight() {
+            var vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', vh + 'px');
+        }
+        setViewportHeight();
+        window.addEventListener('resize', setViewportHeight);
 
         // Utilities
         function vibrate() {
@@ -5996,6 +6033,26 @@
         function eitiVBExport(){var d={patterns:_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}),version:'11.5',exported:new Date().toISOString()};var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));a.download='velantrim_brain_'+Date.now()+'.json';a.click();}
         function eitiVBImport(input){var file=input.files[0];if(!file)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);if(d.patterns){_vbIntentPatterns=d.patterns.map(function(p){return{intent:p.intent,re:new RegExp(p.pattern,'i')};});localStorage.setItem('eiti_vb_patterns',JSON.stringify(d.patterns));eitiVBRenderStats();if(typeof showToast==='function')showToast('VB🦋 импортирован ✅');}}catch(ex){if(typeof showToast==='function')showToast('❌ '+ex.message);}};r.readAsText(file);}
 
+        // ══ RETRY HELPER: retries fetch on 429 / network errors ══
+        function _fetchWithRetry(url, options, retries) {
+            retries = (retries === undefined) ? 3 : retries;
+            return fetch(url, options)
+                .catch(function() {
+                    if (retries > 0) {
+                        return new Promise(function(r){ setTimeout(r, 2000); })
+                            .then(function(){ return _fetchWithRetry(url, options, retries - 1); });
+                    }
+                    throw new Error('Network error');
+                })
+                .then(function(res) {
+                    if (res.status === 429 && retries > 0) {
+                        return new Promise(function(r){ setTimeout(r, 2000); })
+                            .then(function(){ return _fetchWithRetry(url, options, retries - 1); });
+                    }
+                    return res;
+                });
+        }
+
         // ══ 📖 ЛЕММАТИЗАТОР v11.8 ══
         // Универсальный AI-вызов — автовыбор DeepSeek/Gemini по настройке провайдера
         function _eitiAICall(userPrompt, systemPrompt, maxTok) {
@@ -6007,7 +6064,7 @@
                 var parts = [];
                 if (systemPrompt) parts.push({ text: systemPrompt + '\n\n' + userPrompt });
                 else parts.push({ text: userPrompt });
-                return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + gk, {
+                return _fetchWithRetry('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + gk, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: parts }], generationConfig: { maxOutputTokens: maxTok } })
                 }).then(function(r){ return r.json(); }).then(function(d){
@@ -6021,7 +6078,7 @@
                 var msgs = [];
                 if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
                 msgs.push({ role: 'user', content: userPrompt });
-                return fetch('https://api.deepseek.com/v1/chat/completions', {
+                return _fetchWithRetry('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST', headers: { 'Authorization': 'Bearer ' + dk, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ model: 'deepseek-chat', max_tokens: maxTok, messages: msgs })
                 }).then(function(r){ return r.json(); }).then(function(d){
@@ -6442,6 +6499,7 @@
         }
 
         function eitiDeleteChat(chatId) {
+                if (!window.confirm('Удалить этот чат?')) return;
                 var tx = eitiDb.transaction(['chats', 'messages', 'l2'], 'readwrite');
             tx.objectStore('chats').delete(chatId);
             tx.objectStore('l2').delete(chatId);
@@ -19061,7 +19119,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                 var changed = false;
 
                 // ── KB ───────────────────────────────────────────────────────
-                text = text.replace(/\[KB_ADD:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (_, cat, triggers, answer) {
+                text = text.replace(/\[KB_ADD:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (match, cat, triggers, answer) {
                     var kb = eitiKBLoad();
                     var newFact = {
                         id: 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -19072,68 +19130,76 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     };
                     kb.push(newFact);
                     eitiKBSave(kb);
+                    if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🧠 KB: добавлено «' + answer.trim().slice(0, 30) + '»');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[KB_EDIT:([^|]+)\|([^\]]+)\]/g, function (_, id, newAnswer) {
+                text = text.replace(/\[KB_EDIT:([^|]+)\|([^\]]+)\]/g, function (match, id, newAnswer) {
                     var kb = eitiKBLoad().map(function (f) {
                         if (f.id === id.trim()) { f.answer = newAnswer.trim(); f.ts = Date.now(); }
                         return f;
                     });
                     eitiKBSave(kb);
+                    if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('✏️ KB: обновлено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[KB_DEL:([^\]]+)\]/g, function (_, id) {
+                text = text.replace(/\[KB_DEL:([^\]]+)\]/g, function (match, id) {
+                    if (!window.confirm('Удалить запись KB: ' + id.trim() + '?')) return match;
                     var kb = eitiKBLoad().filter(function (f) { return f.id !== id.trim(); });
                     eitiKBSave(kb);
+                    if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🗑 KB: удалено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[KB_CLEAR\]/g, function () {
+                text = text.replace(/\[KB_CLEAR\]/g, function (match) {
+                    if (!window.confirm('Очистить всю KB?')) return match;
                     eitiKBSave([]);
+                    if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🗑 KB очищена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── MOSC ─────────────────────────────────────────────────────
-                text = text.replace(/\[MOSC_SET:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (_, word, concept, weight) {
+                text = text.replace(/\[MOSC_SET:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (match, word, concept, weight) {
                     if (!window._moscGraph) window._moscGraph = {};
                     if (!window._moscGraph[word.trim()]) window._moscGraph[word.trim()] = {};
                     window._moscGraph[word.trim()][concept.trim()] = parseFloat(weight) || 0.5;
                     if (typeof moscSaveGraph === 'function') moscSaveGraph(window._moscGraph);
                     typeof showToast === 'function' && showToast('🕸 MOSC: связь добавлена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[MOSC_DEL:([^|]+)\|([^\]]+)\]/g, function (_, word, concept) {
+                text = text.replace(/\[MOSC_DEL:([^|]+)\|([^\]]+)\]/g, function (match, word, concept) {
+                    if (!window.confirm('Удалить MOSC связь: ' + word.trim() + ' → ' + concept.trim() + '?')) return match;
                     if (window._moscGraph && window._moscGraph[word.trim()]) {
                         delete window._moscGraph[word.trim()][concept.trim()];
                         if (typeof moscSaveGraph === 'function') moscSaveGraph(window._moscGraph);
                     }
                     typeof showToast === 'function' && showToast('🕸 MOSC: связь удалена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[MOSC_CLEAR\]/g, function () {
+                text = text.replace(/\[MOSC_CLEAR\]/g, function (match) {
+                    if (!window.confirm('Очистить граф MOSC?')) return match;
                     window._moscGraph = {};
                     if (typeof moscSaveGraph === 'function') moscSaveGraph({});
                     typeof showToast === 'function' && showToast('🗑 MOSC граф очищен');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── Инструкции ───────────────────────────────────────────────
-                text = text.replace(/\[SET_INSTR:([^\]]+)\]/g, function (_, instr) {
+                text = text.replace(/\[SET_INSTR:([^\]]+)\]/g, function (match, instr) {
                     var key = 'eiti_user_instructions';
                     if (instr.startsWith('REPLACE:')) {
                         localStorage.setItem(key, instr.slice(8).trim());
@@ -19147,11 +19213,11 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         typeof showToast === 'function' && showToast('✅ Инструкция добавлена');
                     }
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── EITI Memory v12.0 ────────────────────────────────────────
-                text = text.replace(/\[MEM_ADD(?::([^|\]]+)\|)?([^\]]+)\]/g, function (_, tag, txt) {
+                text = text.replace(/\[MEM_ADD(?::([^|\]]+)\|)?([^\]]+)\]/g, function (match, tag, txt) {
                     if (typeof memSaveEntry === 'function') {
                         memSaveEntry({ text: txt.trim(), tag: (tag||'ai').trim(), source: 'ai' }).then(function(){
                             if (typeof eitiMemRefreshUI === 'function') setTimeout(eitiMemRefreshUI, 300);
@@ -19159,32 +19225,33 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         typeof showToast === 'function' && showToast('\uD83E\uDDE0 Memory: сохранено «' + txt.trim().slice(0, 30) + '»');
                         changed = true;
                     }
-                    return '';
+                    return match;
                 });
 
                 // ── Профиль ──────────────────────────────────────────────────────
-                text = text.replace(/\[SET_PROFILE:([^|]+)\|([^\]]+)\]/g, function (_, field, value) {
+                text = text.replace(/\[SET_PROFILE:([^|]+)\|([^\]]+)\]/g, function (match, field, value) {
                     var key = 'velantrim_profile_v1';
                     var profile; try { profile = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { profile = {}; }
                     profile[field.trim()] = value.trim();
                     localStorage.setItem(key, JSON.stringify(profile));
                     typeof showToast === 'function' && showToast('👤 Профиль: ' + field.trim() + ' обновлено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                // ── Тема / Дизайн ────────────────────────────────────────────
-                text = text.replace(/\[SET_THEME:([^\]]+)\]/g, function (_, themeName) {
+                // ── Тема / Дизайн (только с подтверждением пользователя) ────
+                text = text.replace(/\[SET_THEME:([^\]]+)\]/g, function (match, themeName) {
                     var name = themeName.trim().toLowerCase().replace(/\s+/g, '-');
-                    localStorage.setItem('theme', name);
-                    document.body.className = document.body.className.replace(/theme-\S+/g, '').trim() + ' theme-' + name;
+                    if (!window.confirm('Сменить тему на: ' + name + '?')) return match;
+                    if (typeof setTheme === 'function') setTheme(name);
                     typeof showToast === 'function' && showToast('🎨 Тема: ' + name);
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[SET_DESIGN:([^\]]+)\]/g, function (_, designName) {
+                text = text.replace(/\[SET_DESIGN:([^\]]+)\]/g, function (match, designName) {
                     var name = designName.trim().toLowerCase().replace(/\s+/g, '-');
+                    if (!window.confirm('Сменить дизайн на: ' + name + '?')) return match;
                     var ui; try { ui = JSON.parse(localStorage.getItem('velantrim_messenger_ui_v1') || '{}'); } catch (e) { ui = {}; }
                     ui.design = name;
                     localStorage.setItem('velantrim_messenger_ui_v1', JSON.stringify(ui));
@@ -19194,10 +19261,10 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     document.body.classList.add('design-' + name);
                     typeof showToast === 'function' && showToast('🎨 Дизайн: ' + name);
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[SET_WALLPAPER:([^\]]+)\]/g, function (_, wpName) {
+                text = text.replace(/\[SET_WALLPAPER:([^\]]+)\]/g, function (match, wpName) {
                     var name = wpName.trim();
                     setUIState({ wallpaper: name });
                     var msgsEl = document.getElementById('messages');
@@ -19205,7 +19272,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         msgsEl.className = msgsEl.className.replace(/wallpaper-\S+/g, '').trim() + ' wallpaper-' + name;
                     }
                     typeof showToast === 'function' && showToast('🖼️ Обои: ' + name);
-                    return '';
+                    return match;
                 });
 
                 // Остаток передаём в оригинальный обработчик
