@@ -4,9 +4,9 @@
   "short_name": "EITI",
   "description": "Персональная система знаний и AI-ассистент",
   "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#0b0b0e",
-  "theme_color": "#2b1e16",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait-primary",
   "scope": "./",
   "icons": [
