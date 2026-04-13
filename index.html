@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#2b1e16">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -988,12 +988,15 @@
             display: flex;
             flex-direction: column;
             height: 100%;
+            min-height: 0; /* CRITICAL: prevents flex overflow on Firefox/Android */
             background: var(--panel-bg);
         }
-        
+
         .chat-messages {
             flex: 1;
+            min-height: 0; /* CRITICAL */
             padding: 10px 8px;
+            padding-bottom: 80px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -1055,6 +1058,9 @@
             padding: 10px;
             display: flex;
             gap: 8px;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
         }
         
         .chat-input {
@@ -2630,6 +2636,48 @@
 
                         </div>
                     </div>
+                    <!-- 🗂 IMPORT / EXPORT ALL + AI CHECK + L5 OBSERVER + BACKUP -->
+                    <div class="settings-group">
+                        <div class="settings-title">🗂 Импорт / Экспорт + AI Check</div>
+                        <div style="padding:14px;display:flex;flex-direction:column;gap:14px;">
+
+                            <!-- Export / Import All -->
+                            <div>
+                                <div style="font-size:12px;opacity:0.7;margin-bottom:6px;">Единый пакет: KB · MOSC · VB · FL · настройки</div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button onclick="eitiExportAll()" class="settings-btn">📦 Экспорт всего</button>
+                                    <button onclick="eitiImportAllClick()" class="settings-btn">📥 Импорт всего</button>
+                                </div>
+                                <input type="file" id="eiti-import-all-file" accept=".json" style="display:none;" onchange="eitiImportAllFile(this)">
+                            </div>
+
+                            <!-- AI Check -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;">
+                                <div style="font-size:12px;opacity:0.7;margin-bottom:6px;">Проверка KB · MOSC · VB — только предлагает, не меняет без подтверждения</div>
+                                <button onclick="eitiAICheck()" class="settings-btn">🧠 AI Check</button>
+                                <div id="eiti-ai-check-result" style="display:none;margin-top:8px;font-size:12px;background:var(--panel-bg);border-radius:8px;padding:8px;line-height:1.5;"></div>
+                            </div>
+
+                            <!-- L5 Observer -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;">
+                                <div style="font-size:12px;opacity:0.7;margin-bottom:6px;">L5 Observer — мониторинг KB / graph / tags без авто-изменений</div>
+                                <button onclick="eitiObserverRun()" class="settings-btn">🔍 Scan now</button>
+                                <div id="eiti-observer-report" style="display:none;margin-top:8px;font-size:11px;white-space:pre-wrap;background:var(--panel-bg);border-radius:6px;padding:6px;max-height:160px;overflow-y:auto;"></div>
+                            </div>
+
+                            <!-- Backup -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;">
+                                <div style="font-size:12px;opacity:0.7;margin-bottom:6px;">Backup (IndexedDB) — сохранить / восстановить состояние</div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button onclick="eitiSaveBackup()" class="settings-btn">💾 Создать</button>
+                                    <button onclick="eitiRestoreBackup()" class="settings-btn">♻️ Восстановить</button>
+                                    <button onclick="eitiDeleteBackup()" class="settings-btn">🗑 Удалить</button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
                     <div class="settings-group">
                         <div class="settings-title">🧬 Профиль — О себе</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
@@ -5330,6 +5378,9 @@
                 document.body.classList.add('design-' + d);
                 if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
             }
+            // L5 Observer auto-scan on page resume
+            if (window.EITI_OBSERVER && window.EITI_OBSERVER.enabled)
+                setTimeout(eitiObserverRunThrottled, 3000);
         });
 
         // File Manager
@@ -6337,7 +6388,7 @@
 
         function eitiInit() {
             return new Promise(function(resolve, reject) {
-                var req = indexedDB.open('eiti_v4', 10); // v11.8 FIX: bump версии → onupgradeneeded создаст objectStore 'lemma' у существующих пользователей
+                var req = indexedDB.open('eiti_v4', 11); // v5.3: добавлен object store 'backups' для резервных копий
                 req.onerror = function() { reject(req.error); };
                 req.onsuccess = function() { eitiDb = req.result; window.eitiDb = eitiDb;
                     if (navigator.storage && navigator.storage.persist) {
@@ -6394,6 +6445,9 @@
                         var mem = db.createObjectStore('memory', { keyPath: 'id' });
                         mem.createIndex('created', 'created');
                         mem.createIndex('tag', 'tag');
+                    }
+                    if (!db.objectStoreNames.contains('backups')) { // v5.3: KB/MOSC backup store
+                        db.createObjectStore('backups', { keyPath: 'id' });
                     }
                     } catch(upgradeErr) { console.warn('[EITI] onupgradeneeded error:', upgradeErr); }
                 };
@@ -8868,6 +8922,217 @@
             });
         }
 
+        // ══ KB SCHEMA v5 ══════════════════════════════════════════════════════════
+
+        var KB_ALLOWED_CATEGORIES = [
+            "geography","biology","astronomy","physics","chemistry",
+            "math","science","psychology","philosophy","communication",
+            "time","history","tech","general"
+        ];
+
+        function normalizeCategory(cat) {
+            if (!cat) return "general";
+            cat = cat.toLowerCase().trim();
+            if (cat.startsWith("geo"))   return "geography";
+            if (cat.startsWith("bio"))   return "biology";
+            if (cat.startsWith("astro")) return "astronomy";
+            if (cat.startsWith("phys"))  return "physics";
+            if (cat.startsWith("chem"))  return "chemistry";
+            if (cat.startsWith("math"))  return "math";
+            if (cat.startsWith("psych")) return "psychology";
+            if (cat.startsWith("phil"))  return "philosophy";
+            if (cat.startsWith("comm"))  return "communication";
+            if (cat.startsWith("time"))  return "time";
+            if (cat === "other")         return "general";
+            if (!KB_ALLOWED_CATEGORIES.includes(cat)) return "general";
+            return cat;
+        }
+
+        function extractTagFromRawCat(raw) {
+            if (!raw) return null;
+            var sep = raw.indexOf('_');
+            if (sep === -1) sep = raw.indexOf('-');
+            if (sep !== -1) { var suffix = raw.slice(sep + 1).trim(); if (suffix.length > 0) return suffix; }
+            return null;
+        }
+
+        function normalizeTag(tag) {
+            return String(tag || '').toLowerCase().trim()
+                .replace(/\s+/g, '_').replace(/[^a-z0-9_а-яёА-ЯЁ-]/gi, '');
+        }
+
+        function cleanTags(tags) {
+            if (!Array.isArray(tags)) return [];
+            var out = [], seen = {};
+            tags.forEach(function(t) {
+                var nt = normalizeTag(t);
+                if (nt && !seen[nt]) { seen[nt] = true; out.push(nt); }
+            });
+            return out.slice(0, 5);
+        }
+
+        function normalizeFact(f) {
+            if (!f) return f;
+            f.category = normalizeCategory(f.category);
+            f.tags = cleanTags(f.tags);
+            return f;
+        }
+
+        function validateGraphLinks(facts) {
+            var ids = {};
+            facts.forEach(function(f) { if (f.id) ids[f.id] = true; });
+            facts.forEach(function(f) {
+                if (!f.graph) return;
+                ['mosc','fl','vb'].forEach(function(type) {
+                    if (!Array.isArray(f.graph[type])) return;
+                    f.graph[type] = f.graph[type].filter(function(ref) { return !!ids[ref]; });
+                });
+            });
+            return facts;
+        }
+
+        // ── Global logging ───────────────────────────────────────────────────────
+        window.EITI_LOGS = [];
+        function eitiLog(type, message, data) {
+            var entry = { time: new Date().toISOString(), type: type, message: message, data: data || null };
+            window.EITI_LOGS.push(entry);
+            if (window.EITI_LOGS.length > 200) window.EITI_LOGS.shift();
+            console.warn('[EITI]', type, message, data || '');
+        }
+
+        // ── L5 Observer ──────────────────────────────────────────────────────────
+        window.EITI_OBSERVER = { enabled: true, lastScan: null, issues: [], stats: {} };
+        var _observerLastRun = 0;
+
+        function validateGraphDeep(facts, issues) {
+            var ids = {};
+            facts.forEach(function(f) { if (f.id) ids[f.id] = true; });
+            facts.forEach(function(f, i) {
+                if (!f.graph) return;
+                ['mosc','fl','vb'].forEach(function(type) {
+                    if (!Array.isArray(f.graph[type])) return;
+                    f.graph[type].forEach(function(ref) {
+                        if (!ref) issues.push('KB['+i+']: пустая graph-ссылка ('+type+')');
+                        else if (!ids[ref]) issues.push('Broken graph ref «'+ref+'» ('+type+') KB['+i+']');
+                    });
+                });
+                var hasLinks = (f.graph.mosc && f.graph.mosc.length) ||
+                               (f.graph.fl && f.graph.fl.length) ||
+                               (f.graph.vb && f.graph.vb.length);
+                if (f.graph && !hasLinks) issues.push('Orphan graph node KB['+i+']');
+            });
+        }
+
+        function eitiObserverScan() {
+            var issues = [];
+            var facts = [];
+            try { facts = eitiKBLoad() || []; } catch(e) {}
+            var triggersSeen = {};
+            facts.forEach(function(f, i) {
+                if (!f) return;
+                if (!f.category) issues.push('KB['+i+']: пустая категория');
+                if (f.category === 'other') issues.push('KB['+i+']: category=other');
+                if (typeof f.category === 'string' && /^(geo|bio|astro)_/i.test(f.category))
+                    issues.push('KB['+i+']: подкатегория: '+f.category);
+                if (!Array.isArray(f.tags)) issues.push('KB['+i+']: tags не массив');
+                else if (f.tags.length > 5) issues.push('KB['+i+']: слишком много тегов ('+f.tags.length+')');
+                if (!f.text && !f.answer) issues.push('KB['+i+']: пустой answer');
+                (f.triggers||[]).forEach(function(t) {
+                    var key = String(t).toLowerCase();
+                    if (triggersSeen[key]) issues.push('KB['+i+']: дубль триггера «'+t+'»');
+                    else triggersSeen[key] = true;
+                });
+            });
+            validateGraphDeep(facts, issues);
+            (window.EITI_LOGS||[]).slice(-10).forEach(function(l) {
+                if (l.type.indexOf('error') !== -1) issues.push('LOG: '+l.message);
+            });
+            if (!localStorage.getItem('eiti_backup_pre_import'))
+                issues.push('⚠️ Нет резервной копии — рекомендуется создать backup');
+            window.EITI_OBSERVER.issues = issues;
+            window.EITI_OBSERVER.lastScan = new Date().toISOString();
+            window.EITI_OBSERVER.stats = { facts: facts.length, issues: issues.length };
+            return issues;
+        }
+
+        function eitiObserverRun() {
+            var issues = eitiObserverScan();
+            var box = document.getElementById('eiti-observer-report');
+            if (!box) return;
+            box.style.display = 'block';
+            if (!issues.length) {
+                box.textContent = '✅ No issues (' + (window.EITI_OBSERVER.stats.facts||0) + ' фактов)';
+                return;
+            }
+            box.textContent = '⚠️ ' + issues.length + ' issues:\n' + issues.slice(0,20).join('\n') +
+                (issues.length > 20 ? '\n… +' + (issues.length-20) + ' ещё' : '');
+        }
+
+        function eitiObserverRunThrottled() {
+            var now = Date.now();
+            if (now - _observerLastRun < 1500) return;
+            _observerLastRun = now;
+            eitiObserverRun();
+        }
+
+        // ── IDB Backup ───────────────────────────────────────────────────────────
+        function eitiSaveBackup() {
+            return new Promise(function(resolve) {
+                try {
+                    var backup = {
+                        id: 'latest', time: new Date().toISOString(),
+                        kb: eitiKBLoad(), mosc: window._moscGraph || {},
+                        settings: (function() {
+                            var s = {};
+                            for (var i = 0; i < localStorage.length; i++) {
+                                var k = localStorage.key(i); s[k] = localStorage.getItem(k);
+                            }
+                            return s;
+                        })()
+                    };
+                    // localStorage fallback always written first
+                    try { localStorage.setItem('eiti_backup_pre_import', JSON.stringify({kb:backup.kb,mosc:backup.mosc})); } catch(ex) {}
+                    if (!eitiDb) throw new Error('IDB not ready');
+                    var tx = eitiDb.transaction('backups', 'readwrite');
+                    tx.objectStore('backups').put(backup);
+                    tx.oncomplete = function() { showToast('💾 Backup сохранён'); resolve(); };
+                    tx.onerror = function(ev) { eitiLog('backup_error','IDB backup failed',ev); resolve(); };
+                } catch(e) { eitiLog('backup_error','Backup exception',e); resolve(); }
+            });
+        }
+
+        function eitiRestoreBackup() {
+            if (!eitiDb) { showToast('⚠️ IDB не готова'); return; }
+            try {
+                var req = eitiDb.transaction('backups','readonly').objectStore('backups').get('latest');
+                req.onsuccess = function(e) {
+                    var b = e.target.result;
+                    if (!b) { showToast('⚠️ Backup не найден'); return; }
+                    try {
+                        if (b.kb) eitiKBSave(b.kb);
+                        if (b.mosc && typeof moscSaveGraph === 'function') moscSaveGraph(b.mosc);
+                        if (b.settings) Object.keys(b.settings).forEach(function(k) {
+                            try { localStorage.setItem(k, b.settings[k]); } catch(ex) {}
+                        });
+                        requestAnimationFrame(eitiKBRenderStats);
+                        showToast('♻️ Backup восстановлен');
+                    } catch(err) { eitiLog('restore_error','Restore failed',err); showToast('❌ Ошибка'); }
+                };
+                req.onerror = function(ev) { eitiLog('restore_error','IDB read failed',ev); };
+            } catch(e) { eitiLog('restore_error','Exception',e); }
+        }
+
+        function eitiDeleteBackup() {
+            if (!eitiDb) return;
+            try {
+                var tx = eitiDb.transaction('backups','readwrite');
+                tx.objectStore('backups').delete('latest');
+                tx.oncomplete = function() { showToast('🗑 Backup удалён'); };
+            } catch(e) { eitiLog('backup_error','Delete failed',e); }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+
         // Синхронный доступ (через кеш) — для обратной совместимости
         function eitiKBLoad() {
             return _kbMemCache !== null ? _kbMemCache : EITI_KB_DEFAULTS.slice();
@@ -8906,12 +9171,36 @@
             setTimeout(function(){
                 if (typeof eitiKBRenderStats === 'function') eitiKBRenderStats();
             }, 200);
+            // L5 Observer throttled auto-scan
+            if (window.EITI_OBSERVER && window.EITI_OBSERVER.enabled)
+                requestAnimationFrame(eitiObserverRunThrottled);
         }
 
         // Инициализация KB — вызывается после eitiInit() в boot
         function eitiKBInit() {
             return eitiKBLoadAsync();
         }
+
+        // ── KB Schema Migration (one-time, runs after IDB load settles) ──────────
+        (function migrateKBSchema() {
+            setTimeout(function() {
+                var facts = eitiKBLoad();
+                var changed = false;
+                facts.forEach(function(f) {
+                    if (!Array.isArray(f.tags)) { f.tags = []; changed = true; }
+                    var rawCat = f.category || 'other';
+                    var norm = normalizeCategory(rawCat);
+                    if (norm !== rawCat) {
+                        var subTag = extractTagFromRawCat(rawCat);
+                        if (subTag && !f.tags.includes(subTag)) { f.tags.push(subTag); }
+                        f.category = norm;
+                        changed = true;
+                    }
+                    f.tags = cleanTags(f.tags);
+                });
+                if (changed) eitiKBSave(facts);
+            }, 2500);
+        })();
 
         // Строим EITI_KB в формате [{re, a}] для интент-роутера из динамической KB
         function eitiKBGetActive() {
@@ -13980,7 +14269,7 @@ window.eitiClearAllModelCache = async function() {
                 var triggers = trigs.split(',').map(function(t){ return t.trim().toLowerCase(); }).filter(Boolean);
                 if (!triggers.length || !ans.trim()) return;
                 var newId = 'kb_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-                facts.push({ id: newId, triggers: triggers, answer: ans.trim(), category: cat.trim().toLowerCase() || 'other', ts: Date.now() });
+                facts.push(normalizeFact({ id: newId, triggers: triggers, answer: ans.trim(), category: cat, tags: [], ts: Date.now() }));
                 eitiKBSave(facts);
                 _kbChanged = true;
                 showToast('🧠 KB: добавлен факт «' + triggers[0] + '»');
@@ -14398,7 +14687,7 @@ window.eitiClearAllModelCache = async function() {
                 var ts = Date.now();
                 p.kb.forEach(function(f, i) {
                     if (!f.triggers || !f.answer) return;
-                    facts.push({ id: 'kb_analyze_' + ts + '_' + i, triggers: f.triggers, answer: f.answer, category: f.category || 'other', ts: ts, source: 'chat_analysis' });
+                    facts.push(normalizeFact({ id: 'kb_analyze_' + ts + '_' + i, triggers: f.triggers, answer: f.answer, category: f.category, tags: Array.isArray(f.tags)?f.tags:[], ts: ts, source: 'chat_analysis' }));
                 });
                 eitiKBSave(facts);
                 if (typeof _kbActiveCache !== 'undefined') window._kbActiveCache = null;
@@ -14821,7 +15110,7 @@ window.eitiClearAllModelCache = async function() {
             facts.forEach(function(f){ _prevManualCats[f.category||'other']=1; });
             var _prevManualCatCnt = Object.keys(_prevManualCats).length;
             var _prevManualFactCnt = facts.length;
-            facts.push({ id:'kb_u'+Date.now(), triggers:triggers, answer:ans.trim(), category:cat.trim()||'other', ts: Date.now() });
+            facts.push(normalizeFact({ id:'kb_u'+Date.now(), triggers:triggers, answer:ans.trim(), category:cat, tags:[], ts: Date.now() }));
             eitiKBSave(facts);
             var _newManualCats = {};
             eitiKBLoad().forEach(function(f){ _newManualCats[f.category||'other']=1; });
@@ -14831,6 +15120,170 @@ window.eitiClearAllModelCache = async function() {
             ['eiti-kb-add-triggers','eiti-kb-add-answer'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
             eitiKBRenderStats();
         }
+
+        // ── Export / Import All (v5) ─────────────────────────────────────────────
+        function eitiExportAll() {
+            var payload = {
+                version: 'eiti.v5',
+                exported: new Date().toISOString(),
+                kb: { version: '1.0', facts: eitiKBLoad() },
+                mosc: { version: 'mosc.v1', graph: window._moscGraph || {} },
+                vb: { version: '11.5', patterns: (typeof _vbIntentPatterns !== 'undefined' ? _vbIntentPatterns : []).map(function(p) {
+                    return { intent: p.intent, pattern: p.re.source };
+                })},
+                fl: (typeof eitiGetRetrievalConfig === 'function' ? eitiGetRetrievalConfig() : {}),
+                settings: (function() {
+                    var keys = ['eiti_theme','eiti_design','eiti_wallpaper','eiti_instr',
+                                'eiti_profile','eiti_vb_enabled','eiti_retrieval_cfg'];
+                    var s = {};
+                    keys.forEach(function(k) { var v = localStorage.getItem(k); if (v !== null) s[k] = v; });
+                    return s;
+                })()
+            };
+            _dlBlob(JSON.stringify(payload, null, 2),
+                    'velantrim_eiti_' + new Date().toISOString().slice(0,10) + '.json',
+                    'application/json');
+            showToast('📦 Экспортировано всё');
+        }
+
+        function eitiImportAllClick() {
+            document.getElementById('eiti-import-all-file').click();
+        }
+
+        function eitiImportAllFile(input) {
+            var file = input.files[0];
+            if (!file) return;
+            // Async backup before import
+            eitiSaveBackup().then(function() {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var d;
+                    try { d = JSON.parse(e.target.result); } catch(err) {
+                        showToast('❌ Неверный JSON: ' + err.message); return;
+                    }
+                    if (!d || typeof d !== 'object' || !d.kb) {
+                        showToast('❌ Неверный формат — нужен пакет eiti.v5'); return;
+                    }
+                    eitiLog('import', 'Import started');
+                    var report = [];
+
+                    // KB
+                    try {
+                        if (d.kb && Array.isArray(d.kb.facts)) {
+                            var facts = d.kb.facts.map(function(f) { return normalizeFact(f); });
+                            facts = validateGraphLinks(facts);
+                            eitiKBSave(facts);
+                            report.push('KB: ' + facts.length + ' фактов');
+                        }
+                    } catch(ex) { eitiLog('import_error','KB section failed',ex); showToast('⚠️ KB: ' + ex.message); }
+
+                    // MOSC
+                    try {
+                        if (d.mosc && d.mosc.graph && typeof d.mosc.graph === 'object') {
+                            moscSaveGraph(d.mosc.graph);
+                            report.push('MOSC: ' + Object.keys(d.mosc.graph).length + ' узлов');
+                        }
+                    } catch(ex) { eitiLog('import_error','MOSC section failed',ex); }
+
+                    // VB
+                    try {
+                        if (d.vb && Array.isArray(d.vb.patterns)) {
+                            if (typeof _vbIntentPatterns !== 'undefined') {
+                                _vbIntentPatterns = d.vb.patterns.map(function(p) {
+                                    return { intent: p.intent, re: new RegExp(p.pattern, 'i') };
+                                });
+                                localStorage.setItem('eiti_vb_patterns', JSON.stringify(d.vb.patterns));
+                            }
+                            report.push('VB: ' + d.vb.patterns.length + ' паттернов');
+                        }
+                    } catch(ex) { eitiLog('import_error','VB section failed',ex); }
+
+                    // FL
+                    try {
+                        if (d.fl && typeof d.fl === 'object') {
+                            localStorage.setItem('eiti_retrieval_cfg', JSON.stringify(d.fl));
+                            report.push('FL: конфиг');
+                        }
+                    } catch(ex) { eitiLog('import_error','FL section failed',ex); }
+
+                    // Settings
+                    try {
+                        if (d.settings && typeof d.settings === 'object') {
+                            Object.keys(d.settings).forEach(function(k) {
+                                try { localStorage.setItem(k, d.settings[k]); } catch(ex2) {}
+                            });
+                            report.push('Настройки');
+                        }
+                    } catch(ex) { eitiLog('import_error','Settings section failed',ex); }
+
+                    // Reindex
+                    if (typeof _kbActiveCache !== 'undefined') window._kbActiveCache = null;
+                    if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
+                    if (typeof moscRenderStats === 'function') requestAnimationFrame(moscRenderStats);
+                    if (typeof eitiVBRenderStats === 'function') requestAnimationFrame(eitiVBRenderStats);
+                    if (window.EITI_OBSERVER && window.EITI_OBSERVER.enabled)
+                        requestAnimationFrame(eitiObserverRunThrottled);
+
+                    showToast('📥 Импортировано: ' + report.join(' · '));
+                };
+                reader.readAsText(file);
+                input.value = '';
+            });
+        }
+
+        // ── AI Check ─────────────────────────────────────────────────────────────
+        function eitiAICheck() {
+            var obsIssues = eitiObserverScan();
+            var facts = eitiKBLoad();
+            var issues = obsIssues.slice();
+            var triggerSet = {};
+            facts.forEach(function(f) {
+                if (!f.answer || !f.answer.trim())
+                    issues.push('⚠️ Пустой ответ: ' + (f.triggers||['?'])[0]);
+                if (!Array.isArray(f.tags) || f.tags.length === 0)
+                    issues.push('🏷 Нет тегов: ' + (f.triggers||['?'])[0]);
+                (f.triggers||[]).forEach(function(t) {
+                    var key = t.toLowerCase();
+                    if (triggerSet[key]) issues.push('🔁 Дубль: «' + t + '»');
+                    else triggerSet[key] = true;
+                });
+            });
+            // Deduplicate
+            var seen = {}, uniq = [];
+            issues.forEach(function(i) { if (!seen[i]) { seen[i]=true; uniq.push(i); } });
+            issues = uniq;
+
+            var result = document.getElementById('eiti-ai-check-result');
+            if (!result) return;
+            result.style.display = 'block';
+            if (!issues.length) {
+                result.innerHTML = '✅ Проблем не найдено (' + facts.length + ' фактов)';
+                showToast('✅ AI Check: всё чисто');
+                return;
+            }
+            var preview = issues.slice(0,10).map(function(s){return s.replace(/</g,'&lt;');}).join('<br>');
+            if (issues.length > 10) preview += '<br>… и ещё ' + (issues.length-10);
+            result.innerHTML = '<b>' + issues.length + ' проблем:</b><br>' + preview +
+                '<br><br><button onclick="eitiAICheckSendToChat(this)" data-issues="' +
+                encodeURIComponent(JSON.stringify(issues.slice(0,20))) +
+                '" style="margin-top:4px;padding:4px 10px;border-radius:6px;' +
+                'background:var(--accent-color);color:#fff;border:none;cursor:pointer;font-size:12px;">' +
+                '🧠 Отправить AI</button>';
+            showToast('🔍 AI Check: ' + issues.length + ' проблем');
+        }
+
+        function eitiAICheckSendToChat(btn) {
+            var issues;
+            try { issues = JSON.parse(decodeURIComponent(btn.dataset.issues)); } catch(e) { return; }
+            var summary = 'AI Check обнаружил проблемы в KB:\n' + issues.join('\n') +
+                '\n\nПроанализируй и предложи конкретные исправления. Ничего не меняй автоматически.';
+            var inp = document.getElementById('input');
+            if (inp) { inp.value = summary; inp.dispatchEvent(new Event('input')); }
+            var chatTab = document.querySelector('[data-view="chat"]');
+            if (chatTab) chatTab.click();
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
 
         function eitiKBExport() {
             var raw = JSON.stringify({version:'1.0',updated:new Date().toISOString(),facts:eitiKBLoad()}, null, 2);
@@ -15238,7 +15691,7 @@ window.eitiClearAllModelCache = async function() {
                 var added = 0;
                 arr.forEach(function(f,i){
                     if (f.triggers && f.answer) {
-                        facts.push({ id:'kb_ai'+Date.now()+'_'+i, triggers: f.triggers.map(function(t){return t.toLowerCase();}), answer:f.answer, category:f.category||cat, ts: Date.now() });
+                        facts.push(normalizeFact({ id:'kb_ai'+Date.now()+'_'+i, triggers: f.triggers.map(function(t){return t.toLowerCase();}), answer:f.answer, category:f.category||cat, tags: Array.isArray(f.tags)?f.tags:[], ts: Date.now() }));
                         added++;
                     }
                 });
@@ -17353,17 +17806,26 @@ window.eitiClearAllModelCache = async function() {
         // 🧠 MOSC глобальные утилиты (настройки, экспорт)
         // ═══════════════════════════════════════════════
         function moscExport() {
-            if (!eitiDb) { showToast('IDB не готова'); return; }
+            var _doExport = function(graph) {
+                var json = JSON.stringify({ version: 'mosc.v1', exported: new Date().toISOString(), graph: graph }, null, 2);
+                _dlBlob(json, 'mosc_graph_' + new Date().toISOString().slice(0,10) + '.json', 'application/json');
+                showToast('📤 MOSC граф экспортирован');
+            };
+            if (!eitiDb) { _doExport(window._moscGraph || {}); return; }
             try {
                 var tx = eitiDb.transaction('reasoning', 'readonly');
                 var req = tx.objectStore('reasoning').get('graph');
                 req.onsuccess = function() {
-                    var graph = req.result ? req.result.data : (window._moscGraph || {});
-                    var json = JSON.stringify({ version: 'mosc.v1', exported: new Date().toISOString(), graph: graph }, null, 2);
-                    _dlBlob(json, 'mosc_graph_' + new Date().toISOString().slice(0,10) + '.json', 'application/json');
-                    showToast('📤 MOSC граф экспортирован');
+                    _doExport(req.result ? req.result.data : (window._moscGraph || {}));
                 };
-            } catch(e) { showToast('❌ Ошибка: ' + e.message); }
+                req.onerror = function() {
+                    eitiLog('mosc_export_error', 'Export IDB read failed, using cache');
+                    _doExport(window._moscGraph || {});
+                };
+            } catch(e) {
+                eitiLog('mosc_export_error', 'Export exception: ' + e.message);
+                _doExport(window._moscGraph || {});
+            }
         }
 
         function moscReset() {
@@ -19121,13 +19583,14 @@ window.eitiApplyDesignTheme = function(theme, design) {
                 // ── KB ───────────────────────────────────────────────────────
                 text = text.replace(/\[KB_ADD:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (match, cat, triggers, answer) {
                     var kb = eitiKBLoad();
-                    var newFact = {
+                    var newFact = normalizeFact({
                         id: 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-                        category: cat.trim(),
+                        category: cat,
                         triggers: triggers.split(',').map(function (t) { return t.trim(); }),
                         answer: answer.trim(),
+                        tags: [],
                         ts: Date.now()
-                    };
+                    });
                     kb.push(newFact);
                     eitiKBSave(kb);
                     if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
