@@ -3648,6 +3648,11 @@
         const CHAT_STORAGE_KEY = 'velantrim_messenger_chat_v73';
         const AITEXT_STORAGE_KEY = 'velantrim_messenger_aitext_v1';
         var APP_VERSION = 'v' + EITI_VERSION;
+        // Сессионный кэш ключей API — живёт только в памяти текущей страницы.
+        // При перезагрузке сбрасывается. Использовать как первичный источник в API-вызовах.
+        var _sessionDsKey = '';
+        var _sessionGmKey = '';
+
         function _obfKey(s) {
             // Простая XOR-обфускация — не шифрование, но защита от случайного чтения
             return btoa(s.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join(''));
@@ -3657,6 +3662,25 @@
                 var dec = atob(s);
                 return dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
             } catch(e) { return s; }
+        }
+        // Получить DeepSeek-ключ: сначала из сессионного кэша, затем из localStorage.
+        function _getDsKey() {
+            if (_sessionDsKey) return _sessionDsKey;
+            var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            if (k) _sessionDsKey = k;
+            return k;
+        }
+        // Получить Gemini-ключ: сначала из сессионного кэша, затем из localStorage.
+        function _getGmKey() {
+            if (_sessionGmKey) return _sessionGmKey;
+            var k = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+            if (k) _sessionGmKey = k;
+            return k;
+        }
+        // Сохранить ключи в сессионный кэш и localStorage (обфусцированно).
+        function _saveKeys(dsKey, gmKey) {
+            if (dsKey) { _sessionDsKey = dsKey; localStorage.setItem('deepseek_api_key', _obfKey(dsKey)); }
+            if (gmKey) { _sessionGmKey = gmKey; localStorage.setItem('eiti_gemini_key', _obfKey(gmKey)); }
         }
         const UI_STORAGE_KEY = 'velantrim_messenger_ui_v1';
         var NOTES_KEY = 'velantrim_notes_v1';
@@ -6136,7 +6160,7 @@
             var provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
             maxTok = maxTok || 2000;
             if (provider === 'gemini') {
-                var gk = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk = _getGmKey();
                 if (!gk) return Promise.reject(new Error('Нет ключа Gemini'));
                 var parts = [];
                 if (systemPrompt) parts.push({ text: systemPrompt + '\n\n' + userPrompt });
@@ -6150,7 +6174,7 @@
                     return txt;
                 });
             } else {
-                var dk = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var dk = _getDsKey();
                 if (!dk) return Promise.reject(new Error('Нет ключа DeepSeek'));
                 var msgs = [];
                 if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
@@ -7049,8 +7073,7 @@
             var gmKeyEl = document.getElementById('gemini-key');
             var dsKey = dsKeyEl ? dsKeyEl.value.trim() : '';
             var gmKey = gmKeyEl ? gmKeyEl.value.trim() : '';
-            if (dsKey) localStorage.setItem('deepseek_api_key', _obfKey(dsKey));
-            if (gmKey) localStorage.setItem('eiti_gemini_key', _obfKey(gmKey));
+            _saveKeys(dsKey, gmKey);
             if (!silent) showToast(p === 'gemini' ? '⚡ Gemini активирован' : '🤖 DeepSeek активирован');
         }
 
@@ -7061,11 +7084,10 @@
             var gmKeyEl = document.getElementById('gemini-key');
             var dsKey = dsKeyEl ? dsKeyEl.value.trim() : '';
             var gmKey = gmKeyEl ? gmKeyEl.value.trim() : '';
-            if (dsKey) localStorage.setItem('deepseek_api_key', _obfKey(dsKey));
-            if (gmKey) localStorage.setItem('eiti_gemini_key', _obfKey(gmKey));
+            _saveKeys(dsKey, gmKey);
             status.innerHTML = '⏳ Проверяю...';
             if (provider === 'gemini') {
-                var gk = gmKey || _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk = gmKey || _getGmKey();
                 if (!gk) { status.innerHTML = '<span style="color:#f66">⚠️ Введите Gemini ключ</span>'; return; }
                 fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + gk, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7075,7 +7097,7 @@
                     else { status.innerHTML = '<span style="color:#f66">❌ HTTP ' + r.status + '</span>'; }
                 }).catch(function(e) { status.innerHTML = '<span style="color:#f66">❌ ' + String(e.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'; });
             } else {
-                var dk = dsKey || _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var dk = dsKey || _getDsKey();
                 if (!dk) { status.innerHTML = '<span style="color:#f66">⚠️ Введите ключ DeepSeek</span>'; return; }
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
@@ -7091,8 +7113,8 @@
         async function eitiAskDeepSeek(userText) {
             return new Promise(function(resolve, reject) {
                 var _provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
-                var _geminiKey = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var key = _getDsKey();
+                var _geminiKey = _getGmKey();
                 if (_provider === 'gemini' && !_geminiKey) { resolve('⚠️ Настройте Google Gemini API ключ в Настройки → ⚡ Google Gemini'); return; }
                 if (_provider !== 'gemini' && !key) { resolve('⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
 
@@ -7374,7 +7396,7 @@
                     // ── EMBEDDINGS через DeepSeek API (если KB ≥ 80 фактов) ─
                     // При большом KB дополнительно запрашиваем embeddings для семантического ранжирования
                     // Результат кешируется в sessionStorage на 5 минут
-                    var _dsKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                    var _dsKey = _getDsKey();
                     var _dsOnline = localStorage.getItem('eiti_offline_mode') !== '1';
                     if (_kbAll.length >= 80 && _dsOnline && _dsKey && _relFacts.length > 0) {
                         // Запускаем embeddings асинхронно — не блокируем текущий запрос
@@ -7985,7 +8007,7 @@
             _l2ConsolidateTimer = setTimeout(function() {
             eitiGetMessages(chatId).then(function(msgs) {
                 if (msgs.length < 3) return; // слишком мало для дайджеста
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var key = _getDsKey();
                 if (!key) return;
                 showToast('🧠 Сохраняю память сессии…'); // v9.15fix: индикатор фонового вызова
                 // Берём последние 15 сообщений для консолидации
@@ -9388,7 +9410,7 @@
             }
 
             function eitiAIAnalyzeWeights() {
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var key = _getDsKey();
                 if (!key) { if (typeof showToast === 'function') showToast('⚠️ Нужен DeepSeek API ключ'); return; }
                 var ta = document.getElementById('fl-weights-textarea');
                 var aiRes = document.getElementById('fl-weights-ai-result');
@@ -13094,10 +13116,10 @@ window.eitiClearAllModelCache = async function() {
         document.addEventListener('click', function(e) {
             var tab = e.target.closest('.tab-item[data-view="settings"]');
             if (tab) {
-                var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var k = _getDsKey();
                 var el = document.getElementById('deepseek-key');
                 if (k && el) el.value = k;
-                var gk2 = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk2 = _getGmKey();
                 var gmEl = document.getElementById('gemini-key');
                 if (gk2 && gmEl) gmEl.value = gk2;
                 if (typeof eitiSetProvider === 'function') eitiSetProvider(localStorage.getItem('eiti_ai_provider') || 'deepseek', true); // silent=true: не показывать тост при открытии настроек
@@ -13183,7 +13205,7 @@ window.eitiClearAllModelCache = async function() {
             }).then(function() {
             // KB loaded into _kbMemCache — ready for sync calls
             eitiPatchSendButton();eitiUpdateFileCount();
-                var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var k = _getDsKey();
                 var el = document.getElementById('deepseek-key');
                 if (k && el) el.value = k;
                 // console.log('EITI ready')
@@ -14159,29 +14181,11 @@ window.eitiClearAllModelCache = async function() {
 
         function eitiProcessCommands(reply) {
             if (!reply) return;
-            var _jsExecMatches = [];
-            reply.replace(/\[JS_EXEC:\s*([\s\S]*?)\]/g, function(_, code) {
-                _jsExecMatches.push(code.trim());
-            });
-            if (_jsExecMatches.length > 0) {
-                _jsExecMatches.forEach(function(code) {
-                    var preview = code.length > 200 ? code.slice(0, 200) + '…' : code;
-                    setTimeout(function() {
-                        eitiConfirm('🤖 DeepSeek предлагает выполнить код:\n\n' + preview + '\n\nВыполнить?',
-                            function() { // ОК
-                                try {
-                                    var result = eval(code); // eslint-disable-line no-eval
-                                    showToast('✅ JS_EXEC выполнен' + (result !== undefined ? ': ' + String(result).slice(0,80) : ''));
-                                } catch(e) {
-                                    showToast('❌ JS_EXEC ошибка: ' + e.message);
-                                    console.error('[EITI JS_EXEC]', e);
-                                }
-                            },
-                            function() { showToast('⛔ JS_EXEC отклонён пользователем'); }, // Отмена
-                            'Выполнить', false
-                        );
-                    }, 500);
-                });
+            // [JS_EXEC] отключён по соображениям безопасности (RCE-вектор через eval).
+            // Если ИИ прислал [JS_EXEC: ...] — уведомляем и игнорируем.
+            if (/\[JS_EXEC:/i.test(reply)) {
+                showToast('⛔ JS_EXEC отключён: выполнение произвольного кода запрещено.');
+                console.warn('[EITI] JS_EXEC заблокирован. Используйте безопасные action-команды.');
             }
             // EITI_FILE
             reply.replace(/<EITI_FILE:([^>]+)>([\s\S]*?)<\/EITI_FILE>/g, function(_, name, content) {
@@ -14625,7 +14629,7 @@ window.eitiClearAllModelCache = async function() {
         // Команда пользователя: «сделай анализ разговора» / «проанализируй чат»
         // ═══════════════════════════════════════════════════════════════
         function eitiAnalyzeChat() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { if (typeof showToast === 'function') showToast('Нужен DeepSeek API ключ'); return; }
             // Собираем историю — последние 60 сообщений
             var history = (chatLog || []).slice(-60).map(function(m) {
@@ -15687,7 +15691,7 @@ window.eitiClearAllModelCache = async function() {
         function eitiKBEnrich() {
             var topic = (document.getElementById('eiti-kb-enrich-topic')||{}).value||'';
             var cat   = (document.getElementById('eiti-kb-enrich-cat')||{}).value||'other';
-            var key   = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key   = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             if (!topic.trim()) { showToast('⚠️ Укажи тему'); return; }
             showToast('🤖 Генерирую факты по теме: '+topic+'…');
@@ -15774,7 +15778,7 @@ window.eitiClearAllModelCache = async function() {
 
         // ── DeepSeek: проверить и исправить KB чанками по 50 ────────
         function eitiKBFixStart() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var facts = eitiKBLoad();
             if (!facts.length) { showToast('KB пуста'); return; }
@@ -15906,7 +15910,7 @@ window.eitiClearAllModelCache = async function() {
 
         // ── DeepSeek: ответить на неотвеченные вопросы ───────────────
         function eitiKBAnswerUnanswered() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var list = JSON.parse(localStorage.getItem(EITI_UNANSWERED_KEY)||'[]');
             if (!list.length) { showToast('Нет неотвеченных вопросов'); return; }
@@ -17454,7 +17458,7 @@ window.eitiClearAllModelCache = async function() {
         // 🤖 AI EXPORT — оглавление + резюме через DeepSeek
         // ═══════════════════════════════════════════════
         async function eitiAiExport(format) {
-            var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var apiKey = _getDsKey();
             if (!apiKey) { showToast('⚠️ Нет API ключа DeepSeek'); return; }
             showToast('🤖 AI анализирует... подождите');
             var notes = notesLoad();
@@ -18017,7 +18021,7 @@ window.eitiClearAllModelCache = async function() {
         function moscEnrich() {
             if (_moscEnrichRunning) return;
             var topic = (document.getElementById('mosc-enrich-topic')||{}).value||'';
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             if (!topic.trim()) { showToast('⚠️ Укажи тему'); return; }
             _moscEnrichRunning = true;
@@ -18094,7 +18098,7 @@ window.eitiClearAllModelCache = async function() {
         }
 
         function moscFixStart() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var graph = window._moscGraph || {};
             var words = Object.keys(graph);
@@ -18216,7 +18220,7 @@ window.eitiClearAllModelCache = async function() {
             var unanswered = [];
             try { unanswered = JSON.parse(localStorage.getItem(EITI_UNANSWERED_KEY) || '[]'); } catch(e) {}
             if (!unanswered.length) { showToast('⚠️ Нет неотвеченных вопросов'); return; }
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var statusEl = document.getElementById('mosc-fix-status');
             // FIX v9.21: элементы — объекты {q, ts}, извлекаем только текст вопроса
@@ -18957,7 +18961,7 @@ window.eitiReminderSave = function() {
             if (!sendBtn) return;
             var origClick = sendBtn.onclick;
             sendBtn.onclick = function(e) {
-                var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var apiKey = _getDsKey();
                 var offlineMode = localStorage.getItem('eiti_offline_mode') === '1';
                 var onlyAI = localStorage.getItem('eiti_only_ai') === '1';
                 var hasAI = apiKey.length > 10;
@@ -19067,7 +19071,7 @@ window.moscFreeTextSend = function() {
     var btn = document.getElementById('mosc-free-btn');
     var res = document.getElementById('mosc-free-result');
     if (!inp || !inp.value.trim()) { typeof showToast === 'function' && showToast('⚠️ Введите текст'); return; }
-    var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+    var apiKey = _getDsKey();
     if (!apiKey) { typeof showToast === 'function' && showToast('⚠️ Нет API-ключа DeepSeek'); return; }
     var userText = inp.value.trim();
     if (btn) { btn.disabled = true; btn.textContent = '⏳ AI анализирует...'; }
@@ -19179,7 +19183,7 @@ window.moscFreeTextSend = function() {
         if (typeof _origReceive === 'function') _origReceive(text, sender);
         var isOn = localStorage.getItem(AUTO_LEARN_KEY) === '1';
         if (!isOn || !text || text.length < 30) return;
-        var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+        var apiKey = _getDsKey();
         if (!apiKey) return;
         // Анализируем в фоне — без блокировки UI
         setTimeout(function() {
@@ -19247,7 +19251,7 @@ window.moscFreeTextSend = function() {
     var _autoLearnFromReply = function(text) {
         var isOn = localStorage.getItem(AUTO_LEARN_KEY) === '1';
         if (!isOn || !text || text.length < 30) return;
-        var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+        var apiKey = _getDsKey();
         if (!apiKey) return;
         // Убираем HTML теги перед анализом
         var plain = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -19473,7 +19477,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
     // ── Централизованный геттер API-ключа ────────────────────────────────────
     // Единственное место чтения ключа — все вызовы используют эту функцию
     function getApiKey() {
-        try { return _deobfKey(localStorage.getItem('deepseek_api_key') || ''); } catch (e) { return ''; }
+        try { return _getDsKey(); } catch (e) { return ''; }
     }
     // Делаем доступным глобально если нужно
     window.eitiGetApiKey = getApiKey;
@@ -20543,12 +20547,10 @@ _initSQL();
         if (el) el.classList.add('active');
     }
 
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            var savedStyle = localStorage.getItem('eiti_emoji_style') || 'emoji_classic';
-            applyEmojiStyle(savedStyle);
-            highlightEmojiStyle(savedStyle);
-        }, 300);
+    document.addEventListener('DOMContentLoaded', function() {
+        var savedStyle = localStorage.getItem('eiti_emoji_style') || 'emoji_classic';
+        applyEmojiStyle(savedStyle);
+        highlightEmojiStyle(savedStyle);
     });
 
     // Expose for external use
