@@ -36,7 +36,7 @@
   document.addEventListener('DOMContentLoaded',function(){
     var b=document.body;
     b.className=b.className.replace(/theme-\S+/g,'').trim()+' theme-'+t;
-    var d=ui.design||'classic';
+    var d=ui.design||'kim3-metal';
     b.classList.remove('design-classic','design-kim3-metal','design-skeuomorph','design-samsung','design-paper-warm','design-paper-white','design-paper-kraft','design-glossy-gold','design-glossy-blue','design-glossy-violet');
     b.classList.add('design-'+d);
   });
@@ -145,9 +145,9 @@
             --shadow-color: rgba(0,0,0,0.18);
         }
         body.theme-paper-light .tab-bar {
-            background: linear-gradient(180deg, #e7dfd3 0%, #f5f0e7 100%);
-            border-top: 1px solid #cdbfae;
-            box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+            background: linear-gradient(180deg, #e7dfd3 0%, #f5f0e7 100%) !important;
+            border-top: 1px solid #cdbfae !important;
+            box-shadow: 0 -4px 16px rgba(0,0,0,0.08) !important;
         }
         body.theme-paper-light .app-header {
             background: linear-gradient(180deg, #e7dfd3 0%, #f5f0e7 100%);
@@ -197,9 +197,9 @@
             --shadow-color: rgba(0,0,0,0.08);
         }
         body.theme-light-clean .tab-bar {
-            background: linear-gradient(180deg, #f0f0f5 0%, #ffffff 100%);
-            border-top: 1px solid #d1d1d6;
-            box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+            background: linear-gradient(180deg, #f0f0f5 0%, #ffffff 100%) !important;
+            border-top: 1px solid #d1d1d6 !important;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.06) !important;
         }
         body.theme-light-clean .app-header {
             background: linear-gradient(180deg, #f0f0f5 0%, #ffffff 100%);
@@ -291,8 +291,8 @@
             color: #fff;
         }
         body.theme-scientific .tab-bar {
-            background: linear-gradient(180deg, #0d2040 0%, #050d1a 100%);
-            border-top: 1px solid #00d4ff33;
+            background: linear-gradient(180deg, #0d2040 0%, #050d1a 100%) !important;
+            border-top: 1px solid #00d4ff33 !important;
         }
         body.theme-scientific .tab-item.active .tab-label { color: #00d4ff; }
         body.theme-scientific .chat-input-panel { background: #0a1628; border-top: 1px solid #1a3a5c; }
@@ -328,8 +328,8 @@
             color: #fff;
         }
         body.theme-school .tab-bar {
-            background: linear-gradient(180deg, #2a5a2a 0%, #0d1f0d 100%);
-            border-top: 1px solid #7ec85033;
+            background: linear-gradient(180deg, #2a5a2a 0%, #0d1f0d 100%) !important;
+            border-top: 1px solid #7ec85033 !important;
         }
         body.theme-school .tab-item.active .tab-label { color: #7ec850; }
         body.theme-school .chat-input-panel { background: #1a3a1a; border-top: 1px solid #2a4a2a; }
@@ -871,6 +871,20 @@
         body.design-glossy-violet .chat-input {
             box-shadow: 0 0 0 2px rgba(180,180,190,0.2), inset 0 2px 6px rgba(0,0,0,0.5);
             border: 1px solid #505055;
+        }
+
+        /* === TAB BAR THEME BINDING: ensure active accent always uses current theme variable === */
+        /* Placed after all design blocks so it wins equal-specificity design overrides */
+        body[class*="theme-"] .tab-item.active .tab-label {
+            color: var(--accent-color) !important;
+            text-shadow: 0 0 8px color-mix(in srgb, var(--accent-color) 60%, transparent) !important;
+        }
+        body[class*="theme-"] .tab-item.active .tab-icon {
+            filter: grayscale(0) drop-shadow(0 0 6px var(--accent-color)) drop-shadow(0 3px 6px rgba(0,0,0,0.6)) !important;
+            opacity: 1 !important;
+        }
+        body[class*="theme-"] .tab-indicator {
+            background: var(--accent-color) !important;
         }
 
         /* Timeline columns */
@@ -1431,7 +1445,7 @@
         .tab-item.active .tab-label {
             opacity: 1;
             color: var(--accent-color);
-            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+            text-shadow: 0 0 8px color-mix(in srgb, var(--accent-color) 60%, transparent);
         }
         
         .tab-indicator {
@@ -1580,6 +1594,23 @@
             padding: 6px 10px;
         }
         .msg-btn:active{ transform: scale(0.96); }
+
+        /* === SEARCH EXPLAIN BUTTON === */
+        ._lsExplainBtn {
+            background: rgba(0,0,0,0.35) !important;
+            color: var(--text-color) !important;
+            border: 1px solid rgba(255,255,255,0.18) !important;
+            opacity: 1 !important;
+            backdrop-filter: none !important;
+        }
+        body.design-paper-warm ._lsExplainBtn,
+        body.design-paper-white ._lsExplainBtn,
+        body.design-paper-kraft ._lsExplainBtn,
+        body.theme-paper-light ._lsExplainBtn,
+        body.theme-light-clean ._lsExplainBtn {
+            background: rgba(0,0,0,0.10) !important;
+            border: 1px solid rgba(0,0,0,0.18) !important;
+        }
 
         /* Sticky bottom controls for long messages */
         .msg-bottom-controls {
@@ -3233,7 +3264,7 @@
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 <span style="font-size:14px;">Объёмный (3D) стиль</span>
                                 <button id="icon3dToggle" onclick="eitiToggleIcon3D()"
-                                    style="padding:6px 18px;border-radius:20px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--accent-color);color:#000;">ВЫКЛ</button>
+                                    style="padding:6px 18px;border-radius:20px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:rgba(255,255,255,0.12);color:var(--text-color);">ВЫКЛ</button>
                             </div>
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 <span style="font-size:14px;">Тень под иконками</span>
@@ -4941,14 +4972,24 @@
             changeTheme(savedTheme);
             // Apply saved UI profile
             const ui = getUIState();
-            applyDesign(ui.design || 'classic');
-            applyIconPack(ui.iconPack || (ui.design==='kim3-metal' ? 'kim3' : 'classic'), true);
+            applyDesign(ui.design || 'kim3-metal');
+            applyIconPack(ui.iconPack || 'classic', true);
             // Restore icon color override
             (function(){ try { var c = localStorage.getItem('eiti_icon_color'); if(c) eitiSetIconColor(c); } catch(e){} })();
             // Restore icon 3D
-            (function(){ try { if(localStorage.getItem('eiti_icon_3d')==='1') _applyIcon3D(true); } catch(e){} })();
+            (function(){ try {
+                var is3D = localStorage.getItem('eiti_icon_3d') === '1';
+                _applyIcon3D(is3D);
+                var btn3d = document.getElementById('icon3dToggle');
+                if (btn3d) { btn3d.textContent = is3D ? 'ВКЛ' : 'ВЫКЛ'; btn3d.style.background = is3D ? 'var(--accent-color)' : 'rgba(255,255,255,0.12)'; btn3d.style.color = is3D ? '#000' : 'var(--text-color)'; }
+            } catch(e){} })();
             // Restore icon shadow
-            (function(){ try { if(localStorage.getItem('eiti_icon_shadow')==='1') _applyIconShadow(true); } catch(e){} })();
+            (function(){ try {
+                var isShadow = localStorage.getItem('eiti_icon_shadow') === '1';
+                _applyIconShadow(isShadow);
+                var btnSh = document.getElementById('iconShadowToggle');
+                if (btnSh) { btnSh.textContent = isShadow ? 'ВКЛ' : 'ВЫКЛ'; btnSh.style.background = isShadow ? 'var(--accent-color)' : 'rgba(255,255,255,0.12)'; btnSh.style.color = isShadow ? '#000' : 'var(--text-color)'; }
+            } catch(e){} })();
             // Wallpaper
             if (ui.wallpaper && ui.wallpaper !== 'none') applyWallpaper(ui.wallpaper);
             // Bubble colors
@@ -13663,7 +13704,7 @@ window.eitiClearAllModelCache = async function() {
                     }
                     if (r.type !== 'fact' && r.snippet) {
                         var safeSnip = (r.snippet || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-                        cardsHtml += '<button class="_lsExplainBtn" data-snip="' + safeSnip + '" style="margin-top:6px;padding:4px 11px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.07);color:var(--text-color);font-size:11px;cursor:pointer;opacity:0.85;">🤖 Объяснить</button>';
+                        cardsHtml += '<button class="_lsExplainBtn" data-snip="' + safeSnip + '" style="margin-top:6px;padding:4px 11px;border-radius:8px;font-size:11px;cursor:pointer;">🤖 Объяснить</button>';
                     }
                     cardsHtml += '</div>';
                 });
