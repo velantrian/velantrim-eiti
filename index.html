@@ -19133,7 +19133,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🧠 KB: добавлено «' + answer.trim().slice(0, 30) + '»');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[KB_EDIT:([^|]+)\|([^\]]+)\]/g, function (match, id, newAnswer) {
@@ -19145,7 +19145,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('✏️ KB: обновлено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[KB_DEL:([^\]]+)\]/g, function (match, id) {
@@ -19155,7 +19155,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🗑 KB: удалено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[KB_CLEAR\]/g, function (match) {
@@ -19164,18 +19164,18 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof eitiKBRenderStats === 'function') requestAnimationFrame(eitiKBRenderStats);
                     typeof showToast === 'function' && showToast('🗑 KB очищена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── MOSC ─────────────────────────────────────────────────────
-                text = text.replace(/\[MOSC_SET:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (_, word, concept, weight) {
+                text = text.replace(/\[MOSC_SET:([^|]+)\|([^|]+)\|([^\]]+)\]/g, function (match, word, concept, weight) {
                     if (!window._moscGraph) window._moscGraph = {};
                     if (!window._moscGraph[word.trim()]) window._moscGraph[word.trim()] = {};
                     window._moscGraph[word.trim()][concept.trim()] = parseFloat(weight) || 0.5;
                     if (typeof moscSaveGraph === 'function') moscSaveGraph(window._moscGraph);
                     typeof showToast === 'function' && showToast('🕸 MOSC: связь добавлена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[MOSC_DEL:([^|]+)\|([^\]]+)\]/g, function (match, word, concept) {
@@ -19186,7 +19186,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     }
                     typeof showToast === 'function' && showToast('🕸 MOSC: связь удалена');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[MOSC_CLEAR\]/g, function (match) {
@@ -19195,11 +19195,11 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof moscSaveGraph === 'function') moscSaveGraph({});
                     typeof showToast === 'function' && showToast('🗑 MOSC граф очищен');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── Инструкции ───────────────────────────────────────────────
-                text = text.replace(/\[SET_INSTR:([^\]]+)\]/g, function (_, instr) {
+                text = text.replace(/\[SET_INSTR:([^\]]+)\]/g, function (match, instr) {
                     var key = 'eiti_user_instructions';
                     if (instr.startsWith('REPLACE:')) {
                         localStorage.setItem(key, instr.slice(8).trim());
@@ -19213,11 +19213,11 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         typeof showToast === 'function' && showToast('✅ Инструкция добавлена');
                     }
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── EITI Memory v12.0 ────────────────────────────────────────
-                text = text.replace(/\[MEM_ADD(?::([^|\]]+)\|)?([^\]]+)\]/g, function (_, tag, txt) {
+                text = text.replace(/\[MEM_ADD(?::([^|\]]+)\|)?([^\]]+)\]/g, function (match, tag, txt) {
                     if (typeof memSaveEntry === 'function') {
                         memSaveEntry({ text: txt.trim(), tag: (tag||'ai').trim(), source: 'ai' }).then(function(){
                             if (typeof eitiMemRefreshUI === 'function') setTimeout(eitiMemRefreshUI, 300);
@@ -19225,18 +19225,18 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         typeof showToast === 'function' && showToast('\uD83E\uDDE0 Memory: сохранено «' + txt.trim().slice(0, 30) + '»');
                         changed = true;
                     }
-                    return '';
+                    return match;
                 });
 
                 // ── Профиль ──────────────────────────────────────────────────────
-                text = text.replace(/\[SET_PROFILE:([^|]+)\|([^\]]+)\]/g, function (_, field, value) {
+                text = text.replace(/\[SET_PROFILE:([^|]+)\|([^\]]+)\]/g, function (match, field, value) {
                     var key = 'velantrim_profile_v1';
                     var profile; try { profile = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { profile = {}; }
                     profile[field.trim()] = value.trim();
                     localStorage.setItem(key, JSON.stringify(profile));
                     typeof showToast === 'function' && showToast('👤 Профиль: ' + field.trim() + ' обновлено');
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 // ── Тема / Дизайн (только с подтверждением пользователя) ────
@@ -19246,7 +19246,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     if (typeof setTheme === 'function') setTheme(name);
                     typeof showToast === 'function' && showToast('🎨 Тема: ' + name);
                     changed = true;
-                    return '';
+                    return match;
                 });
 
                 text = text.replace(/\[SET_DESIGN:([^\]]+)\]/g, function (match, designName) {
@@ -19261,10 +19261,10 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     document.body.classList.add('design-' + name);
                     typeof showToast === 'function' && showToast('🎨 Дизайн: ' + name);
                     changed = true;
-                    return '';
+                    return match;
                 });
 
-                text = text.replace(/\[SET_WALLPAPER:([^\]]+)\]/g, function (_, wpName) {
+                text = text.replace(/\[SET_WALLPAPER:([^\]]+)\]/g, function (match, wpName) {
                     var name = wpName.trim();
                     setUIState({ wallpaper: name });
                     var msgsEl = document.getElementById('messages');
@@ -19272,7 +19272,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
                         msgsEl.className = msgsEl.className.replace(/wallpaper-\S+/g, '').trim() + ' wallpaper-' + name;
                     }
                     typeof showToast === 'function' && showToast('🖼️ Обои: ' + name);
-                    return '';
+                    return match;
                 });
 
                 // Остаток передаём в оригинальный обработчик
