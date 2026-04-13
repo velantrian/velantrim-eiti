@@ -3648,6 +3648,11 @@
         const CHAT_STORAGE_KEY = 'velantrim_messenger_chat_v73';
         const AITEXT_STORAGE_KEY = 'velantrim_messenger_aitext_v1';
         var APP_VERSION = 'v' + EITI_VERSION;
+        // Сессионный кэш ключей API — живёт только в памяти текущей страницы.
+        // При перезагрузке сбрасывается. Использовать как первичный источник в API-вызовах.
+        var _sessionDsKey = '';
+        var _sessionGmKey = '';
+
         function _obfKey(s) {
             // Простая XOR-обфускация — не шифрование, но защита от случайного чтения
             return btoa(s.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join(''));
@@ -3657,6 +3662,25 @@
                 var dec = atob(s);
                 return dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
             } catch(e) { return s; }
+        }
+        // Получить DeepSeek-ключ: сначала из сессионного кэша, затем из localStorage.
+        function _getDsKey() {
+            if (_sessionDsKey) return _sessionDsKey;
+            var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            if (k) _sessionDsKey = k;
+            return k;
+        }
+        // Получить Gemini-ключ: сначала из сессионного кэша, затем из localStorage.
+        function _getGmKey() {
+            if (_sessionGmKey) return _sessionGmKey;
+            var k = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+            if (k) _sessionGmKey = k;
+            return k;
+        }
+        // Сохранить ключи в сессионный кэш и localStorage (обфусцированно).
+        function _saveKeys(dsKey, gmKey) {
+            if (dsKey) { _sessionDsKey = dsKey; localStorage.setItem('deepseek_api_key', _obfKey(dsKey)); }
+            if (gmKey) { _sessionGmKey = gmKey; localStorage.setItem('eiti_gemini_key', _obfKey(gmKey)); }
         }
         const UI_STORAGE_KEY = 'velantrim_messenger_ui_v1';
         var NOTES_KEY = 'velantrim_notes_v1';
@@ -4808,12 +4832,56 @@
             renderChatStyleView();
             vibrate();
         }
+        // ── View Lifecycle Manager ───────────────────────────────────────
+        // Register per-view activate/deactivate hooks so each view can
+        // start and stop its own timers, animations, and event listeners
+        // without leaking into the background.
+        //
+        // Usage:
+        //   _viewLifecycle.register('player', {
+        //     onActivate:   function() { startEqualizer(); },
+        //     onDeactivate: function() { stopEqualizer(); cancelAnimationFrame(rAF); }
+        //   });
+        var _viewLifecycle = (function() {
+            var _hooks = {};
+            return {
+                register: function(viewId, hooks) {
+                    _hooks[viewId] = hooks || {};
+                },
+                activate: function(viewId) {
+                    var h = _hooks[viewId];
+                    if (h && typeof h.onActivate === 'function') {
+                        try { h.onActivate(); } catch(e) { console.warn('[ViewLC] activate', viewId, e); }
+                    }
+                },
+                deactivate: function(viewId) {
+                    var h = _hooks[viewId];
+                    if (h && typeof h.onDeactivate === 'function') {
+                        try { h.onDeactivate(); } catch(e) { console.warn('[ViewLC] deactivate', viewId, e); }
+                    }
+                }
+            };
+        })();
+
+        // Built-in lifecycle hook: refresh Memory/MOSC stats when settings opens
+        _viewLifecycle.register('settings', {
+            onActivate: function() {
+                setTimeout(function() {
+                    if (typeof eitiMemRefreshUI === 'function') eitiMemRefreshUI();
+                    if (typeof moscRenderStats === 'function') moscRenderStats();
+                }, 80);
+            }
+        });
+
         function openView(viewId) {
             var curr = null;
             document.querySelectorAll('.content-view').forEach(function(v) {
                 if (v.classList.contains('active')) curr = v.id.replace('view-','');
             });
-            if (curr && curr !== viewId) eitiPrevView = curr;
+            if (curr && curr !== viewId) {
+                eitiPrevView = curr;
+                _viewLifecycle.deactivate(curr);
+            }
             document.body.classList.remove('notes-fullscreen', 'reader', 'immersive', 'editor-fullscreen-active');
             document.querySelectorAll('.content-view').forEach(function(v){ v.classList.remove('active'); });
             document.querySelectorAll('.tab-item').forEach(function(t){ t.classList.remove('active'); });
@@ -4822,13 +4890,7 @@
             var tEl = document.querySelector('.tab-item[data-view="' + viewId + '"]');
             if (tEl) tEl.classList.add('active');
             vibrate();
-            // v12.0: обновляем Memory stats при открытии настроек
-            if (viewId === 'settings') {
-                setTimeout(function(){
-                    if (typeof eitiMemRefreshUI === 'function') eitiMemRefreshUI();
-                    if (typeof moscRenderStats === 'function') moscRenderStats();
-                }, 80);
-            }
+            _viewLifecycle.activate(viewId);
         }
         function backToSettings() {
             document.querySelectorAll('.content-view').forEach(v => v.classList.remove('active'));
@@ -6136,7 +6198,7 @@
             var provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
             maxTok = maxTok || 2000;
             if (provider === 'gemini') {
-                var gk = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk = _getGmKey();
                 if (!gk) return Promise.reject(new Error('Нет ключа Gemini'));
                 var parts = [];
                 if (systemPrompt) parts.push({ text: systemPrompt + '\n\n' + userPrompt });
@@ -6150,7 +6212,7 @@
                     return txt;
                 });
             } else {
-                var dk = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var dk = _getDsKey();
                 if (!dk) return Promise.reject(new Error('Нет ключа DeepSeek'));
                 var msgs = [];
                 if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
@@ -6412,6 +6474,32 @@
         var eitiL0 = []; // L0 cache top-7
         var _lastCtxSources = [];
 
+        // ── IDB Write Queue ──────────────────────────────────────────────
+        // Serialises all write transactions to prevent TransactionInactiveError
+        // races when multiple writes fire simultaneously (e.g. KB enrichment).
+        // Read-only transactions are NOT queued — only fire-and-forget writes.
+        var _idbWriteQueue = (function() {
+            var _q = [];
+            var _busy = false;
+            function _next() {
+                if (_busy || _q.length === 0) return;
+                _busy = true;
+                var task = _q.shift();
+                task.fn().then(
+                    function(v) { _busy = false; task.resolve(v); _next(); },
+                    function(e) { _busy = false; console.warn('[EITI IDB]', e); task.reject(e); _next(); }
+                );
+            }
+            return {
+                enqueue: function(fn) {
+                    return new Promise(function(resolve, reject) {
+                        _q.push({ fn: fn, resolve: resolve, reject: reject });
+                        _next();
+                    });
+                }
+            };
+        })();
+
         function eitiInit() {
             return new Promise(function(resolve, reject) {
                 var req = indexedDB.open('eiti_v4', 11); // v5.3: добавлен object store 'backups' для резервных копий
@@ -6509,29 +6597,31 @@
         var EITI_MAX_MESSAGES = 500;
 
         function eitiAddMessage(chatId, role, content) {
-            return new Promise(function(resolve, reject) {
-                var domain = eitiClassifyDomain(content);
-                var msg = {
-                    id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
-                    chat_id: chatId, role: role, content: content, domain: domain,
-                    created: new Date().toISOString()
-                };
-                var tx = eitiDb.transaction(['messages', 'chats'], 'readwrite');
-                tx.objectStore('messages').add(msg);
-                var cr = tx.objectStore('chats').get(chatId);
-                cr.onsuccess = function() {
-                    if (cr.result) {
-                        var c = cr.result;
-                        c.count = (c.count || 0) + 1;
-                        c.updated = new Date().toISOString();
-                        tx.objectStore('chats').put(c);
-                    }
-                };
-                tx.oncomplete = function() {
-                    resolve(msg);
-                    eitiTrimMessages(chatId);
-                };
-                tx.onerror = function() { reject(tx.error); };
+            return _idbWriteQueue.enqueue(function() {
+                return new Promise(function(resolve, reject) {
+                    var domain = eitiClassifyDomain(content);
+                    var msg = {
+                        id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+                        chat_id: chatId, role: role, content: content, domain: domain,
+                        created: new Date().toISOString()
+                    };
+                    var tx = eitiDb.transaction(['messages', 'chats'], 'readwrite');
+                    tx.objectStore('messages').add(msg);
+                    var cr = tx.objectStore('chats').get(chatId);
+                    cr.onsuccess = function() {
+                        if (cr.result) {
+                            var c = cr.result;
+                            c.count = (c.count || 0) + 1;
+                            c.updated = new Date().toISOString();
+                            tx.objectStore('chats').put(c);
+                        }
+                    };
+                    tx.oncomplete = function() {
+                        resolve(msg);
+                        eitiTrimMessages(chatId);
+                    };
+                    tx.onerror = function() { reject(tx.error); };
+                });
             });
         }
 
@@ -7049,8 +7139,7 @@
             var gmKeyEl = document.getElementById('gemini-key');
             var dsKey = dsKeyEl ? dsKeyEl.value.trim() : '';
             var gmKey = gmKeyEl ? gmKeyEl.value.trim() : '';
-            if (dsKey) localStorage.setItem('deepseek_api_key', _obfKey(dsKey));
-            if (gmKey) localStorage.setItem('eiti_gemini_key', _obfKey(gmKey));
+            _saveKeys(dsKey, gmKey);
             if (!silent) showToast(p === 'gemini' ? '⚡ Gemini активирован' : '🤖 DeepSeek активирован');
         }
 
@@ -7061,11 +7150,10 @@
             var gmKeyEl = document.getElementById('gemini-key');
             var dsKey = dsKeyEl ? dsKeyEl.value.trim() : '';
             var gmKey = gmKeyEl ? gmKeyEl.value.trim() : '';
-            if (dsKey) localStorage.setItem('deepseek_api_key', _obfKey(dsKey));
-            if (gmKey) localStorage.setItem('eiti_gemini_key', _obfKey(gmKey));
+            _saveKeys(dsKey, gmKey);
             status.innerHTML = '⏳ Проверяю...';
             if (provider === 'gemini') {
-                var gk = gmKey || _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk = gmKey || _getGmKey();
                 if (!gk) { status.innerHTML = '<span style="color:#f66">⚠️ Введите Gemini ключ</span>'; return; }
                 fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + gk, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7075,7 +7163,7 @@
                     else { status.innerHTML = '<span style="color:#f66">❌ HTTP ' + r.status + '</span>'; }
                 }).catch(function(e) { status.innerHTML = '<span style="color:#f66">❌ ' + String(e.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'; });
             } else {
-                var dk = dsKey || _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var dk = dsKey || _getDsKey();
                 if (!dk) { status.innerHTML = '<span style="color:#f66">⚠️ Введите ключ DeepSeek</span>'; return; }
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
@@ -7091,8 +7179,8 @@
         async function eitiAskDeepSeek(userText) {
             return new Promise(function(resolve, reject) {
                 var _provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
-                var _geminiKey = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var key = _getDsKey();
+                var _geminiKey = _getGmKey();
                 if (_provider === 'gemini' && !_geminiKey) { resolve('⚠️ Настройте Google Gemini API ключ в Настройки → ⚡ Google Gemini'); return; }
                 if (_provider !== 'gemini' && !key) { resolve('⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
 
@@ -7374,7 +7462,7 @@
                     // ── EMBEDDINGS через DeepSeek API (если KB ≥ 80 фактов) ─
                     // При большом KB дополнительно запрашиваем embeddings для семантического ранжирования
                     // Результат кешируется в sessionStorage на 5 минут
-                    var _dsKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                    var _dsKey = _getDsKey();
                     var _dsOnline = localStorage.getItem('eiti_offline_mode') !== '1';
                     if (_kbAll.length >= 80 && _dsOnline && _dsKey && _relFacts.length > 0) {
                         // Запускаем embeddings асинхронно — не блокируем текущий запрос
@@ -7985,7 +8073,7 @@
             _l2ConsolidateTimer = setTimeout(function() {
             eitiGetMessages(chatId).then(function(msgs) {
                 if (msgs.length < 3) return; // слишком мало для дайджеста
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var key = _getDsKey();
                 if (!key) return;
                 showToast('🧠 Сохраняю память сессии…'); // v9.15fix: индикатор фонового вызова
                 // Берём последние 15 сообщений для консолидации
@@ -9164,27 +9252,29 @@
             return _kbMemCache !== null ? _kbMemCache : EITI_KB_DEFAULTS.slice();
         }
 
-        // Сохраняет факты в IDB + обновляет кеш
+        // Сохраняет факты в IDB + обновляет кеш (через очередь записи)
         function eitiKBSaveAsync(facts) {
             _kbMemCache = facts;
-            return new Promise(function(resolve) {
-                if (!eitiDb) { resolve(); return; }
-                try {
-                    var tx = eitiDb.transaction('kb', 'readwrite');
-                    var store = tx.objectStore('kb');
-                    // Избегаем риска потери всей KB при сбое между clear() и put()
-                    if (facts.length === 0) {
-                        // Только при явной очистке — безопасно очищаем
-                        store.clear();
-                    } else {
-                        facts.forEach(function(f) {
-                            if (!f.id) f.id = 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-                            store.put(f);
-                        });
-                    }
-                    tx.oncomplete = function() { resolve(); };
-                    tx.onerror = function() { resolve(); };
-                } catch(e) { resolve(); }
+            return _idbWriteQueue.enqueue(function() {
+                return new Promise(function(resolve) {
+                    if (!eitiDb) { resolve(); return; }
+                    try {
+                        var tx = eitiDb.transaction('kb', 'readwrite');
+                        var store = tx.objectStore('kb');
+                        // Избегаем риска потери всей KB при сбое между clear() и put()
+                        if (facts.length === 0) {
+                            // Только при явной очистке — безопасно очищаем
+                            store.clear();
+                        } else {
+                            facts.forEach(function(f) {
+                                if (!f.id) f.id = 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+                                store.put(f);
+                            });
+                        }
+                        tx.oncomplete = function() { resolve(); };
+                        tx.onerror = function() { resolve(); };
+                    } catch(e) { resolve(); }
+                });
             });
         }
 
@@ -9388,7 +9478,7 @@
             }
 
             function eitiAIAnalyzeWeights() {
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var key = _getDsKey();
                 if (!key) { if (typeof showToast === 'function') showToast('⚠️ Нужен DeepSeek API ключ'); return; }
                 var ta = document.getElementById('fl-weights-textarea');
                 var aiRes = document.getElementById('fl-weights-ai-result');
@@ -13094,10 +13184,10 @@ window.eitiClearAllModelCache = async function() {
         document.addEventListener('click', function(e) {
             var tab = e.target.closest('.tab-item[data-view="settings"]');
             if (tab) {
-                var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var k = _getDsKey();
                 var el = document.getElementById('deepseek-key');
                 if (k && el) el.value = k;
-                var gk2 = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var gk2 = _getGmKey();
                 var gmEl = document.getElementById('gemini-key');
                 if (gk2 && gmEl) gmEl.value = gk2;
                 if (typeof eitiSetProvider === 'function') eitiSetProvider(localStorage.getItem('eiti_ai_provider') || 'deepseek', true); // silent=true: не показывать тост при открытии настроек
@@ -13183,7 +13273,7 @@ window.eitiClearAllModelCache = async function() {
             }).then(function() {
             // KB loaded into _kbMemCache — ready for sync calls
             eitiPatchSendButton();eitiUpdateFileCount();
-                var k = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var k = _getDsKey();
                 var el = document.getElementById('deepseek-key');
                 if (k && el) el.value = k;
                 // console.log('EITI ready')
@@ -14157,355 +14247,423 @@ window.eitiClearAllModelCache = async function() {
             msgs.scrollTop = msgs.scrollHeight;
         }
 
+        // ── AI Command Registry ──────────────────────────────────────────
+        // Each entry: { name, pattern, handle(_, ...captures) }
+        // eitiProcessCommands loops over this list with per-command error
+        // isolation, so a bug in one handler never kills the others.
+        // _kbChangedFlag is reset at the start of each dispatch pass and
+        // checked at the end to trigger a single deferred KB stats refresh.
+        var _kbChangedFlag = false;
+        var _eitiCmds = [
+            {
+                name: 'EITI_FILE',
+                pattern: /<EITI_FILE:([^>]+)>([\s\S]*?)<\/EITI_FILE>/g,
+                handle: function(_, name, content) {
+                    upsertAiFile(name.trim(), 'text/plain', content);
+                    updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
+                }
+            },
+            {
+                name: 'EITI_APPEND',
+                pattern: /<EITI_APPEND:([^>]+)>([\s\S]*?)<\/EITI_APPEND>/g,
+                handle: function(_, name, content) {
+                    var store = getAiTextStore();
+                    var f = store.files.find(function(x){ return x.name === name.trim(); });
+                    upsertAiFile(name.trim(), f ? (f.mime||'text/plain') : 'text/plain', (f ? (f.content||'') : '') + '\n' + content);
+                    updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
+                }
+            },
+            {
+                name: 'NOTE_WRITE',
+                pattern: /\[NOTE_WRITE:([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, title, body) {
+                    var t2 = title.trim(), b2 = body.trim();
+                    if (!b2) return;
+                    var notes = notesLoad(), now = Date.now();
+                    var idx = notes.findIndex(function(n){ return n.title === t2; });
+                    if (idx >= 0) { notes[idx].body = b2; notes[idx].updated = now; }
+                    else notes.push({ id:'note_'+now, title:t2, body:b2, created:now, updated:now, colorIdx:Math.floor(Math.random()*8), emojiIdx:Math.floor(Math.random()*12) });
+                    notesSave(notes);
+                }
+            },
+            {
+                name: 'NOTE_APPEND',
+                pattern: /\[NOTE_APPEND:([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, title, body) {
+                    var notes = notesLoad(), now = Date.now(), t2 = title.trim();
+                    var idx = notes.findIndex(function(n){ return n.title === t2; });
+                    if (idx >= 0) { notes[idx].body = (notes[idx].body||'') + '\n' + body.trim(); notes[idx].updated = now; }
+                    else notes.push({ id:'note_'+now, title:t2, body:body.trim(), created:now, updated:now, colorIdx:Math.floor(Math.random()*8), emojiIdx:Math.floor(Math.random()*12) });
+                    notesSave(notes);
+                }
+            },
+            {
+                name: 'NOTE_RETITLE',
+                pattern: /\[NOTE_RETITLE:([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, oldT, newT) {
+                    var notes = notesLoad(), idx = notes.findIndex(function(n){ return n.title === oldT.trim(); });
+                    if (idx >= 0) { notes[idx].title = newT.trim(); notes[idx].updated = Date.now(); notesSave(notes); }
+                }
+            },
+            {
+                name: 'NOTE_SUMMARY',
+                pattern: /\[NOTE_SUMMARY\]/g,
+                handle: function() {
+                    setTimeout(function() {
+                        showToast('📝 Открываю заметки…');
+                        if (typeof openView === 'function') openView('notes');
+                    }, 600);
+                }
+            },
+            {
+                name: 'NOTE_SEARCH',
+                pattern: /\[NOTE_SEARCH:([^\]]*)\]/g,
+                handle: function(_, query) {
+                    var q = query.trim().toLowerCase();
+                    if (!q) return;
+                    setTimeout(function() {
+                        var notes = notesLoad();
+                        var found = notes.filter(function(n) {
+                            return (n.title||'').toLowerCase().indexOf(q) !== -1 ||
+                                   (n.body||'').toLowerCase().indexOf(q) !== -1;
+                        });
+                        showToast(found.length > 0
+                            ? '🔍 Найдено заметок: ' + found.length + ' по «' + query.trim() + '»'
+                            : '🔍 По «' + query.trim() + '» заметок не найдено');
+                        if (found.length > 0 && typeof openView === 'function') openView('notes');
+                    }, 400);
+                }
+            },
+            {
+                name: 'NOTE_DELETE',
+                pattern: /\[NOTE_DELETE:([^\]]+)\]/g,
+                handle: function(_, title) {
+                    var notes = notesLoad().filter(function(n){
+                        return n.title.toLowerCase() !== title.trim().toLowerCase();
+                    });
+                    notesSave(notes);
+                    showToast('\uD83D\uDDD1 Заметка удалена: ' + title.trim());
+                }
+            },
+            {
+                name: 'NEW_INTENT',
+                pattern: /\[NEW_INTENT:([^\]]+)\]/g,
+                handle: function(_, raw) {
+                    var parts = raw.split('|');
+                    if (parts.length < 2) return;
+                    var ta = document.getElementById('eiti-user-intents');
+                    var existing = localStorage.getItem('eiti_user_intents_v1') || '';
+                    var updated = existing ? existing + '\n' + raw.trim() : raw.trim();
+                    localStorage.setItem('eiti_user_intents_v1', updated);
+                    eitiLoadUserIntents();
+                    if (ta) ta.value = updated;
+                    showToast('🧠 Новый интент добавлен: ' + parts[0]);
+                }
+            },
+            {
+                name: 'EITI_LEARN',
+                pattern: /\[EITI_LEARN:([^\]]+)\]/g,
+                handle: function(_, fact) { eitiLearnFact(fact.trim()); }
+            },
+            {
+                name: 'REMIND',
+                pattern: /\[REMIND:([^\|\]]+)\|(\d+)\]/g,
+                handle: function(_, text, ts) {
+                    reminderAdd(text.trim(), parseInt(ts));
+                    if (typeof calRender === 'function') calRender(calYear, calMonth);
+                }
+            },
+            {
+                name: 'KB_ADD_JSON',
+                pattern: /\[KB_ADD_JSON\]([\s\S]*?)\[\/KB_ADD_JSON\]/g,
+                handle: function(_, jsonStr) {
+                    try {
+                        var newFacts = JSON.parse(jsonStr.trim());
+                        if (!Array.isArray(newFacts)) return;
+                        var existing = eitiKBLoad();
+                        var existIds = {}; existing.forEach(function(f){ existIds[f.id]=true; });
+                        var added = 0, _ts = Date.now();
+                        newFacts.forEach(function(f, i) {
+                            if (f.triggers && f.answer) {
+                                if (!f.id) f.id = 'kb_ai_' + _ts + '_' + i;
+                                if (!existIds[f.id]) {
+                                    f.ts = _ts; f.source = 'ai_enrichment';
+                                    existing.push(f); added++;
+                                    existIds[f.id] = true;
+                                }
+                            }
+                        });
+                        if (added > 0) {
+                            eitiKBSave(existing);
+                            if (typeof _kbActiveCache !== 'undefined') window._kbActiveCache = null;
+                            if (typeof eitiKBRenderStats === 'function') setTimeout(eitiKBRenderStats, 300);
+                            showToast('🧠 KB обогащена: +' + added + ' фактов добавлено', 4000);
+                        }
+                    } catch(e) { console.warn('[EITI CMD KB_ADD_JSON]', e); }
+                }
+            },
+            {
+                name: 'KB_ADD',
+                pattern: /\[KB_ADD:([^\|\]]+)\|([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, cat, trigs, ans) {
+                    var facts = eitiKBLoad();
+                    var triggers = trigs.split(',').map(function(t){ return t.trim().toLowerCase(); }).filter(Boolean);
+                    if (!triggers.length || !ans.trim()) return;
+                    var newId = 'kb_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+                    facts.push(normalizeFact({ id: newId, triggers: triggers, answer: ans.trim(), category: cat, tags: [], ts: Date.now() }));
+                    eitiKBSave(facts);
+                    _kbChangedFlag = true;
+                    showToast('🧠 KB: добавлен факт «' + triggers[0] + '»');
+                }
+            },
+            {
+                name: 'KB_EDIT',
+                pattern: /\[KB_EDIT:([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, trig, ans) {
+                    if (!ans.trim()) return;
+                    var facts = eitiKBLoad();
+                    var t = trig.trim().toLowerCase();
+                    var idx = facts.findIndex(function(f){ return f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
+                    if (idx !== -1) {
+                        facts[idx].answer = ans.trim();
+                        eitiKBSave(facts);
+                        _kbChangedFlag = true;
+                        showToast('🧠 KB: обновлён «' + trig.trim() + '»');
+                    } else {
+                        showToast('⚠️ KB: факт «' + trig.trim() + '» не найден');
+                    }
+                }
+            },
+            {
+                name: 'KB_DEL',
+                pattern: /\[KB_DEL:([^\]]*)\]/g,
+                handle: function(_, trig) {
+                    var facts = eitiKBLoad();
+                    var t = trig.trim().toLowerCase();
+                    var before = facts.length;
+                    var removed = facts.filter(function(f){ return f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
+                    if (removed.length > 0) {
+                        try {
+                            if (eitiDb) {
+                                var _bkTx = eitiDb.transaction('reasoning', 'readwrite');
+                                _bkTx.objectStore('reasoning').put({ id: 'kb_backup_' + Date.now(), data: facts });
+                            }
+                        } catch(e) { console.warn('[EITI] eitiAutoBackup KB_DEL:', e); }
+                    }
+                    facts = facts.filter(function(f){ return !f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
+                    if (facts.length < before) {
+                        eitiKBSave(facts);
+                        _kbChangedFlag = true;
+                        showToast('🗑 KB: удалён «' + trig.trim() + '»');
+                    }
+                }
+            },
+            {
+                name: 'KB_LIST',
+                pattern: /\[KB_LIST:([^\]]*)\]/g,
+                handle: function(_, cat) {
+                    var facts = eitiKBLoad();
+                    var c = cat.trim().toLowerCase();
+                    var filtered = c ? facts.filter(function(f){ return (f.category||'other') === c; }) : facts;
+                    var header = '🧠 KB' + (c ? ' [' + c + '] — ' + filtered.length + ' фактов' : ' — все ' + filtered.length + ' фактов');
+                    var body = filtered.length
+                        ? filtered.map(function(f, i){ return (i+1) + '. [' + (f.category||'other') + '] <b>' + f.triggers[0] + '</b>: ' + f.answer; }).join('<br>')
+                        : 'Фактов нет';
+                    _eitiInlineReply(header + ':<br>' + body, 'KB');
+                }
+            },
+            {
+                name: 'FILE_DELETE',
+                pattern: /\[FILE_DELETE:([^\]]+)\]/g,
+                handle: function(_, name) {
+                    eitiDeleteAiFile(name.trim());
+                    showToast('\uD83D\uDDD1 Файл удалён: ' + name.trim());
+                }
+            },
+            {
+                name: 'FILE_RENAME',
+                pattern: /\[FILE_RENAME:([^\|\]]+)\|([^\]]+)\]/g,
+                handle: function(_, oldName, newName) {
+                    var on=oldName.trim(), nn=newName.trim();
+                    var f=(_idbFilesCache||[]).find(function(x){return x.name.toLowerCase()===on.toLowerCase();});
+                    if (!f){showToast('⚠️ Файл не найден: '+on);return;}
+                    _idbFilesCache=_idbFilesCache.filter(function(x){return x.name!==f.name;});
+                    idbDeleteFile(f.name);
+                    upsertAiFile(nn, f.mime||'text/plain', f.content||'');
+                    eitiUpdateFileCount();
+                    showToast('✏️ Файл переименован: '+on+' → '+nn);
+                }
+            },
+            {
+                name: 'FILE_EDIT',
+                pattern: /\[FILE_EDIT:([^\|\]]+)\|([^\]]*)\]/g,
+                handle: function(_, name, newContent) {
+                    var n=name.trim();
+                    var f=(_idbFilesCache||[]).find(function(x){return x.name.toLowerCase()===n.toLowerCase();});
+                    if (!f){showToast('⚠️ Файл не найден: '+n);return;}
+                    upsertAiFile(f.name, f.mime||'text/plain', newContent);
+                    eitiUpdateFileCount();
+                    showToast('💾 Файл обновлён AI: '+n);
+                }
+            },
+            {
+                name: 'MOSC_ADD',
+                pattern: /\[MOSC_ADD:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]/g,
+                handle: function(_, word, concept, weight) {
+                    if (!eitiDb) return;
+                    try {
+                        var tx = eitiDb.transaction('reasoning', 'readwrite');
+                        var store = tx.objectStore('reasoning');
+                        var req = store.get('graph');
+                        req.onsuccess = function() {
+                            var graph = req.result ? req.result.data : {};
+                            var w = word.trim().toLowerCase();
+                            if (!graph[w]) graph[w] = {};
+                            graph[w][concept.trim()] = parseFloat(weight) || 0.5;
+                            store.put({ id: 'graph', data: graph });
+                            window._moscGraph = graph;
+                            showToast('\uD83E\uDDE0 MOSC: связь добавлена — ' + w + ' → ' + concept.trim());
+                        };
+                        req.onerror = function() {};
+                    } catch(e) {}
+                }
+            },
+            {
+                name: 'MOSC_SHOW',
+                pattern: /\[MOSC_SHOW:([^\]]*)\]/g,
+                handle: function(_, word) {
+                    var graph = window._moscGraph || {};
+                    var w = word.trim().toLowerCase();
+                    var header, body;
+                    if (w === '*' || w === 'all' || w === 'все') {
+                        var keys = Object.keys(graph);
+                        header = '🧠 MOSC граф (' + keys.length + ' узлов)';
+                        body = keys.length ? keys.map(function(k){
+                            var edges = Object.keys(graph[k]).map(function(c){ return c+':'+graph[k][c]; }).join(', ');
+                            return '· <b>' + k + '</b> → {' + edges + '}';
+                        }).join('<br>') : 'Граф пуст';
+                    } else {
+                        header = '🧠 MOSC [' + w + ']';
+                        body = graph[w]
+                            ? Object.keys(graph[w]).map(function(c){ return '<b>' + c + '</b>: ' + graph[w][c]; }).join('<br>')
+                            : 'Слово «' + w + '» не найдено в графе';
+                    }
+                    _eitiInlineReply(header + ':<br>' + body, 'MOSC');
+                }
+            },
+            {
+                name: 'MOSC_DEL',
+                pattern: /\[MOSC_DEL:([^\]]+)\]/g,
+                handle: function(_, word) {
+                    if (!eitiDb) return;
+                    try {
+                        var tx = eitiDb.transaction('reasoning', 'readwrite');
+                        var store = tx.objectStore('reasoning');
+                        var req = store.get('graph');
+                        req.onsuccess = function() {
+                            var graph = req.result ? req.result.data : {};
+                            var w = word.trim().toLowerCase();
+                            if (graph[w]) {
+                                delete graph[w];
+                                store.put({ id: 'graph', data: graph });
+                                window._moscGraph = graph;
+                                showToast('🧠 MOSC: слово удалено — ' + w);
+                            } else {
+                                showToast('⚠️ MOSC: слово «' + w + '» не найдено');
+                            }
+                        };
+                        req.onerror = function() {};
+                    } catch(e) {}
+                }
+            },
+            {
+                name: 'MOSC_DEL_EDGE',
+                pattern: /\[MOSC_DEL_EDGE:([^\|\]]+)\|([^\]]+)\]/g,
+                handle: function(_, word, concept) {
+                    if (!eitiDb) return;
+                    try {
+                        var tx = eitiDb.transaction('reasoning', 'readwrite');
+                        var store = tx.objectStore('reasoning');
+                        var req = store.get('graph');
+                        req.onsuccess = function() {
+                            var graph = req.result ? req.result.data : {};
+                            var w = word.trim().toLowerCase();
+                            var c = concept.trim();
+                            if (graph[w] && graph[w][c] !== undefined) {
+                                delete graph[w][c];
+                                if (Object.keys(graph[w]).length === 0) delete graph[w];
+                                store.put({ id: 'graph', data: graph });
+                                window._moscGraph = graph;
+                                showToast('🧠 MOSC: связь удалена — ' + w + ' → ' + c);
+                            } else {
+                                showToast('⚠️ MOSC: связь «' + w + '→' + c + '» не найдена');
+                            }
+                        };
+                        req.onerror = function() {};
+                    } catch(e) {}
+                }
+            },
+            {
+                name: 'MOSC_INTENT',
+                pattern: /\[MOSC_INTENT:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]/g,
+                handle: function(_, trigger, concept, answer) {
+                    var existing = localStorage.getItem('eiti_user_intents_v1') || '';
+                    var newLine = trigger.trim() + '|' + concept.trim() + '|' + answer.trim();
+                    localStorage.setItem('eiti_user_intents_v1', existing ? existing + '\n' + newLine : newLine);
+                    eitiLoadUserIntents();
+                    showToast('\uD83E\uDD16 MOSC: новый интент — ' + trigger.trim());
+                }
+            },
+            {
+                name: 'VB_ADD',
+                pattern: /\[VB_ADD:([^\|\]]+)\|([^\]]+)\]/g,
+                handle: function(_, intent, pattern) {
+                    try {
+                        var re = new RegExp(pattern.trim(), 'i');
+                        _vbIntentPatterns.push({ intent: intent.trim(), re: re });
+                        var stored = _vbIntentPatterns.map(function(p){ return { intent: p.intent, pattern: p.re.source }; });
+                        localStorage.setItem('eiti_vb_patterns', JSON.stringify(stored));
+                        showToast('VB: паттерн добавлен — ' + intent.trim());
+                    } catch(e) { showToast('VB_ADD ошибка: ' + e.message); }
+                }
+            },
+            {
+                name: 'FL_SET',
+                pattern: /\[FL_SET:([^\]]+)\]/g,
+                handle: function(_, params) {
+                    try {
+                        var cfg = (typeof eitiGetRetrievalConfig === 'function') ? eitiGetRetrievalConfig() : { mode: 'hybrid', threshold: 0.65, maxFacts: 7 };
+                        params.split(',').forEach(function(pair) {
+                            var kv = pair.trim().split('=');
+                            if (kv.length === 2) {
+                                var k = kv[0].trim(), v = kv[1].trim();
+                                if (k === 'threshold') cfg.threshold = parseFloat(v) || cfg.threshold;
+                                else if (k === 'maxFacts') cfg.maxFacts = parseInt(v) || cfg.maxFacts;
+                                else if (k === 'mode') cfg.mode = v;
+                            }
+                        });
+                        cfg._source = 'ai'; cfg._savedAt = new Date().toISOString();
+                        localStorage.setItem('eiti_retrieval_cfg', JSON.stringify(cfg));
+                        if (typeof eitiLoadRetrievalConfigUI === 'function') eitiLoadRetrievalConfigUI();
+                        showToast('FL: веса обновлены');
+                    } catch(e) {}
+                }
+            }
+        ];
+
         function eitiProcessCommands(reply) {
             if (!reply) return;
-            var _jsExecMatches = [];
-            reply.replace(/\[JS_EXEC:\s*([\s\S]*?)\]/g, function(_, code) {
-                _jsExecMatches.push(code.trim());
-            });
-            if (_jsExecMatches.length > 0) {
-                _jsExecMatches.forEach(function(code) {
-                    var preview = code.length > 200 ? code.slice(0, 200) + '…' : code;
-                    setTimeout(function() {
-                        eitiConfirm('🤖 DeepSeek предлагает выполнить код:\n\n' + preview + '\n\nВыполнить?',
-                            function() { // ОК
-                                try {
-                                    var result = eval(code); // eslint-disable-line no-eval
-                                    showToast('✅ JS_EXEC выполнен' + (result !== undefined ? ': ' + String(result).slice(0,80) : ''));
-                                } catch(e) {
-                                    showToast('❌ JS_EXEC ошибка: ' + e.message);
-                                    console.error('[EITI JS_EXEC]', e);
-                                }
-                            },
-                            function() { showToast('⛔ JS_EXEC отклонён пользователем'); }, // Отмена
-                            'Выполнить', false
-                        );
-                    }, 500);
-                });
+            // [JS_EXEC] — permanently disabled (RCE vector via eval).
+            if (/\[JS_EXEC:/i.test(reply)) {
+                showToast('⛔ JS_EXEC отключён: выполнение произвольного кода запрещено.');
+                console.warn('[EITI] JS_EXEC заблокирован. Используйте безопасные action-команды.');
             }
-            // EITI_FILE
-            reply.replace(/<EITI_FILE:([^>]+)>([\s\S]*?)<\/EITI_FILE>/g, function(_, name, content) {
-                upsertAiFile(name.trim(), 'text/plain', content);
-                updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
+            _kbChangedFlag = false;
+            _eitiCmds.forEach(function(cmd) {
+                try { reply.replace(cmd.pattern, cmd.handle); }
+                catch(e) { console.warn('[EITI CMD ' + cmd.name + ']', e); }
             });
-            // EITI_APPEND
-            reply.replace(/<EITI_APPEND:([^>]+)>([\s\S]*?)<\/EITI_APPEND>/g, function(_, name, content) {
-                var store = getAiTextStore();
-                var f = store.files.find(function(x){ return x.name === name.trim(); });
-                upsertAiFile(name.trim(), f ? (f.mime||'text/plain') : 'text/plain', (f ? (f.content||'') : '') + '\n' + content);
-                updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
-            });
-            // NOTE_WRITE
-            reply.replace(/\[NOTE_WRITE:([^\|\]]+)\|([^\]]*)\]/g, function(_, title, body) {
-                var t2 = title.trim(), b2 = body.trim();
-                if (!b2) return;
-                var notes = notesLoad(), now = Date.now();
-                var idx = notes.findIndex(function(n){ return n.title === t2; });
-                if (idx >= 0) { notes[idx].body = b2; notes[idx].updated = now; }
-                else notes.push({ id:'note_'+now, title:t2, body:b2, created:now, updated:now, colorIdx:Math.floor(Math.random()*8), emojiIdx:Math.floor(Math.random()*12) });
-                notesSave(notes);
-            });
-            // NOTE_APPEND
-            reply.replace(/\[NOTE_APPEND:([^\|\]]+)\|([^\]]*)\]/g, function(_, title, body) {
-                var notes = notesLoad(), now = Date.now(), t2 = title.trim();
-                var idx = notes.findIndex(function(n){ return n.title === t2; });
-                if (idx >= 0) { notes[idx].body = (notes[idx].body||'') + '\n' + body.trim(); notes[idx].updated = now; }
-                else notes.push({ id:'note_'+now, title:t2, body:body.trim(), created:now, updated:now, colorIdx:Math.floor(Math.random()*8), emojiIdx:Math.floor(Math.random()*12) });
-                notesSave(notes);
-            });
-            // NOTE_RETITLE
-            reply.replace(/\[NOTE_RETITLE:([^\|\]]+)\|([^\]]*)\]/g, function(_, oldT, newT) {
-                var notes = notesLoad(), idx = notes.findIndex(function(n){ return n.title === oldT.trim(); });
-                if (idx >= 0) { notes[idx].title = newT.trim(); notes[idx].updated = Date.now(); notesSave(notes); }
-            });
-            if (/\[NOTE_SUMMARY\]/.test(reply)) {
-                setTimeout(function() {
-                    showToast('📝 Открываю заметки…');
-                    if (typeof openView === 'function') openView('notes');
-                }, 600);
-            }
-            reply.replace(/\[NOTE_SEARCH:([^\]]*)\]/g, function(_, query) {
-                var q = query.trim().toLowerCase();
-                if (!q) return;
-                setTimeout(function() {
-                    var notes = notesLoad();
-                    var found = notes.filter(function(n) {
-                        return (n.title||'').toLowerCase().indexOf(q) !== -1 ||
-                               (n.body||'').toLowerCase().indexOf(q) !== -1;
-                    });
-                    showToast(found.length > 0
-                        ? '🔍 Найдено заметок: ' + found.length + ' по «' + query.trim() + '»'
-                        : '🔍 По «' + query.trim() + '» заметок не найдено');
-                    if (found.length > 0 && typeof openView === 'function') openView('notes');
-                }, 400);
-            });
-            // NEW_INTENT — v8.94: DeepSeek предлагает новый интент
-            reply.replace(/\[NEW_INTENT:([^\]]+)\]/g, function(_, raw) {
-                var parts = raw.split('|');
-                if (parts.length < 2) return;
-                var ta = document.getElementById('eiti-user-intents');
-                var existing = localStorage.getItem('eiti_user_intents_v1') || '';
-                var newLine = raw.trim();
-                var updated = existing ? existing + '\n' + newLine : newLine;
-                localStorage.setItem('eiti_user_intents_v1', updated);
-                eitiLoadUserIntents();
-                if (ta) ta.value = updated;
-                showToast('🧠 Новый интент добавлен: ' + parts[0]);
-            });
-            // EITI_LEARN
-            reply.replace(/\[EITI_LEARN:([^\]]+)\]/g, function(_, fact) {
-                eitiLearnFact(fact.trim());
-            });
-            // REMIND — работает в стриминге
-            reply.replace(/\[REMIND:([^\|\]]+)\|(\d+)\]/g, function(_, text, ts) {
-                reminderAdd(text.trim(), parseInt(ts));
-                if (typeof calRender === 'function') calRender(calYear, calMonth);
-            });
-            // KB_ADD_JSON: [KB_ADD_JSON] [{id,triggers,answer,category},...] [/KB_ADD_JSON]
-            // P11: Обработка массового добавления фактов из enrichment
-            reply.replace(/\[KB_ADD_JSON\]([\s\S]*?)\[\/KB_ADD_JSON\]/g, function(_, jsonStr) {
-                try {
-                    var newFacts = JSON.parse(jsonStr.trim());
-                    if (!Array.isArray(newFacts)) return;
-                    var existing = eitiKBLoad();
-                    var existIds = {}; existing.forEach(function(f){ existIds[f.id]=true; });
-                    var added = 0, _ts = Date.now();
-                    newFacts.forEach(function(f, i) {
-                        if (f.triggers && f.answer) {
-                            if (!f.id) f.id = 'kb_ai_' + _ts + '_' + i;
-                            if (!existIds[f.id]) {
-                                f.ts = _ts; f.source = 'ai_enrichment';
-                                existing.push(f); added++;
-                                existIds[f.id] = true;
-                            }
-                        }
-                    });
-                    if (added > 0) {
-                        eitiKBSave(existing);
-                        if (typeof _kbActiveCache !== 'undefined') window._kbActiveCache = null;
-                        if (typeof eitiKBRenderStats === 'function') setTimeout(eitiKBRenderStats, 300);
-                        if (typeof showToast === 'function') showToast('🧠 KB обогащена: +' + added + ' фактов добавлено', 4000);
-                    }
-                } catch(e) { console.warn('KB_ADD_JSON parse error:', e); }
-            });
-            // KB_ADD: [KB_ADD:category|trigger1,trigger2|Ответ]
-            var _kbChanged = false;
-            reply.replace(/\[KB_ADD:([^\|\]]+)\|([^\|\]]+)\|([^\]]*)\]/g, function(_, cat, trigs, ans) {
-                var facts = eitiKBLoad();
-                var triggers = trigs.split(',').map(function(t){ return t.trim().toLowerCase(); }).filter(Boolean);
-                if (!triggers.length || !ans.trim()) return;
-                var newId = 'kb_ai_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-                facts.push(normalizeFact({ id: newId, triggers: triggers, answer: ans.trim(), category: cat, tags: [], ts: Date.now() }));
-                eitiKBSave(facts);
-                _kbChanged = true;
-                showToast('🧠 KB: добавлен факт «' + triggers[0] + '»');
-            });
-            // KB_EDIT: [KB_EDIT:trigger|Новый ответ]
-            reply.replace(/\[KB_EDIT:([^\|\]]+)\|([^\]]*)\]/g, function(_, trig, ans) {
-                if (!ans.trim()) return;
-                var facts = eitiKBLoad();
-                var t = trig.trim().toLowerCase();
-                var idx = facts.findIndex(function(f){ return f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
-                if (idx !== -1) {
-                    facts[idx].answer = ans.trim();
-                    eitiKBSave(facts);
-                    _kbChanged = true;
-                    showToast('🧠 KB: обновлён «' + trig.trim() + '»');
-                } else {
-                    showToast('⚠️ KB: факт «' + trig.trim() + '» не найден');
-                }
-            });
-            // KB_DEL: [KB_DEL:trigger]
-            reply.replace(/\[KB_DEL:([^\]]*)\]/g, function(_, trig) {
-                var facts = eitiKBLoad();
-                var t = trig.trim().toLowerCase();
-                var before = facts.length;
-                var removed = facts.filter(function(f){ return f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
-                if (removed.length > 0) {
-                    try {
-                        if (eitiDb) {
-                            var _bkTx = eitiDb.transaction('reasoning', 'readwrite');
-                            _bkTx.objectStore('reasoning').put({ id: 'kb_backup_' + Date.now(), data: facts });
-                        }
-                    } catch(e) { console.warn('eitiAutoBackup KB_DEL:', e); }
-                }
-                facts = facts.filter(function(f){ return !f.triggers.some(function(tr){ return tr.toLowerCase() === t; }); });
-                if (facts.length < before) {
-                    eitiKBSave(facts);
-                    _kbChanged = true;
-                    showToast('🗑 KB: удалён «' + trig.trim() + '»');
-                }
-            });
-            // NOTE_DELETE — v9.13
-            reply.replace(/\[NOTE_DELETE:([^\]]+)\]/g, function(_, title) {
-                var notes = notesLoad().filter(function(n){
-                    return n.title.toLowerCase() !== title.trim().toLowerCase();
-                });
-                notesSave(notes);
-                showToast('\uD83D\uDDD1 Заметка удалена: ' + title.trim());
-            });
-            // FILE_DELETE — v9.13
-            reply.replace(/\[FILE_DELETE:([^\]]+)\]/g, function(_, name) {
-                eitiDeleteAiFile(name.trim());
-                showToast('\uD83D\uDDD1 Файл удалён: ' + name.trim());
-            });
-            // FILE_RENAME — AI переименовывает файл
-            reply.replace(/\[FILE_RENAME:([^\|\]]+)\|([^\]]+)\]/g, function(_, oldName, newName) {
-                var on=oldName.trim(), nn=newName.trim();
-                var f=(_idbFilesCache||[]).find(function(x){return x.name.toLowerCase()===on.toLowerCase();});
-                if (!f){showToast('⚠️ Файл не найден: '+on);return;}
-                var newContent=f.content||'';
-                _idbFilesCache=_idbFilesCache.filter(function(x){return x.name!==f.name;});
-                idbDeleteFile(f.name);
-                upsertAiFile(nn, f.mime||'text/plain', newContent);
-                eitiUpdateFileCount();
-                showToast('✏️ Файл переименован: '+on+' → '+nn);
-            });
-            // FILE_EDIT — AI редактирует содержимое файла
-            reply.replace(/\[FILE_EDIT:([^\|\]]+)\|([^\]]*)\]/g, function(_, name, newContent) {
-                var n=name.trim();
-                var f=(_idbFilesCache||[]).find(function(x){return x.name.toLowerCase()===n.toLowerCase();});
-                if (!f){showToast('⚠️ Файл не найден: '+n);return;}
-                upsertAiFile(f.name, f.mime||'text/plain', newContent);
-                eitiUpdateFileCount();
-                showToast('💾 Файл обновлён AI: '+n);
-            });
-            // MOSC_ADD — v9.13: прямой доступ к IDB (moscLoadGraph вне scope)
-            reply.replace(/\[MOSC_ADD:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]/g, function(_, word, concept, weight) {
-                if (!eitiDb) return;
-                try {
-                    var tx = eitiDb.transaction('reasoning', 'readwrite');
-                    var store = tx.objectStore('reasoning');
-                    var req = store.get('graph');
-                    req.onsuccess = function() {
-                        var graph = req.result ? req.result.data : {};
-                        var w = word.trim().toLowerCase();
-                        if (!graph[w]) graph[w] = {};
-                        graph[w][concept.trim()] = parseFloat(weight) || 0.5;
-                        store.put({ id: 'graph', data: graph });
-                        window._moscGraph = graph;
-                        showToast('\uD83E\uDDE0 MOSC: связь добавлена — ' + w + ' → ' + concept.trim());
-                    };
-                    req.onerror = function() {};
-                } catch(e) {}
-            });
-            // KB_LIST — v9.13: показать факты по категории
-            reply.replace(/\[KB_LIST:([^\]]*)\]/g, function(_, cat) {
-                var facts = eitiKBLoad();
-                var c = cat.trim().toLowerCase();
-                var filtered = c ? facts.filter(function(f){ return (f.category||'other') === c; }) : facts;
-                var header = '🧠 KB' + (c ? ' [' + c + '] — ' + filtered.length + ' фактов' : ' — все ' + filtered.length + ' фактов');
-                var body = filtered.length
-                    ? filtered.map(function(f, i){ return (i+1) + '. [' + (f.category||'other') + '] <b>' + f.triggers[0] + '</b>: ' + f.answer; }).join('<br>')
-                    : 'Фактов нет';
-                _eitiInlineReply(header + ':<br>' + body, 'KB');
-            });
-            // MOSC_SHOW — v9.13: показать связи конкретного слова
-            reply.replace(/\[MOSC_SHOW:([^\]]*)\]/g, function(_, word) {
-                var graph = window._moscGraph || {};
-                var w = word.trim().toLowerCase();
-                var header, body;
-                if (w === '*' || w === 'all' || w === 'все') {
-                    var keys = Object.keys(graph);
-                    header = '🧠 MOSC граф (' + keys.length + ' узлов)';
-                    body = keys.length ? keys.map(function(k){
-                        var edges = Object.keys(graph[k]).map(function(c){ return c+':'+graph[k][c]; }).join(', ');
-                        return '· <b>' + k + '</b> → {' + edges + '}';
-                    }).join('<br>') : 'Граф пуст';
-                } else {
-                    header = '🧠 MOSC [' + w + ']';
-                    body = graph[w]
-                        ? Object.keys(graph[w]).map(function(c){ return '<b>' + c + '</b>: ' + graph[w][c]; }).join('<br>')
-                        : 'Слово «' + w + '» не найдено в графе';
-                }
-                _eitiInlineReply(header + ':<br>' + body, 'MOSC');
-            });
-            // MOSC_DEL — v9.13: удалить слово из графа
-            reply.replace(/\[MOSC_DEL:([^\]]+)\]/g, function(_, word) {
-                if (!eitiDb) return;
-                try {
-                    var tx = eitiDb.transaction('reasoning', 'readwrite');
-                    var store = tx.objectStore('reasoning');
-                    var req = store.get('graph');
-                    req.onsuccess = function() {
-                        var graph = req.result ? req.result.data : {};
-                        var w = word.trim().toLowerCase();
-                        if (graph[w]) {
-                            delete graph[w];
-                            store.put({ id: 'graph', data: graph });
-                            window._moscGraph = graph;
-                            showToast('🧠 MOSC: слово удалено — ' + w);
-                        } else {
-                            showToast('⚠️ MOSC: слово «' + w + '» не найдено');
-                        }
-                    };
-                    req.onerror = function() {};
-                } catch(e) {}
-            });
-            // MOSC_DEL_EDGE — v9.13: удалить конкретную связь слово→концепт
-            reply.replace(/\[MOSC_DEL_EDGE:([^\|\]]+)\|([^\]]+)\]/g, function(_, word, concept) {
-                if (!eitiDb) return;
-                try {
-                    var tx = eitiDb.transaction('reasoning', 'readwrite');
-                    var store = tx.objectStore('reasoning');
-                    var req = store.get('graph');
-                    req.onsuccess = function() {
-                        var graph = req.result ? req.result.data : {};
-                        var w = word.trim().toLowerCase();
-                        var c = concept.trim();
-                        if (graph[w] && graph[w][c] !== undefined) {
-                            delete graph[w][c];
-                            if (Object.keys(graph[w]).length === 0) delete graph[w];
-                            store.put({ id: 'graph', data: graph });
-                            window._moscGraph = graph;
-                            showToast('🧠 MOSC: связь удалена — ' + w + ' → ' + c);
-                        } else {
-                            showToast('⚠️ MOSC: связь «' + w + '→' + c + '» не найдена');
-                        }
-                    };
-                    req.onerror = function() {};
-                } catch(e) {}
-            });
-            // MOSC_INTENT — v9.13
-            reply.replace(/\[MOSC_INTENT:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]/g, function(_, trigger, concept, answer) {
-                var existing = localStorage.getItem('eiti_user_intents_v1') || '';
-                var newLine = trigger.trim() + '|' + concept.trim() + '|' + answer.trim();
-                localStorage.setItem('eiti_user_intents_v1', existing ? existing + '\n' + newLine : newLine);
-                eitiLoadUserIntents();
-                showToast('\uD83E\uDD16 MOSC: новый интент — ' + trigger.trim());
-            });
-            if (_kbChanged) setTimeout(function(){ eitiKBRenderStats(); }, 300);
-
-            // ── VB_ADD: [VB_ADD:intent|pattern] ─────────────────────
-            reply.replace(/\[VB_ADD:([^\|\]]+)\|([^\]]+)\]/g, function(_, intent, pattern) {
-                try {
-                    var re = new RegExp(pattern.trim(), 'i');
-                    _vbIntentPatterns.push({ intent: intent.trim(), re: re });
-                    var stored = _vbIntentPatterns.map(function(p){ return { intent: p.intent, pattern: p.re.source }; });
-                    localStorage.setItem('eiti_vb_patterns', JSON.stringify(stored));
-                    if (typeof showToast === 'function') showToast('VB: паттерн добавлен — ' + intent.trim());
-                } catch(e) { if (typeof showToast === 'function') showToast('VB_ADD ошибка: ' + e.message); }
-            });
-
-            // ── FL_SET: [FL_SET:threshold=0.7,maxFacts=5,mode=hybrid] ─
-            reply.replace(/\[FL_SET:([^\]]+)\]/g, function(_, params) {
-                try {
-                    var cfg = (typeof eitiGetRetrievalConfig === 'function') ? eitiGetRetrievalConfig() : { mode: 'hybrid', threshold: 0.65, maxFacts: 7 };
-                    params.split(',').forEach(function(pair) {
-                        var kv = pair.trim().split('=');
-                        if (kv.length === 2) {
-                            var k = kv[0].trim(), v = kv[1].trim();
-                            if (k === 'threshold') cfg.threshold = parseFloat(v) || cfg.threshold;
-                            else if (k === 'maxFacts') cfg.maxFacts = parseInt(v) || cfg.maxFacts;
-                            else if (k === 'mode') cfg.mode = v;
-                        }
-                    });
-                    cfg._source = 'ai'; cfg._savedAt = new Date().toISOString();
-                    localStorage.setItem('eiti_retrieval_cfg', JSON.stringify(cfg));
-                    if (typeof eitiLoadRetrievalConfigUI === 'function') eitiLoadRetrievalConfigUI();
-                    if (typeof showToast === 'function') showToast('FL: веса обновлены');
-                } catch(e) {}
-            });
+            if (_kbChangedFlag) setTimeout(function(){ eitiKBRenderStats(); }, 300);
         }
 
         // ═══════════════════════════════════════════════════
@@ -14625,7 +14783,7 @@ window.eitiClearAllModelCache = async function() {
         // Команда пользователя: «сделай анализ разговора» / «проанализируй чат»
         // ═══════════════════════════════════════════════════════════════
         function eitiAnalyzeChat() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { if (typeof showToast === 'function') showToast('Нужен DeepSeek API ключ'); return; }
             // Собираем историю — последние 60 сообщений
             var history = (chatLog || []).slice(-60).map(function(m) {
@@ -15687,7 +15845,7 @@ window.eitiClearAllModelCache = async function() {
         function eitiKBEnrich() {
             var topic = (document.getElementById('eiti-kb-enrich-topic')||{}).value||'';
             var cat   = (document.getElementById('eiti-kb-enrich-cat')||{}).value||'other';
-            var key   = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key   = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             if (!topic.trim()) { showToast('⚠️ Укажи тему'); return; }
             showToast('🤖 Генерирую факты по теме: '+topic+'…');
@@ -15774,7 +15932,7 @@ window.eitiClearAllModelCache = async function() {
 
         // ── DeepSeek: проверить и исправить KB чанками по 50 ────────
         function eitiKBFixStart() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var facts = eitiKBLoad();
             if (!facts.length) { showToast('KB пуста'); return; }
@@ -15906,7 +16064,7 @@ window.eitiClearAllModelCache = async function() {
 
         // ── DeepSeek: ответить на неотвеченные вопросы ───────────────
         function eitiKBAnswerUnanswered() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var list = JSON.parse(localStorage.getItem(EITI_UNANSWERED_KEY)||'[]');
             if (!list.length) { showToast('Нет неотвеченных вопросов'); return; }
@@ -17454,7 +17612,7 @@ window.eitiClearAllModelCache = async function() {
         // 🤖 AI EXPORT — оглавление + резюме через DeepSeek
         // ═══════════════════════════════════════════════
         async function eitiAiExport(format) {
-            var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var apiKey = _getDsKey();
             if (!apiKey) { showToast('⚠️ Нет API ключа DeepSeek'); return; }
             showToast('🤖 AI анализирует... подождите');
             var notes = notesLoad();
@@ -18017,7 +18175,7 @@ window.eitiClearAllModelCache = async function() {
         function moscEnrich() {
             if (_moscEnrichRunning) return;
             var topic = (document.getElementById('mosc-enrich-topic')||{}).value||'';
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             if (!topic.trim()) { showToast('⚠️ Укажи тему'); return; }
             _moscEnrichRunning = true;
@@ -18094,7 +18252,7 @@ window.eitiClearAllModelCache = async function() {
         }
 
         function moscFixStart() {
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var graph = window._moscGraph || {};
             var words = Object.keys(graph);
@@ -18216,7 +18374,7 @@ window.eitiClearAllModelCache = async function() {
             var unanswered = [];
             try { unanswered = JSON.parse(localStorage.getItem(EITI_UNANSWERED_KEY) || '[]'); } catch(e) {}
             if (!unanswered.length) { showToast('⚠️ Нет неотвеченных вопросов'); return; }
-            var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+            var key = _getDsKey();
             if (!key) { showToast('⚠️ Нужен DeepSeek API ключ'); return; }
             var statusEl = document.getElementById('mosc-fix-status');
             // FIX v9.21: элементы — объекты {q, ts}, извлекаем только текст вопроса
@@ -18957,7 +19115,7 @@ window.eitiReminderSave = function() {
             if (!sendBtn) return;
             var origClick = sendBtn.onclick;
             sendBtn.onclick = function(e) {
-                var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+                var apiKey = _getDsKey();
                 var offlineMode = localStorage.getItem('eiti_offline_mode') === '1';
                 var onlyAI = localStorage.getItem('eiti_only_ai') === '1';
                 var hasAI = apiKey.length > 10;
@@ -19067,7 +19225,7 @@ window.moscFreeTextSend = function() {
     var btn = document.getElementById('mosc-free-btn');
     var res = document.getElementById('mosc-free-result');
     if (!inp || !inp.value.trim()) { typeof showToast === 'function' && showToast('⚠️ Введите текст'); return; }
-    var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+    var apiKey = _getDsKey();
     if (!apiKey) { typeof showToast === 'function' && showToast('⚠️ Нет API-ключа DeepSeek'); return; }
     var userText = inp.value.trim();
     if (btn) { btn.disabled = true; btn.textContent = '⏳ AI анализирует...'; }
@@ -19179,7 +19337,7 @@ window.moscFreeTextSend = function() {
         if (typeof _origReceive === 'function') _origReceive(text, sender);
         var isOn = localStorage.getItem(AUTO_LEARN_KEY) === '1';
         if (!isOn || !text || text.length < 30) return;
-        var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+        var apiKey = _getDsKey();
         if (!apiKey) return;
         // Анализируем в фоне — без блокировки UI
         setTimeout(function() {
@@ -19247,7 +19405,7 @@ window.moscFreeTextSend = function() {
     var _autoLearnFromReply = function(text) {
         var isOn = localStorage.getItem(AUTO_LEARN_KEY) === '1';
         if (!isOn || !text || text.length < 30) return;
-        var apiKey = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
+        var apiKey = _getDsKey();
         if (!apiKey) return;
         // Убираем HTML теги перед анализом
         var plain = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -19473,7 +19631,7 @@ window.eitiApplyDesignTheme = function(theme, design) {
     // ── Централизованный геттер API-ключа ────────────────────────────────────
     // Единственное место чтения ключа — все вызовы используют эту функцию
     function getApiKey() {
-        try { return _deobfKey(localStorage.getItem('deepseek_api_key') || ''); } catch (e) { return ''; }
+        try { return _getDsKey(); } catch (e) { return ''; }
     }
     // Делаем доступным глобально если нужно
     window.eitiGetApiKey = getApiKey;
@@ -20543,12 +20701,10 @@ _initSQL();
         if (el) el.classList.add('active');
     }
 
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            var savedStyle = localStorage.getItem('eiti_emoji_style') || 'emoji_classic';
-            applyEmojiStyle(savedStyle);
-            highlightEmojiStyle(savedStyle);
-        }, 300);
+    document.addEventListener('DOMContentLoaded', function() {
+        var savedStyle = localStorage.getItem('eiti_emoji_style') || 'emoji_classic';
+        applyEmojiStyle(savedStyle);
+        highlightEmojiStyle(savedStyle);
     });
 
     // Expose for external use
