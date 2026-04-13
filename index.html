@@ -1062,7 +1062,23 @@
             bottom: 0;
             z-index: 10;
         }
-        
+
+        .chat-input-panel.fixed-fallback {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            z-index: 999;
+        }
+
+        .chat-input-panel.fixed-mode {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 999;
+        }
+
         .chat-input {
             flex: 1;
             height: 42px;
@@ -20489,6 +20505,72 @@ _initSQL();
         if(typeof eitiVBRenderStats==='function') eitiVBRenderStats();
         if(typeof eitiRenderFLWeightsStats==='function') eitiRenderFLWeightsStats(); else if(typeof eiti_FLRenderStats==='function') eiti_FLRenderStats();
     },800);
+})();
+</script>
+<script>
+// ── EITI Fix v5.4 + v5.5: Emoji Default + Chat Layout Detector ───────────────
+(function() {
+    'use strict';
+
+    // ── Emoji Style Fix (v5.4) ────────────────────────────────────────────────
+
+    function applyEmojiStyle(style) {
+        if (typeof applyIconPack === 'function') applyIconPack(style);
+    }
+
+    function setEmojiStyle(style) {
+        localStorage.setItem('eiti_emoji_style', style);
+        applyEmojiStyle(style);
+    }
+
+    function highlightEmojiStyle(style) {
+        document.querySelectorAll('.emoji-style-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        var el = document.querySelector('[data-style="' + style + '"]');
+        if (el) el.classList.add('active');
+    }
+
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            var savedStyle = localStorage.getItem('eiti_emoji_style') || 'emoji_classic';
+            applyEmojiStyle(savedStyle);
+            highlightEmojiStyle(savedStyle);
+        }, 300);
+    });
+
+    // Expose for external use
+    window.setEmojiStyle = setEmojiStyle;
+    window.applyEmojiStyle = applyEmojiStyle;
+    window.highlightEmojiStyle = highlightEmojiStyle;
+
+    // ── Auto Layout Detector (v5.5) ───────────────────────────────────────────
+
+    function detectChatLayoutMode() {
+        var panel = document.querySelector('.chat-input-panel');
+        if (!panel) return;
+        var isStickySupported = CSS.supports('position', 'sticky');
+        var rect = panel.getBoundingClientRect();
+        var screenHeight = window.innerHeight;
+        var isVisible = rect.bottom <= screenHeight;
+        if (!isStickySupported || !isVisible) {
+            panel.classList.add('fixed-mode');
+            console.warn('[EITI] Using fixed mode for chat input');
+        } else {
+            panel.classList.remove('fixed-mode');
+        }
+    }
+
+    window.addEventListener('load', function() {
+        setTimeout(detectChatLayoutMode, 500);
+    });
+    window.addEventListener('resize', function() {
+        detectChatLayoutMode();
+    });
+    window.addEventListener('focus', function() {
+        detectChatLayoutMode();
+    });
+
 })();
 </script>
 </body>
