@@ -1389,7 +1389,28 @@
         .settings-item:last-child {
             border-bottom: none;
         }
-        
+
+        /* v5.6: Unified volumetric settings buttons */
+        .settings-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            box-shadow:
+                4px 4px 12px rgba(0,0,0,0.6),
+                -3px -3px 8px rgba(255,255,255,0.05);
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+        .settings-btn:active {
+            transform: scale(0.97);
+        }
+
         .theme-selector {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -1673,6 +1694,12 @@
 
         body.reader .chat-input-panel,
         body.reader .tab-bar{ display:none; }
+
+        /* v5.6: Force chat input visible — prevent accidental hiding */
+        .chat-input-panel {
+            display: flex !important;
+            visibility: visible !important;
+        }
 
         /* Compact grids for sub-views */
         .subview-header{
@@ -20561,8 +20588,45 @@ _initSQL();
         }
     }
 
+    // v5.6: Ensure chat input is always visible / recreate if missing
+    function eitiEnsureChatInputVisible() {
+        var panel = document.querySelector('.chat-input-panel');
+
+        // Fallback: recreate panel if completely missing from DOM
+        if (!panel) {
+            console.warn('[EITI] chat-input-panel missing → recreating');
+            var container = document.querySelector('.chat-container');
+            if (!container) return;
+
+            panel = document.createElement('div');
+            panel.className = 'chat-input-panel';
+            panel.innerHTML =
+                '<textarea class="chat-input" placeholder="Введите сообщение... (Enter — отправить)" id="input" rows="1"></textarea>' +
+                '<button class="chat-send-btn" id="send"><span data-icon="send">➤</span></button>';
+            container.appendChild(panel);
+
+            // Re-wire send button if patcher is available
+            if (typeof eitiPatchSendButton === 'function') {
+                eitiPatchSendButton();
+            }
+        }
+
+        // Always force visible
+        panel.style.display = 'flex';
+        panel.style.visibility = 'visible';
+        panel.style.opacity = '1';
+        panel.classList.remove('hidden', 'd-none');
+        console.log('[EITI] chat input restored');
+    }
+
     window.addEventListener('load', function() {
         setTimeout(detectChatLayoutMode, 500);
+        setTimeout(eitiEnsureChatInputVisible, 400);
+    });
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            eitiEnsureChatInputVisible();
+        }
     });
     window.addEventListener('resize', function() {
         detectChatLayoutMode();
