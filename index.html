@@ -17081,7 +17081,7 @@ window.eitiClearAllModelCache = async function() {
             var dateEl = document.getElementById('noteEditorDate');
             if (titleEl) titleEl.value = note ? (note.title || '') : '';
             if (bodyEl) bodyEl.value = note ? (note.body || '') : '';
-            if (dateEl) { if (note) { var _d=new Date(note.updated); dateEl.textContent='📅 '+_d.toLocaleDateString('ru')+' ⏱ '+_d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}); } else { dateEl.textContent=''; } }
+            if (dateEl) { var _d=note ? new Date(note.updated) : new Date(); dateEl.textContent='📅 '+_d.toLocaleDateString('ru')+' ⏱ '+_d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}); }
             // Color dots
             var colorRow = document.getElementById('noteColorRow');
             if (colorRow) {
