@@ -949,14 +949,7 @@
         }
         
         .app-header {
-            height: 88px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(180deg, var(--secondary-color) 0%, var(--primary-color) 100%);
-            border-bottom: 2px solid var(--border-color);
-            box-shadow: 0 4px 16px var(--shadow-color);
-            position: relative;
+            display: none;
         }
         
         .app-header h1 {
@@ -1970,7 +1963,7 @@
             z-index: 500;
             flex-direction: column;
         }
-        .note-editor-overlay.active { display: flex; }
+        .note-editor-overlay.active { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
         /* Editor fullscreen — double-tap inside textarea */
         .note-editor-overlay.editor-fullscreen { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 2000 !important; }
         .note-editor-overlay.editor-fullscreen .note-editor-topbar,
