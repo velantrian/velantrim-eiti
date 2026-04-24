@@ -977,13 +977,14 @@
         
         .content-view {
             display: none;
-            height: 100%;
-            overflow: hidden;
         }
-        
+
         .content-view.active {
             display: flex;
             flex-direction: column;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            overflow: hidden;
         }
         
         /* === CHAT === */
