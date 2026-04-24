@@ -949,7 +949,14 @@
         }
         
         .app-header {
-            display: none;
+            height: 88px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, var(--secondary-color) 0%, var(--primary-color) 100%);
+            border-bottom: 2px solid var(--border-color);
+            box-shadow: 0 4px 16px var(--shadow-color);
+            position: relative;
         }
         
         .app-header h1 {
@@ -970,13 +977,14 @@
         
         .content-view {
             display: none;
-            height: 100%;
-            overflow: hidden;
         }
-        
+
         .content-view.active {
             display: flex;
             flex-direction: column;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            overflow: hidden;
         }
         
         /* === CHAT === */
