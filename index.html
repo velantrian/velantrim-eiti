@@ -983,7 +983,7 @@
             display: flex;
             flex-direction: column;
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 110px;
             overflow: hidden;
         }
         
@@ -17079,7 +17079,7 @@ window.eitiClearAllModelCache = async function() {
             var dateEl = document.getElementById('noteEditorDate');
             if (titleEl) titleEl.value = note ? (note.title || '') : '';
             if (bodyEl) bodyEl.value = note ? (note.body || '') : '';
-            if (dateEl) dateEl.textContent = note ? '📅 ' + new Date(note.updated).toLocaleString('ru') : '';
+            if (dateEl) { if (note) { var _d=new Date(note.updated); dateEl.textContent='📅 '+_d.toLocaleDateString('ru')+' ⏱ '+_d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}); } else { dateEl.textContent=''; } }
             // Color dots
             var colorRow = document.getElementById('noteColorRow');
             if (colorRow) {
@@ -17152,7 +17152,7 @@ window.eitiClearAllModelCache = async function() {
             notesSave(notes);
             var dEl = document.getElementById('noteEditorDate');
             var updatedNote = notes.find(function(n){ return n.id === (notesCurrentId || 'note_'+now); });
-            if (dEl && updatedNote) dEl.textContent = '📅 ' + new Date(updatedNote.updated).toLocaleString('ru');
+            if (dEl && updatedNote) { var _du=new Date(updatedNote.updated); dEl.textContent='📅 '+_du.toLocaleDateString('ru')+' ⏱ '+_du.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}); }
             showToast('📝 Заметка сохранена');
             notesCloseEditor();
             vibrate();
