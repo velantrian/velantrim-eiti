@@ -1030,15 +1030,15 @@
         
         .message.incoming {
             align-self: flex-start;
-            background: var(--bubble-in, linear-gradient(145deg, var(--secondary-color), var(--primary-color)));
+            background: var(--bubble-in, #f2f2f2);
             border-bottom-left-radius: 4px;
-            color: var(--bubble-in-text, var(--text-color));
+            color: var(--bubble-in-text, #1c1c1e);
         }
-        
+
         .message.outgoing {
             align-self: flex-end;
-            background: var(--bubble-out, linear-gradient(145deg, var(--accent-color), #c9a700));
-            color: var(--bubble-out-text, #000);
+            background: var(--bubble-out, #e8e8e8);
+            color: var(--bubble-out-text, #1c1c1e);
             border-bottom-right-radius: 4px;
         }
         
@@ -2367,10 +2367,10 @@
                                 </div>
                                 <div id="cm-desc" style="font-size:11px;opacity:0.55;margin-top:6px;text-align:center;"></div>
                                 <div style="font-size:11px;opacity:0.4;margin-top:5px;line-height:1.65;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:8px;">
-                                    🎯 <b>Точность</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-reasoner</code> (R1) — думает перед ответом<br>
-                                    ⚖️ <b>Баланс</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-chat</code> — быстро и точно<br>
-                                    🔭 <b>Идеи</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-chat</code> — творческий режим<br>
-                                    🌐 <b>Поиск</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-chat</code> + DuckDuckGo — онлайн-контекст
+                                    🎯 <b>Точность</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-v4-pro</code> — высокая точность<br>
+                                    ⚖️ <b>Баланс</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-v4-flash</code> — быстро и точно<br>
+                                    🔭 <b>Идеи</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-v4-flash</code> — творческий режим<br>
+                                    🌐 <b>Поиск</b> → <code style="font-size:10px;background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:4px;">deepseek-v4-flash</code> + DuckDuckGo — онлайн-контекст
                                 </div>
                             </div>
                             <input type="password" id="deepseek-key" placeholder="sk-xxxxxxxxxxxx"
@@ -6168,8 +6168,8 @@
         function eitiVBValidateEditor(){var ta=document.getElementById('vb-patterns-textarea'),err=document.getElementById('vb-editor-err');if(!ta||!err)return;try{JSON.parse(ta.value);err.style.display='none';}catch(e){err.textContent='❌ '+e.message;err.style.display='block';}}
         function eitiVBSavePatterns(){var ta=document.getElementById('vb-patterns-textarea');if(!ta)return;try{var p=JSON.parse(ta.value);_vbIntentPatterns=p.map(function(x){return{intent:x.intent,re:new RegExp(x.pattern,'i')};});localStorage.setItem('eiti_vb_patterns',JSON.stringify(p));localStorage.setItem('eiti_vb_added_count',parseInt(localStorage.getItem('eiti_vb_added_count')||'0')+p.length);eitiVBRenderStats();if(typeof showToast==='function')showToast('VB🦋 сохранено ✅');}catch(e){if(typeof showToast==='function')showToast('❌ '+e.message);}}
         function eitiVBRenderStats(){var el=document.getElementById('vb-stats');if(!el)return;var pc=_vbIntentPatterns.length,ac=parseInt(localStorage.getItem('eiti_vb_added_count')||'0'),en=Object.keys(_vbState.entityMemory||{}).length;el.innerHTML=[{l:'Паттернов',v:pc,c:'#ffd700'},{l:'Добавлено',v:ac,c:'#4ad700'},{l:'Запросов',v:_vbState.totalAnalyzed,c:'#4a9eff'},{l:'Статус',v:_vbEnabled?'🟢':'🔴',c:_vbEnabled?'#4ad700':'#ff6b6b'}].map(function(s){return'<div style="text-align:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:17px;font-weight:700;color:'+s.c+';">'+s.v+'</div><div style="font-size:10px;opacity:0.6;">'+s.l+'</div></div>';}).join('');}
-        function eitiVBAIImprove(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var res=document.getElementById('vb-ai-result');if(res){res.style.display='block';res.textContent='🤖 Улучшаю…';}var cur=JSON.stringify(_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}));fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',max_tokens:2000,messages:[{role:'system',content:'Отвечай только JSON без markdown.'},{role:'user',content:'Улучши паттерны Velantrim Brain: '+cur+'. Верни ТОЛЬКО JSON [{intent,pattern}].'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';try{var p=JSON.parse(txt.replace(/```json|```/g,'').trim());_vbPendingEnrichment=p;if(res)res.textContent='✅ AI предлагает '+p.length+' паттернов';var cb=document.getElementById('vb-confirm-block'),ct=document.getElementById('vb-confirm-text');if(cb)cb.style.display='flex';if(ct)ct.textContent='Применить '+p.length+' паттернов от AI?';}catch(e){if(res)res.textContent='❌ '+e.message;}}).catch(function(e){if(res)res.textContent='❌ '+e.message;});}
-        function eitiVBAIAnalyze(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var res=document.getElementById('vb-ai-result');if(res){res.style.display='block';res.textContent='🔍 Анализирую…';}var cur=JSON.stringify(_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}));fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',max_tokens:1500,messages:[{role:'user',content:'Проанализируй паттерны VB🦋: '+cur+'. Найди риски. По-русски с эмодзи.'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';if(res){res.style.display='block';res.innerHTML=txt.replace(/\n/g,'<br>');}}).catch(function(e){if(res)res.textContent='❌ '+e.message;});}
+        function eitiVBAIImprove(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var res=document.getElementById('vb-ai-result');if(res){res.style.display='block';res.textContent='🤖 Улучшаю…';}var cur=JSON.stringify(_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}));fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-v4-flash',max_tokens:2000,messages:[{role:'system',content:'Отвечай только JSON без markdown.'},{role:'user',content:'Улучши паттерны Velantrim Brain: '+cur+'. Верни ТОЛЬКО JSON [{intent,pattern}].'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';try{var p=JSON.parse(txt.replace(/```json|```/g,'').trim());_vbPendingEnrichment=p;if(res)res.textContent='✅ AI предлагает '+p.length+' паттернов';var cb=document.getElementById('vb-confirm-block'),ct=document.getElementById('vb-confirm-text');if(cb)cb.style.display='flex';if(ct)ct.textContent='Применить '+p.length+' паттернов от AI?';}catch(e){if(res)res.textContent='❌ '+e.message;}}).catch(function(e){if(res)res.textContent='❌ '+e.message;});}
+        function eitiVBAIAnalyze(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var res=document.getElementById('vb-ai-result');if(res){res.style.display='block';res.textContent='🔍 Анализирую…';}var cur=JSON.stringify(_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}));fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-v4-flash',max_tokens:1500,messages:[{role:'user',content:'Проанализируй паттерны VB🦋: '+cur+'. Найди риски. По-русски с эмодзи.'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';if(res){res.style.display='block';res.innerHTML=txt.replace(/\n/g,'<br>');}}).catch(function(e){if(res)res.textContent='❌ '+e.message;});}
         function eitiVBApplyEnrichment(){if(!_vbPendingEnrichment)return;try{_vbIntentPatterns=_vbPendingEnrichment.map(function(p){return{intent:p.intent,re:new RegExp(p.pattern,'i')};});localStorage.setItem('eiti_vb_patterns',JSON.stringify(_vbPendingEnrichment));localStorage.setItem('eiti_vb_added_count',parseInt(localStorage.getItem('eiti_vb_added_count')||'0')+_vbPendingEnrichment.length);var log=document.getElementById('vb-changelog');if(log){log.style.display='block';log.innerHTML+='<div>✅ +'+_vbPendingEnrichment.length+' паттернов — '+new Date().toLocaleTimeString('ru')+'</div>';}document.getElementById('vb-confirm-block').style.display='none';_vbPendingEnrichment=null;eitiVBRenderStats();if(typeof showToast==='function')showToast('VB🦋 обогащён ✅');}catch(e){if(typeof showToast==='function')showToast('❌ '+e.message);}}
         function eitiVBCancelEnrichment(){_vbPendingEnrichment=null;var cb=document.getElementById('vb-confirm-block');if(cb)cb.style.display='none';}
         function eitiVBExport(){var d={patterns:_vbIntentPatterns.map(function(p){return{intent:p.intent,pattern:p.re.source};}),version:'11.5',exported:new Date().toISOString()};var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));a.download='velantrim_brain_'+Date.now()+'.json';a.click();}
@@ -6222,7 +6222,7 @@
                 msgs.push({ role: 'user', content: userPrompt });
                 return _fetchWithRetry('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST', headers: { 'Authorization': 'Bearer ' + dk, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: maxTok, messages: msgs })
+                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: maxTok, messages: msgs })
                 }).then(function(r){ return r.json(); }).then(function(d){
                     var txt = (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content) || '';
                     if (!txt) throw new Error(JSON.stringify(d.error||d));
@@ -6407,7 +6407,7 @@
             } catch(e){}
         }
         function eiti_FLRenderStats(){var el=document.getElementById('fl-weights-stats');if(!el)return;var cfg=(typeof eitiGetRetrievalConfig==='function')?eitiGetRetrievalConfig():{mode:'hybrid',threshold:0.65,maxFacts:7};var kbc=0;try{kbc=(window._kbMemCache||JSON.parse(localStorage.getItem('eiti_kb_v1')||localStorage.getItem('eiti_kb')||'[]')).length;}catch(e){}el.innerHTML=[{l:'Режим',v:cfg.mode||'hybrid',c:'#ffd700'},{l:'Порог',v:cfg.threshold||'0.65',c:'#4a9eff'},{l:'Макс фактов',v:cfg.maxFacts||7,c:'#4ad700'},{l:'Фактов KB',v:kbc,c:'#ff9944'}].map(function(s){return'<div style="text-align:center;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:17px;font-weight:700;color:'+s.c+';">'+s.v+'</div><div style="font-size:10px;opacity:0.6;">'+s.l+'</div></div>';}).join('');}
-        function eiti_FLAnalyzeRisks(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var el=document.getElementById('fl-risks-result');if(el){el.style.display='block';el.textContent='🔍 Анализирую FL…';}var cfg=(typeof eitiGetRetrievalConfig==='function')?eitiGetRetrievalConfig():{};fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',max_tokens:1000,messages:[{role:'user',content:'Проанализируй FL Retrieval: '+JSON.stringify(cfg)+'. Риски и рекомендации. По-русски с эмодзи.'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';if(el){el.style.display='block';el.innerHTML=txt.replace(/\n/g,'<br>');}}).catch(function(e){if(el)el.textContent='❌ '+e.message;});}
+        function eiti_FLAnalyzeRisks(){var key=localStorage.getItem('eiti_deepseek_key')||'';if(!key){if(typeof showToast==='function')showToast('❌ Нет ключа DeepSeek');return;}var el=document.getElementById('fl-risks-result');if(el){el.style.display='block';el.textContent='🔍 Анализирую FL…';}var cfg=(typeof eitiGetRetrievalConfig==='function')?eitiGetRetrievalConfig():{};fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-v4-flash',max_tokens:1000,messages:[{role:'user',content:'Проанализируй FL Retrieval: '+JSON.stringify(cfg)+'. Риски и рекомендации. По-русски с эмодзи.'}]})}).then(function(r){return r.json();}).then(function(d){var txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';if(el){el.style.display='block';el.innerHTML=txt.replace(/\n/g,'<br>');}}).catch(function(e){if(el)el.textContent='❌ '+e.message;});}
         window.eitiVBAnalyze=eitiVBAnalyze;window.eitiVBToggle=eitiVBToggle;window.eitiVBToggleEditor=eitiVBToggleEditor;
         window.eitiVBValidateEditor=eitiVBValidateEditor;window.eitiVBSavePatterns=eitiVBSavePatterns;
         window.eitiVBRenderStats=eitiVBRenderStats;window.eitiVBAIImprove=eitiVBAIImprove;
@@ -7171,7 +7171,7 @@
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + dk, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
+                    body: JSON.stringify({ model: 'deepseek-v4-flash', messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
                 }).then(function(r) {
                     if (r.ok) { status.innerHTML = '<span style="color:#0f0">✅ DeepSeek подключён!</span>'; showToast('AI активен 🤖'); }
                     else { status.innerHTML = '<span style="color:#f66">❌ HTTP ' + r.status + '</span>'; }
@@ -7826,7 +7826,7 @@
                 }
 
                 // ── DeepSeek SSE path (default) ────────────────────
-                var _aiModel = (_cogMode === 'precision') ? 'deepseek-reasoner' : 'deepseek-chat';
+                var _aiModel = (_cogMode === 'precision') ? 'deepseek-v4-pro' : 'deepseek-v4-flash';
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     signal: _abortCtrl.signal,
@@ -8090,7 +8090,7 @@
                     signal: _l2Ac.signal,
                     headers: {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        model: 'deepseek-chat',
+                        model: 'deepseek-v4-flash',
                         messages: [{
                             role: 'system',
                             content: 'Сделай краткий дайджест диалога (3-5 предложений): что обсуждали, какие решения приняли, какие факты о пользователе стали известны. Только факты, без воды.'
@@ -9500,7 +9500,7 @@
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-                    body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 1500,
+                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 1500,
                         messages: [{ role: 'user', content: prompt }] })
                 }).then(function(r){ return r.json(); }).then(function(data) {
                     var text = (data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -14827,7 +14827,7 @@ window.eitiClearAllModelCache = async function() {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'deepseek-chat',
+                    model: 'deepseek-v4-flash',
                     max_tokens: 3000,
                     messages: [
                         { role: 'system', content: 'Отвечай только валидным JSON без markdown, без пояснений.' },
@@ -15834,7 +15834,7 @@ window.eitiClearAllModelCache = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-                body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 800,
+                body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 800,
                     messages: [{ role:'system', content:'Ты аналитик личной памяти EITI. Отвечай кратко на русском.' },
                                { role:'user', content: prompt }] })
             }).then(function(r){ return r.json(); })
@@ -15862,7 +15862,7 @@ window.eitiClearAllModelCache = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body: JSON.stringify({ model:'deepseek-chat', max_tokens:2000,
+                body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:2000,
                     messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = (data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -16031,7 +16031,7 @@ window.eitiClearAllModelCache = async function() {
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST',
                     headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                    body: JSON.stringify({ model:'deepseek-chat', max_tokens:3000,
+                    body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:3000,
                         messages:[
                             {role:'system', content:'Ты верификатор базы знаний. Проверяй факты строго. Возвращай только JSON массив без markdown и пояснений.'},
                             {role:'user', content:prompt}
@@ -16083,7 +16083,7 @@ window.eitiClearAllModelCache = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body: JSON.stringify({ model:'deepseek-chat', max_tokens:3000,
+                body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:3000,
                     messages:[
                         {role:'system', content:'Ты точная база знаний. Отвечай ТОЛЬКО достоверными фактами. Никогда не путай похожие понятия (например: столица Венгрии — Будапешт, НЕ Бухарест; Бухарест — столица Румынии). Возвращай только JSON массив без пояснений.'},
                         {role:'user', content:prompt}
@@ -17652,7 +17652,7 @@ window.eitiClearAllModelCache = async function() {
             try {
                 var resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-                    body: JSON.stringify({ model:'deepseek-chat', max_tokens:4096, temperature:0.3, messages:[{role:'user',content:prompt}] })
+                    body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:4096, temperature:0.3, messages:[{role:'user',content:prompt}] })
                 });
                 var data = await resp.json();
                 var raw = (data.choices[0].message.content||'').replace(/```json|```/g,'').trim();
@@ -18199,7 +18199,7 @@ window.eitiClearAllModelCache = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body:JSON.stringify({ model:'deepseek-chat', max_tokens:1500,
+                body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:1500,
                     messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'';
@@ -18310,7 +18310,7 @@ window.eitiClearAllModelCache = async function() {
                     'Только JSON, без пояснений.';
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                    body:JSON.stringify({ model:'deepseek-chat', max_tokens:800, messages:[{role:'user',content:prompt}] })
+                    body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:800, messages:[{role:'user',content:prompt}] })
                 }).then(function(r){ return r.json(); }).then(function(data) {
                     if (_moscFixCancelled) return;
                     var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'{}';
@@ -18396,7 +18396,7 @@ window.eitiClearAllModelCache = async function() {
                 'Только JSON, без пояснений.';
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body:JSON.stringify({ model:'deepseek-chat', max_tokens:1200, messages:[{role:'user',content:prompt}] })
+                body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:1200, messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'{}';
                 var obj = JSON.parse(text.replace(/```json|```/g,'').trim());
@@ -18653,9 +18653,9 @@ window.eitiClearAllModelCache = async function() {
 
                 <div>
                     <div style="font-size:14px;font-weight:700;color:var(--accent-color,#ffd700);margin-bottom:4px;">🧬 Режимы мышления AI</div>
-                    <b>🎯 Точность</b> — факты и код. Модель <b>deepseek-reasoner</b> (R1): думает вслух перед ответом, как человек решающий задачу на бумаге.<br>
-                    <b>⚖️ Баланс</b> — стандартный режим. Модель <b>deepseek-chat</b>: быстро и точно.<br>
-                    <b>🔭 Идеи</b> — творческий режим, гипотезы и нестандартные решения. Модель <b>deepseek-chat</b>.<br>
+                    <b>🎯 Точность</b> — факты и код. Модель <b>deepseek-v4-pro</b>: высокая точность, строгий анализ.<br>
+                    <b>⚖️ Баланс</b> — стандартный режим. Модель <b>deepseek-v4-flash</b>: быстро и точно.<br>
+                    <b>🔭 Идеи</b> — творческий режим, гипотезы и нестандартные решения. Модель <b>deepseek-v4-flash</b>.<br>
                     <b>🌐 Поиск</b> — онлайн-режим: запрос ищется через DuckDuckGo, результаты передаются AI как контекст.
                 </div>
 
@@ -18794,16 +18794,18 @@ body.theme-velantrim-neutral .tab-item.active .tab-icon {
     filter: drop-shadow(0 0 5px rgba(201,168,92,0.5));
 }
 body.theme-velantrim-neutral .message.incoming .message-body {
-    background: linear-gradient(145deg, #252018, #2e2820);
-    border: 1px solid #4a4030;
+    background: #f5f0e8;
+    border: 1px solid #d4c8b0;
     border-radius: 14px;
     padding: 10px 14px;
+    color: #2a1e10;
 }
 body.theme-velantrim-neutral .message.outgoing .message-body {
-    background: linear-gradient(145deg, #3a2e1e, #4a3c28);
-    border: 1px solid #6a5a38;
+    background: #faf7f2;
+    border: 1px solid #d4c8b0;
     border-radius: 14px;
     padding: 10px 14px;
+    color: #2a1e10;
 }
 body.theme-velantrim-neutral .chat-input {
     background: #252018;
@@ -19257,7 +19259,7 @@ window.moscFreeTextSend = function() {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: 'deepseek-v4-flash',
             messages: [{ role: 'user', content: sysPrompt }],
             max_tokens: 800,
             temperature: 0.2
@@ -19367,7 +19369,7 @@ window.moscFreeTextSend = function() {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'deepseek-chat',
+                model: 'deepseek-v4-flash',
                 messages: [{ role: 'user', content: prompt }],
                 max_tokens: 400,
                 temperature: 0.1
