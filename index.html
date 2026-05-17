@@ -35315,6 +35315,195 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// OpenAI Vision (GPT-4o / any vision-capable model)
+function _eitiOpenAIVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_openai_key') || _dk('eiti_apikey_openai');
+    if (!key) return Promise.reject(new Error('Нет OpenAI ключа'));
+    var model = localStorage.getItem('eiti_openai_model') || 'gpt-4o';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model, messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('OpenAI Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('OpenAI Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Anthropic Vision (Claude 3+ with vision)
+function _eitiAnthropicVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_apikey_anthropic');
+    if (!key) return Promise.reject(new Error('Нет Anthropic ключа'));
+    var model = localStorage.getItem('eiti_anthropic_model') || 'claude-opus-4-5';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    // Anthropic: images first, then text
+    var lastContent = [];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.base64 } });
+    });
+    lastContent.push({ type: 'text', text: userText || '' });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    var body = { model: model, messages: apiMsgs, max_tokens: 2000 };
+    if (sysMsg) body.system = sysMsg.content;
+    return fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Anthropic Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.content && d.content[0] && d.content[0].text;
+        if (!text) throw new Error('Anthropic Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Qwen Vision (qwen-vl-max via DashScope OpenAI-compatible)
+function _eitiQwenVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_qwen_key') || '') : (localStorage.getItem('eiti_qwen_key') || '');
+    if (!key) return Promise.reject(new Error('Нет Qwen ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'qwen-vl-max', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Qwen Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Qwen Vision: пустой ответ');
+        return text;
+    });
+}
+
+// OpenRouter Vision (uses currently selected OR model, OpenAI-compatible format)
+function _eitiOpenRouterVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_or_key') || _dk('openrouter_api_key');
+    if (!key) return Promise.reject(new Error('Нет OpenRouter ключа'));
+    var model = localStorage.getItem('eiti_or_model') || 'openai/gpt-4o';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model, messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('OpenRouter Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('OpenRouter Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Grok Vision (grok-2-vision via xAI)
+function _eitiGrokVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_grok_key') || '') : (localStorage.getItem('eiti_grok_key') || '');
+    if (!key) return Promise.reject(new Error('Нет Grok ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64, detail: 'high' } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'grok-2-vision-1212', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Grok Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Grok Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Mistral Vision (Pixtral)
+function _eitiMistralVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_apikey_mistral') || '') : (localStorage.getItem('eiti_apikey_mistral') || '');
+    if (!key) return Promise.reject(new Error('Нет Mistral ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'pixtral-12b-2409', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Mistral Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Mistral Vision: пустой ответ');
+        return text;
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 3. 🧠 DYNAMIC L0 — семантический отбор контекста
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -35400,7 +35589,13 @@ window.eitiAskDeepSeek = function(userText) {
         var liveId = 'eiti-vision-' + Date.now();
         liveDiv.id = liveId;
         var time   = new Date().toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' });
-        var pLabel = provider === 'gemini' ? 'Gemini 📷 Vision 🔵' : 'DeepSeek 📷 Vision 🤖';
+        var _visionLabels = {
+            gemini: 'Gemini 📷 Vision 🔵', deepseek: 'DeepSeek 📷 Vision 🤖',
+            openai: 'ChatGPT 📷 Vision 🟢', anthropic: 'Claude 📷 Vision 🟠',
+            qwen: 'Qwen 📷 Vision 🟣', openrouter: 'OpenRouter 📷 Vision 🔀',
+            grok: 'Grok 📷 Vision ⚡', mistral: 'Mistral 📷 Vision 🌟',
+        };
+        var pLabel = _visionLabels[provider] || (provider + ' 📷 Vision');
         liveDiv.innerHTML =
             '<div class="message-row"><div class="message-body">' +
             '<div class="message-sender">' + pLabel + '</div>' +
@@ -35429,19 +35624,31 @@ window.eitiAskDeepSeek = function(userText) {
         // Восстанавливаем оригинальный L0
         window.eitiL0 = _savedL0;
 
+        // Fallback на Gemini если ключ есть
+        var _visionFallback = function(e) {
+            _log('Vision failed: ' + e.message + ' → trying Gemini Vision');
+            var gmKey = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
+            if (gmKey) return _eitiGeminiVision(userText, images, sysContent, history, liveId);
+            throw e;
+        };
         var visionPromise;
         if (provider === 'gemini') {
             visionPromise = _eitiGeminiVision(userText, images, sysContent, history, liveId);
+        } else if (provider === 'openai') {
+            visionPromise = _eitiOpenAIVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'anthropic') {
+            visionPromise = _eitiAnthropicVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'qwen') {
+            visionPromise = _eitiQwenVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'openrouter') {
+            visionPromise = _eitiOpenRouterVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'grok') {
+            visionPromise = _eitiGrokVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'mistral') {
+            visionPromise = _eitiMistralVision(userText, images, history).catch(_visionFallback);
         } else {
-            // DeepSeek Vision или fallback на Gemini если DeepSeek-vision недоступен
-            visionPromise = _eitiDeepSeekVision(userText, images, history, liveId)
-                .catch(function(e) {
-                    _log('DS Vision failed: ' + e.message + ' → trying Gemini Vision');
-                    var gmKey = (typeof _deobfKey === 'function')
-                        ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
-                    if (gmKey) return _eitiGeminiVision(userText, images, sysContent, history, liveId);
-                    throw e;
-                });
+            // deepseek или неизвестный → DeepSeek Vision с fallback на Gemini
+            visionPromise = _eitiDeepSeekVision(userText, images, history, liveId).catch(_visionFallback);
         }
 
         return visionPromise.then(function(result) {
