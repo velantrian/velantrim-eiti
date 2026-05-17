@@ -3042,7 +3042,7 @@
             <h1>𓆩 VELANTRIM EITI 𓆪</h1>
             <div class="header-actions">
                 <!-- v12.9.77: ручное сохранение чата в Daily Log -->
-                <button id="btn-smh-save" class="header-btn" title="Запомнить этот чат" onclick="smhManualSaveChat()" style="font-size:16px;display:none;">💾</button>
+                <button id="btn-smh-save" class="header-btn" title="Запомнить этот чат" onclick="smhManualSaveChat()" style="font-size:16px;display:none;">🔖</button>
                 <button id="btn-pwa-install" class="header-btn" onclick="installPWA()" title="Установить приложение" style="display:none;font-size:18px;line-height:1;">📥</button>
             </div>
         </div>
@@ -29917,20 +29917,20 @@ window.eitiLLMClearAll = async function() {
             var prompt = 'Выдели 2-4 самых важных факта, решения или выводов из этого диалога. Каждый — отдельная строка, до 120 символов. Только суть, без воды.\n\n' + recent;
             if (typeof _rneCallLLM === 'function') {
                 _rneCallLLM(prompt, true).then(function(result) {
-                    if (btn) btn.textContent = '💾';
-                    if (!result || !result.trim()) { showToast('🤷 Нечего сохранять', 2000); return; }
+                    if (!result || !result.trim()) { if (btn) btn.textContent = '🔖'; showToast('🤷 Нечего сохранять', 2000); return; }
                     var saved = 0;
                     result.trim().split('\n').forEach(function(line) {
                         var l = line.replace(/^[-•*\d.]+\s*/, '').trim();
                         if (l.length > 5) { smhDailyAdd(l); saved++; }
                     });
-                    showToast('💾 Сохранено ' + saved + ' ' + (saved===1?'факт':saved<5?'факта':'фактов') + ' в лог', 2500);
+                    showToast('✅ Сохранено ' + saved + ' ' + (saved===1?'факт':saved<5?'факта':'фактов') + ' в лог', 2500);
+                    if (btn) { btn.textContent = '✅'; setTimeout(function(){ btn.style.display = 'none'; }, 2000); }
                 }).catch(function(e) {
-                    if (btn) btn.textContent = '💾';
+                    if (btn) { btn.textContent = '❌'; setTimeout(function(){ btn.textContent = '🔖'; }, 2000); }
                     showToast('❌ ' + (e.message||'Ошибка'), 3000);
                 });
             } else {
-                if (btn) btn.textContent = '💾';
+                if (btn) btn.textContent = '🔖';
                 showToast('⚠️ AI не подключён', 2000);
             }
         };
@@ -35620,12 +35620,21 @@ window.eitiChatDetachFile = function(idx) {
 var _p3OrigInject = window.eitiInjectAttachedFile;
 window.eitiInjectAttachedFile = function(txt) {
     var result = typeof _p3OrigInject === 'function' ? _p3OrigInject(txt) : txt;
-    // Если были vision images — добавляем маркер и скрываем чип
+    // Если были vision images — добавляем маркер
     if (window._eitiVisionImages && window._eitiVisionImages.length > 0) {
         result = '[📷 ' + window._eitiVisionImages.length + ' фото прикреплено] ' + result;
     }
-    // Всегда прячем после отправки
-    setTimeout(_hideVisionChip, 100);
+    // Скрываем UI чипа НЕ трогая _eitiVisionImages — они нужны eitiAskDeepSeek.
+    // Очистка _eitiVisionImages происходит внутри vision-обёртки eitiAskDeepSeek
+    // после получения ответа AI (чтобы избежать гонки с eitiUpdateL0).
+    setTimeout(function() {
+        var ind = document.getElementById('chat-attach-indicator');
+        if (ind) ind.classList.remove('visible');
+        var list = document.getElementById('chat-attach-files-list');
+        if (list) list.innerHTML = '';
+        var inp = document.getElementById('chat-file-input');
+        if (inp) inp.value = '';
+    }, 100);
     return result;
 };
 
