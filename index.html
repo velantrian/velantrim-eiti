@@ -35297,7 +35297,7 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
             'Content-Type':  'application/json',
         },
         body: JSON.stringify({
-            model:      'deepseek-vision',   // или deepseek-vl-7b-chat
+            model:      'deepseek-v4-pro',
             messages:   apiMsgs,
             max_tokens: 2000,
             stream:     false,
@@ -35320,7 +35320,7 @@ function _eitiOpenAIVision(userText, images, history) {
     var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
     var key = _dk('eiti_openai_key') || _dk('eiti_apikey_openai');
     if (!key) return Promise.reject(new Error('Нет OpenAI ключа'));
-    var model = localStorage.getItem('eiti_openai_model') || 'gpt-4o';
+    var model = localStorage.getItem('eiti_openai_model') || 'gpt-5.5';
     var sysMsg = history.find(function(m) { return m.role === 'system'; });
     var apiMsgs = [];
     if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
@@ -35351,7 +35351,7 @@ function _eitiAnthropicVision(userText, images, history) {
     var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
     var key = _dk('eiti_apikey_anthropic');
     if (!key) return Promise.reject(new Error('Нет Anthropic ключа'));
-    var model = localStorage.getItem('eiti_anthropic_model') || 'claude-opus-4-5';
+    var model = localStorage.getItem('eiti_anthropic_model') || 'claude-opus-4-7';
     var sysMsg = history.find(function(m) { return m.role === 'system'; });
     var apiMsgs = [];
     history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
@@ -35403,7 +35403,7 @@ function _eitiQwenVision(userText, images, history) {
     return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'qwen-vl-max', messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify({ model: 'qwen3-vl-max', messages: apiMsgs, max_tokens: 2000 })
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('Qwen Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
@@ -35492,7 +35492,7 @@ function _eitiMistralVision(userText, images, history) {
     return fetch('https://api.mistral.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'pixtral-12b-2409', messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify({ model: 'pixtral-large-latest', messages: apiMsgs, max_tokens: 2000 })
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('Mistral Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
