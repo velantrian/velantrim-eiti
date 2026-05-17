@@ -3494,6 +3494,16 @@
                                     <div>Qwen Turbo</div><div style="font-size:9px;opacity:0.5;">Быстрый</div>
                                 </button>
                             </div>
+                            <!-- 📷 Qwen Vision модель -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:2px;">
+                                <div style="font-size:12px;font-weight:600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📷 Vision модель</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    <button id="qvl-model-qwen3-vl-max" onclick="eitiSetQwenVLModel('qwen3-vl-max')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;"><div>Qwen3-VL Max</div><div style="font-size:9px;opacity:0.5;">Флагман ✓</div></button>
+                                    <button id="qvl-model-qwen-vl-plus" onclick="eitiSetQwenVLModel('qwen-vl-plus')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:600;cursor:pointer;"><div>Qwen VL Plus</div><div style="font-size:9px;opacity:0.5;">Баланс</div></button>
+                                    <button id="qvl-model-qwen3-vl-32b" onclick="eitiSetQwenVLModel('qwen3-vl-32b')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:600;cursor:pointer;"><div>Qwen3-VL 32B</div><div style="font-size:9px;opacity:0.5;">Компакт</div></button>
+                                </div>
+                                <div id="qvl-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;"></div>
+                            </div>
                             <div style="display:flex;gap:6px;">
                                 <input type="password" id="qwen-api-key-input" placeholder="sk-… (DashScope API Key)"
                                     style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;"
@@ -5069,6 +5079,12 @@
                                     <button onclick="eitiSaveAPIKey()" style="flex:1;padding:9px;border-radius:10px;border:none;background:var(--accent-color);color:#000;font-weight:700;font-size:13px;cursor:pointer;">💾 Сохранить</button>
                                     <button onclick="eitiClearAPIKey()" style="padding:9px 14px;border-radius:10px;border:1px solid rgba(255,80,80,0.3);background:rgba(255,50,50,0.1);color:#ff6060;font-size:13px;font-weight:600;cursor:pointer;">🗑</button>
                                 </div>
+                            </div>
+                            <!-- 📷 Выбор модели (OpenAI / Anthropic / Mistral / Grok) -->
+                            <div id="api-model-section" style="display:none;border-top:1px solid var(--border-color);padding-top:10px;">
+                                <div id="api-model-section-title" style="font-size:12px;font-weight:600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Модель</div>
+                                <div id="api-model-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                                <div id="api-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;"></div>
                             </div>
                             <!-- Кнопка проверки -->
                             <button onclick="eitiCheckAPIBalance()" id="api-check-btn"
@@ -32328,6 +32344,104 @@ window._eitiInitSQL = _initSQL;
             inp.value = saved ? '●'.repeat(Math.min(saved.length, 24)) : '';
             inp.setAttribute('data-loaded', saved ? '1' : '0');
         }
+        if (typeof _eitiRenderModelPicker === 'function') _eitiRenderModelPicker(p);
+    };
+
+    // Модели провайдеров с поддержкой Vision (все модели поддерживают Vision)
+    var _PROV_MODELS = {
+        openai: {
+            title: '🟢 Модель ChatGPT',
+            key: 'eiti_openai_model',
+            defs: [
+                { id: 'gpt-5.5',      label: 'GPT-5.5',   desc: 'Флагман' },
+                { id: 'gpt-5.4',      label: 'GPT-5.4',   desc: 'Топ' },
+                { id: 'gpt-5.4-mini', label: '5.4 Mini',  desc: 'Быстро' },
+                { id: 'o3',           label: 'o3',         desc: 'Reasoning' },
+            ]
+        },
+        anthropic: {
+            title: '🟠 Модель Claude',
+            key: 'eiti_anthropic_model',
+            defs: [
+                { id: 'claude-opus-4-7',           label: 'Opus 4.7',   desc: 'Флагман' },
+                { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6', desc: 'Баланс ✓' },
+                { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',  desc: 'Быстро' },
+            ]
+        },
+        mistral: {
+            title: '📷 Vision Mistral',
+            key: 'eiti_mistral_vision_model',
+            defs: [
+                { id: 'pixtral-large-latest', label: 'Pixtral Large', desc: 'Лучший' },
+                { id: 'pixtral-12b-2409',     label: 'Pixtral 12B',   desc: 'Быстрее' },
+                { id: 'mistral-small-latest', label: 'Small Latest',  desc: 'Универсал' },
+            ]
+        },
+        grok: {
+            title: '📷 Vision Grok',
+            key: 'eiti_grok_vision_model',
+            defs: [
+                { id: 'grok-2-vision-1212', label: 'Grok Vision', desc: 'Vision API' },
+            ]
+        },
+    };
+
+    function _eitiRenderModelPicker(p) {
+        var section = document.getElementById('api-model-section');
+        var btns    = document.getElementById('api-model-btns');
+        var label   = document.getElementById('api-model-label');
+        var title   = document.getElementById('api-model-section-title');
+        if (!section || !btns) return;
+        var cfg = _PROV_MODELS[p];
+        if (!cfg) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        if (title) title.textContent = cfg.title;
+        var cur = localStorage.getItem(cfg.key) || cfg.defs[0].id;
+        btns.innerHTML = '';
+        cfg.defs.forEach(function(m) {
+            var active = m.id === cur;
+            var btn = document.createElement('button');
+            btn.id = 'apivmod-' + m.id.replace(/[^a-z0-9]/g, '-');
+            btn.style.cssText =
+                'flex:1;min-width:72px;padding:8px 4px;border-radius:10px;' +
+                'border:2px solid ' + (active ? 'var(--accent-color)' : 'rgba(255,255,255,0.15)') + ';' +
+                'background:' + (active ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)') + ';' +
+                'color:var(--text-color);font-size:11px;font-weight:' + (active ? '700' : '600') + ';cursor:pointer;';
+            btn.innerHTML = '<div>' + m.label + '</div><div style="font-size:9px;opacity:0.5;">' + m.desc + '</div>';
+            btn.onclick = (function(mid) { return function() { window.eitiSetVisionModel(p, mid); }; })(m.id);
+            btns.appendChild(btn);
+        });
+        if (label) label.textContent = 'Выбрано: ' + cur;
+    }
+
+    window.eitiSetVisionModel = function(p, model) {
+        var cfg = _PROV_MODELS[p];
+        if (!cfg) return;
+        localStorage.setItem(cfg.key, model);
+        document.querySelectorAll('#api-model-btns button').forEach(function(b) {
+            b.style.borderColor = 'rgba(255,255,255,0.15)';
+            b.style.background  = 'var(--secondary-color)';
+            b.style.fontWeight  = '600';
+        });
+        var sel = document.getElementById('apivmod-' + model.replace(/[^a-z0-9]/g, '-'));
+        if (sel) { sel.style.borderColor = 'var(--accent-color)'; sel.style.background = 'rgba(255,215,0,0.12)'; sel.style.fontWeight = '700'; }
+        var lbl = document.getElementById('api-model-label');
+        if (lbl) lbl.textContent = 'Выбрано: ' + model;
+        if (typeof showToast === 'function') showToast('✅ ' + model, 1500);
+    };
+
+    window.eitiSetQwenVLModel = function(model) {
+        localStorage.setItem('eiti_qwen_vision_model', model);
+        document.querySelectorAll('[id^="qvl-model-"]').forEach(function(b) {
+            b.style.borderColor = 'rgba(255,255,255,0.15)';
+            b.style.background  = 'var(--secondary-color)';
+            b.style.fontWeight  = '600';
+        });
+        var sel = document.getElementById('qvl-model-' + model.replace(/[^a-z0-9]/g, '-'));
+        if (sel) { sel.style.borderColor = 'var(--accent-color)'; sel.style.background = 'rgba(255,215,0,0.12)'; sel.style.fontWeight = '700'; }
+        var lbl = document.getElementById('qvl-model-label');
+        if (lbl) lbl.textContent = 'Выбрано: ' + model;
+        if (typeof showToast === 'function') showToast('📷 ' + model, 1500);
     };
 
     window.eitiToggleAPIKeyVis = function() {
@@ -35297,7 +35411,7 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
             'Content-Type':  'application/json',
         },
         body: JSON.stringify({
-            model:      'deepseek-v4-pro',
+            model:      (typeof eitiGetDsModel === 'function' ? eitiGetDsModel() : localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash'),
             messages:   apiMsgs,
             max_tokens: 2000,
             stream:     false,
@@ -35403,7 +35517,7 @@ function _eitiQwenVision(userText, images, history) {
     return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'qwen3-vl-max', messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify({ model: localStorage.getItem('eiti_qwen_vision_model') || 'qwen3-vl-max', messages: apiMsgs, max_tokens: 2000 })
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('Qwen Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
@@ -35463,7 +35577,7 @@ function _eitiGrokVision(userText, images, history) {
     return fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'grok-2-vision-1212', messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify({ model: localStorage.getItem('eiti_grok_vision_model') || 'grok-2-vision-1212', messages: apiMsgs, max_tokens: 2000 })
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('Grok Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
@@ -35492,7 +35606,7 @@ function _eitiMistralVision(userText, images, history) {
     return fetch('https://api.mistral.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'pixtral-large-latest', messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify({ model: localStorage.getItem('eiti_mistral_vision_model') || 'pixtral-large-latest', messages: apiMsgs, max_tokens: 2000 })
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('Mistral Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
