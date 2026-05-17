@@ -3041,8 +3041,6 @@
         <div class="app-header">
             <h1>𓆩 VELANTRIM EITI 𓆪</h1>
             <div class="header-actions">
-                <!-- v12.9.77: ручное сохранение чата в Daily Log -->
-                <button id="btn-smh-save" class="header-btn" title="Запомнить этот чат" onclick="smhManualSaveChat()" style="font-size:16px;display:none;">🔖</button>
                 <button id="btn-pwa-install" class="header-btn" onclick="installPWA()" title="Установить приложение" style="display:none;font-size:18px;line-height:1;">📥</button>
             </div>
         </div>
@@ -29951,19 +29949,6 @@ window.eitiLLMClearAll = async function() {
                 showToast('⚠️ AI не подключён', 2000);
             }
         };
-
-        // Показывать кнопку 💾 только на вкладке Чат
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                var saveBtn = document.getElementById('btn-smh-save');
-                if (!saveBtn) return;
-                document.querySelectorAll('.tab-item').forEach(function(tab) {
-                    tab.addEventListener('click', function() {
-                        saveBtn.style.display = tab.dataset.view === 'chat' ? '' : 'none';
-                    });
-                });
-            }, 1000);
-        });
 
         })(); // конец Smart Memory Hub
         // ══════════════════════════════════════════════════════════════════
