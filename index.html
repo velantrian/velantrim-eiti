@@ -29527,6 +29527,7 @@ window.eitiLLMClearAll = async function() {
             }, 2600);
         });
 
+        window._rneCallLLM = _rneCallLLM; // expose for Smart Memory Hub (different IIFE)
         })(); // конец EITI RNE
 
         // ══════════════════════════════════════════════════════════════════
@@ -29915,8 +29916,8 @@ window.eitiLLMClearAll = async function() {
                 return (m.role==='user'?'Я':'AI') + ': ' + (m.text||'').slice(0,400);
             }).join('\n');
             var prompt = 'Выдели 2-4 самых важных факта, решения или выводов из этого диалога. Каждый — отдельная строка, до 120 символов. Только суть, без воды.\n\n' + recent;
-            if (typeof _rneCallLLM === 'function') {
-                _rneCallLLM(prompt, true).then(function(result) {
+            if (typeof window._rneCallLLM === 'function') {
+                window._rneCallLLM(prompt, true).then(function(result) {
                     if (!result || !result.trim()) { if (btn) btn.textContent = '🔖'; showToast('🤷 Нечего сохранять', 2000); return; }
                     var saved = 0;
                     result.trim().split('\n').forEach(function(line) {
