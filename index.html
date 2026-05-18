@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.2.0"; // v13.2.0: sync version across index.html / sw.js / manifest.json
+        var EITI_VERSION = "13.2.1"; // v13.2.1: DDG real web search (corsproxy.io) + duck animation
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -1606,6 +1606,33 @@
         .eiti-mode-sway   { display:inline-block; animation:eiti-sway 1.4s ease-in-out infinite; transform-origin:bottom center; }
         .eiti-mode-brain  { display:inline-block; animation:eiti-brain-glow 1.0s ease-in-out infinite; }
         .eiti-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-color); border-radius: 50%; animation: eiti-spin 0.7s linear infinite; flex-shrink: 0; }
+
+        /* === v13.2.1: DDG duck + internet search animations === */
+        @keyframes ddg-duck-waddle {
+            0%,100% { transform: rotate(-12deg) translateY(0) scale(1); }
+            25%     { transform: rotate(0deg)   translateY(-5px) scale(1.15); }
+            50%     { transform: rotate(12deg)  translateY(0) scale(1); }
+            75%     { transform: rotate(0deg)   translateY(-5px) scale(1.15); }
+        }
+        @keyframes ddg-inet-pulse {
+            0%,100% { filter: drop-shadow(0 0 0px rgba(30,180,255,0)); }
+            50%     { filter: drop-shadow(0 0 9px rgba(30,180,255,1)) drop-shadow(0 0 18px rgba(30,130,255,0.5)); }
+        }
+        @keyframes ddg-wave-signal {
+            0%   { opacity:0.15; transform:scale(0.6); }
+            50%  { opacity:1;    transform:scale(1.15); }
+            100% { opacity:0.15; transform:scale(0.6); }
+        }
+        @keyframes ddg-btn-websearch {
+            0%,100% { box-shadow:0 0 0 0 rgba(30,180,255,0); border-color:var(--border-color); }
+            50%     { box-shadow:0 0 8px 2px rgba(30,180,255,0.35); border-color:rgba(30,180,255,0.7); }
+        }
+        .ddg-duck-searching { display:inline-block; animation:ddg-duck-waddle 0.55s ease-in-out infinite; }
+        .ddg-globe-searching { display:inline-block; animation:ddg-inet-pulse 1.1s ease-in-out infinite; }
+        .ddg-signal-dot { display:inline-block; animation:ddg-wave-signal 1.2s ease-in-out infinite; }
+        .ddg-signal-dot:nth-child(2) { animation-delay:0.2s; }
+        .ddg-signal-dot:nth-child(3) { animation-delay:0.4s; }
+        #cm-websearch.ddg-btn-active { animation:ddg-btn-websearch 1.8s ease-in-out infinite; }
 
         /* === v12.9.51: FILE VIEWER MODAL === */
         #eiti-file-view-modal {
@@ -3300,7 +3327,7 @@
                                     </div>
                                     <div id="eiti-provider-card-ddg" onclick="eitiToggleDDG()"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🦆</span>
+                                        <span id="eiti-ddg-duck-icon" style="font-size:20px;flex-shrink:0;display:inline-block;">🦆</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">DuckDuckGo</span>
                                         <span id="eiti-ddg-sublabel" style="display:block;font-size:11px;opacity:0.55;">Веб-поиск в режиме 🌐 Поиск</span></span>
                                         <span id="eiti-pcheck-ddg" style="font-size:20px;opacity:0.2;">⬜</span>
@@ -12343,57 +12370,101 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             } catch(e) { _grokSendFnResult({ error: e.message }); }
 
                         } else if (fnName === 'ddg_search') {
-                            // v12.9.8: DDG через JSONP (без CORS)
+                            // v13.2.1: DDG real HTML via proxy + JSONP Instant fallback
                             var ddgQ = fnArgs.query || '';
                             var _dsSearchMode = localStorage.getItem('eiti_grok_search_mode') || 'ddg';
-                            var _cbName = '_grokDDGCb_' + Date.now();
                             var _ddgDone = false;
-                            var _ddgTimeout = setTimeout(function() {
-                                if (_ddgDone) return; _ddgDone = true; delete window[_cbName];
+                            var _ddgMasterTo = setTimeout(function() {
+                                if (_ddgDone) return; _ddgDone = true;
                                 _grokSendFnResult({ error: 'DDG таймаут', query: ddgQ });
-                            }, 7000);
-                            window[_cbName] = function(raw) {
-                                if (_ddgDone) return; _ddgDone = true; clearTimeout(_ddgTimeout); delete window[_cbName];
-                                var results = [];
-                                if (raw.AbstractText) results.push({ title: raw.Heading||'', text: raw.AbstractText.slice(0,500) });
-                                (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){
-                                    if (t.Text) results.push({ title: t.Text.slice(0,100), text: t.Text.slice(0,350) });
-                                    if (t.Topics) t.Topics.slice(0,2).forEach(function(st){ if(st.Text) results.push({ text: st.Text.slice(0,250) }); });
-                                });
-                                (raw.Results||[]).slice(0,4).forEach(function(r){ if(r.Text) results.push({ title: r.FirstURL||'', text: r.Text.slice(0,300) }); });
-                                var sliced = results.slice(0,7);
-                                if (!sliced.length) {
-                                    _grokSendFnResult({ query: ddgQ, results: [], message: 'Нет результатов. Попробуй запрос на английском.' });
+                            }, 12000);
+
+                            function _grokDDGFinish(results, src) {
+                                if (_ddgDone) return; _ddgDone = true;
+                                clearTimeout(_ddgMasterTo);
+                                if (!results.length) {
+                                    _grokSendFnResult({ query: ddgQ, results: [], message: 'Нет результатов по запросу. Попробуй на английском.' });
                                     return;
                                 }
                                 if (_dsSearchMode === 'ds') {
                                     var _dsKey2 = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
                                     if (_dsKey2) {
-                                        var rawText = sliced.map(function(r2,i){ return (i+1)+'. '+(r2.title||'')+': '+r2.text; }).join('\n');
+                                        var rawText = results.map(function(r2,i){ return (i+1)+'. '+(r2.title||'')+': '+r2.text; }).join('\n');
                                         fetch('https://api.deepseek.com/v1/chat/completions', {
                                             method: 'POST',
                                             headers: { 'Authorization': 'Bearer '+_dsKey2, 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 400, // v12.9.38 FIX: deepseek-chat deprecated 24.07.2026
+                                            body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 400,
                                                 messages: [
                                                     { role: 'system', content: 'Суммаризируй результаты поиска кратко. Только факты.' },
                                                     { role: 'user', content: 'Запрос: '+ddgQ+'\n\n'+rawText }
                                                 ] })
                                         }).then(function(r3){ return r3.json(); })
                                         .then(function(sum){ _grokSendFnResult({ query: ddgQ, summary: (sum.choices&&sum.choices[0]&&sum.choices[0].message&&sum.choices[0].message.content)||rawText, source: 'DeepSeek+DDG' }); })
-                                        .catch(function(){ _grokSendFnResult({ query: ddgQ, results: sliced }); });
+                                        .catch(function(){ _grokSendFnResult({ query: ddgQ, results: results, source: src }); });
                                         return;
                                     }
                                 }
-                                _grokSendFnResult({ query: ddgQ, results: sliced, source: 'DuckDuckGo JSONP' });
-                            };
-                            var _ddgS = document.createElement('script');
-                            _ddgS.onerror = function() {
-                                if (_ddgDone) return; _ddgDone = true; clearTimeout(_ddgTimeout); delete window[_cbName];
-                                _grokSendFnResult({ error: 'DDG network error', query: ddgQ });
-                            };
-                            _ddgS.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(ddgQ)+'&format=json&no_html=1&skip_disambig=1&callback='+_cbName;
-                            document.head.appendChild(_ddgS);
-                            setTimeout(function(){ if (_ddgS.parentNode) _ddgS.parentNode.removeChild(_ddgS); }, 9000);
+                                _grokSendFnResult({ query: ddgQ, results: results, source: src });
+                            }
+
+                            // Fallback: JSONP Instant Answer
+                            function _grokJSONP() {
+                                if (_ddgDone) return;
+                                var _cbName = '_grokDDGCb_' + Date.now(), _cbDone = false;
+                                var _jTo = setTimeout(function() {
+                                    if (_cbDone) return; _cbDone = true; delete window[_cbName];
+                                    _grokDDGFinish([], 'timeout');
+                                }, 5000);
+                                window[_cbName] = function(raw) {
+                                    if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cbName];
+                                    var results = [];
+                                    if (raw.AbstractText) results.push({ title: raw.Heading||'', text: raw.AbstractText.slice(0,500) });
+                                    (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){
+                                        if (t.Text) results.push({ title: t.Text.slice(0,100), text: t.Text.slice(0,350) });
+                                        if (t.Topics) t.Topics.slice(0,2).forEach(function(st){ if(st.Text) results.push({ text: st.Text.slice(0,250) }); });
+                                    });
+                                    (raw.Results||[]).slice(0,4).forEach(function(r){ if(r.Text) results.push({ title: r.FirstURL||'', text: r.Text.slice(0,300) }); });
+                                    _grokDDGFinish(results.slice(0,7), 'DuckDuckGo Instant');
+                                };
+                                var _ddgS = document.createElement('script');
+                                _ddgS.onerror = function() {
+                                    if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cbName];
+                                    _grokDDGFinish([], 'ошибка сети');
+                                };
+                                _ddgS.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(ddgQ)+'&format=json&no_html=1&skip_disambig=1&callback='+_cbName;
+                                document.head.appendChild(_ddgS);
+                                setTimeout(function(){ if (_ddgS.parentNode) _ddgS.parentNode.removeChild(_ddgS); }, 8000);
+                            }
+
+                            // Primary: real DDG HTML via CORS proxy
+                            (function() {
+                                var _pUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(ddgQ) + '&kl=ru-ru');
+                                var _pTo = setTimeout(function() { _grokJSONP(); }, 6000);
+                                fetch(_pUrl)
+                                    .then(function(r) { clearTimeout(_pTo); return r.text(); })
+                                    .then(function(html) {
+                                        if (_ddgDone) return;
+                                        var parser = new DOMParser();
+                                        var doc = parser.parseFromString(html, 'text/html');
+                                        var results = [];
+                                        doc.querySelectorAll('.result').forEach(function(item) {
+                                            if (results.length >= 7) return;
+                                            var titleEl = item.querySelector('.result__title a');
+                                            var snippetEl = item.querySelector('.result__snippet');
+                                            var urlEl = item.querySelector('.result__url');
+                                            if (snippetEl) {
+                                                results.push({
+                                                    title: titleEl ? titleEl.textContent.trim() : '',
+                                                    text: snippetEl.textContent.trim().slice(0, 300),
+                                                    url: urlEl ? urlEl.textContent.trim() : ''
+                                                });
+                                            }
+                                        });
+                                        if (results.length) { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
+                                        else { _grokJSONP(); }
+                                    })
+                                    .catch(function() { clearTimeout(_pTo); _grokJSONP(); });
+                            })();
                         }
                     }
                 };
@@ -12642,9 +12713,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             var card = document.getElementById('eiti-provider-card-ddg');
             var check = document.getElementById('eiti-pcheck-ddg');
             var sub = document.getElementById('eiti-ddg-sublabel');
+            var duck = document.getElementById('eiti-ddg-duck-icon');
             if (card) { card.style.border = isOn ? '2px solid var(--accent-color)' : '2px solid var(--border-color)'; card.style.background = isOn ? 'rgba(255,200,0,0.12)' : 'var(--secondary-color)'; }
             if (check) { check.textContent = isOn ? '✅' : '⬜'; check.style.opacity = isOn ? '1' : '0.2'; }
-            if (sub) sub.textContent = isOn ? 'Включён — веб-поиск активен' : 'Веб-поиск в режиме 🌐 Поиск';
+            if (sub) sub.textContent = isOn ? '✅ Включён — реальный веб-поиск активен' : 'Веб-поиск в режиме 🌐 Поиск';
+            if (duck) { duck.className = isOn ? 'ddg-duck-searching' : ''; duck.style.fontSize = isOn ? '22px' : '20px'; }
         }
         window.eitiTestDDG = function() {
             var _cbName = '_ddgTestCb_' + Date.now(), _done = false;
@@ -14174,29 +14247,85 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 });
                 } // end doFetch
 
-                // ── 🌐 WEB SEARCH — DDG JSONP (v12.9.8) ──────────
+                // ── 🌐 WEB SEARCH — DDG real HTML + JSONP fallback (v13.2.1) ──────────
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     if (_ddgOn && eitiGetCogMode() === 'websearch') {
                         var _lt = document.getElementById(liveId + '-text');
-                        if (_lt) _lt.innerHTML = '<span style="opacity:0.6;">🦆 Ищу…</span>';
-                        var _cb = '_ddgCb_' + Date.now(), _done = false;
-                        var _to = setTimeout(function(){ if(_done)return; _done=true; delete window[_cb]; doFetch(); }, 5000);
-                        window[_cb] = function(raw) {
-                            if(_done)return; _done=true; clearTimeout(_to); delete window[_cb];
-                            var snips = [];
-                            if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,500));
-                            (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){ if(t.Text) snips.push('• '+t.Text.slice(0,250)); });
-                            (raw.Results||[]).slice(0,3).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,200)); });
-                            if (snips.length) sysContent += '\n\n=== 🌐 DuckDuckGo ===\n'+snips.join('\n')+'\n===';
-                            else sysContent += '\n\n[🌐 DDG: нет результатов]';
+                        if (_lt) _lt.innerHTML = '<span class="ddg-duck-searching">🦆</span> <span class="ddg-globe-searching">🌐</span>' +
+                            ' <span style="opacity:0.75;font-size:12px;">Ищу в интернете</span>' +
+                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>' +
+                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>' +
+                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>';
+                        var _ddgMainDone = false;
+                        var _masterTo = setTimeout(function() {
+                            if (_ddgMainDone) return; _ddgMainDone = true;
+                            sysContent += '\n\n[🌐 DDG: таймаут поиска]';
                             doFetch();
-                        };
-                        var _s = document.createElement('script');
-                        _s.onerror = function(){ if(_done)return; _done=true; clearTimeout(_to); delete window[_cb]; doFetch(); };
-                        _s.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(userText)+'&format=json&no_html=1&skip_disambig=1&callback='+_cb;
-                        document.head.appendChild(_s);
-                        setTimeout(function(){ if (_s.parentNode) _s.parentNode.removeChild(_s); }, 9000); // v12.9.38 FIX: DDG script tag cleanup
+                        }, 11000);
+
+                        function _onDDGResults(snips, src) {
+                            if (_ddgMainDone) return; _ddgMainDone = true;
+                            clearTimeout(_masterTo);
+                            if (snips.length) sysContent += '\n\n=== 🌐 DuckDuckGo (' + src + ') ===\n' + snips.join('\n') + '\n===';
+                            else sysContent += '\n\n[🌐 DDG: нет результатов по запросу "' + userText.slice(0,60) + '"]';
+                            doFetch();
+                        }
+
+                        // Fallback: JSONP Instant Answer API
+                        function _tryJSONP() {
+                            if (_ddgMainDone) return;
+                            var _cb = '_ddgCb_' + Date.now(), _cbDone = false;
+                            var _jTo = setTimeout(function() {
+                                if (_cbDone) return; _cbDone = true; delete window[_cb];
+                                _onDDGResults([], 'timeout');
+                            }, 5000);
+                            window[_cb] = function(raw) {
+                                if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
+                                var snips = [];
+                                if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,500));
+                                (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){ if(t.Text) snips.push('• '+t.Text.slice(0,250)); });
+                                (raw.Results||[]).slice(0,3).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,200)); });
+                                _onDDGResults(snips, 'Instant');
+                            };
+                            var _sj = document.createElement('script');
+                            _sj.onerror = function() {
+                                if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
+                                _onDDGResults([], 'ошибка');
+                            };
+                            _sj.src = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(userText) + '&format=json&no_html=1&skip_disambig=1&callback=' + _cb;
+                            document.head.appendChild(_sj);
+                            setTimeout(function(){ if (_sj.parentNode) _sj.parentNode.removeChild(_sj); }, 8000);
+                        }
+
+                        // Primary: real DDG HTML via CORS proxy (returns actual web results)
+                        (function _tryRealSearch() {
+                            var _proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _rTo = setTimeout(function() { _tryJSONP(); }, 6000);
+                            fetch(_proxyUrl)
+                                .then(function(r) { clearTimeout(_rTo); return r.text(); })
+                                .then(function(html) {
+                                    if (_ddgMainDone) return;
+                                    var parser = new DOMParser();
+                                    var doc = parser.parseFromString(html, 'text/html');
+                                    var snips = [];
+                                    doc.querySelectorAll('.result').forEach(function(item) {
+                                        if (snips.length >= 6) return;
+                                        var titleEl = item.querySelector('.result__title a');
+                                        var snippetEl = item.querySelector('.result__snippet');
+                                        var urlEl = item.querySelector('.result__url');
+                                        if (snippetEl) {
+                                            var t = titleEl ? titleEl.textContent.trim() : '';
+                                            var s = snippetEl.textContent.trim().slice(0, 300);
+                                            var u = urlEl ? urlEl.textContent.trim() : '';
+                                            snips.push('🔗 ' + (t ? t + ': ' : '') + s + (u ? ' — ' + u : ''));
+                                        }
+                                    });
+                                    if (snips.length) { _onDDGResults(snips, 'Веб'); }
+                                    else { _tryJSONP(); }
+                                })
+                                .catch(function() { clearTimeout(_rTo); _tryJSONP(); });
+                        })();
                     } else { doFetch(); }
                 }
 
@@ -21142,6 +21271,7 @@ window.eitiLLMClearAll = async function() {
                 eitiRefreshBrowserVoices();
                 // Cognitive mode UI
                 eitiRenderCogMode();
+                if (typeof _eitiUpdateDDGCard === 'function') _eitiUpdateDDGCard();
                 eitiKBLoadAsync().then(function(){ eitiKBRenderStats(); });
                 eitiRenderReason();
                 eitiRenderOnlyAI();
@@ -24755,6 +24885,15 @@ window.eitiLLMClearAll = async function() {
                 btn.style.borderColor = m === mode ? 'var(--accent-color)' : 'var(--border-color)';
                 btn.style.background  = m === mode ? 'var(--accent-color)' : 'var(--secondary-color)';
                 btn.style.color       = m === mode ? '#000' : 'var(--text-color)';
+                if (m === 'websearch') {
+                    if (mode === 'websearch') {
+                        btn.classList.add('ddg-btn-active');
+                        btn.innerHTML = '<span class="ddg-globe-searching" style="font-size:13px;">🌐</span> Поиск';
+                    } else {
+                        btn.classList.remove('ddg-btn-active');
+                        btn.innerHTML = '🌐 Поиск';
+                    }
+                }
             });
             var desc = document.getElementById('cm-desc');
             if (desc) desc.textContent = _CMODE_DESCS[mode] || '';
