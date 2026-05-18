@@ -14621,7 +14621,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     // auto-detect explicit web search intent even when DDG toggle is off
-                    var _webIntentRx = /найди\s+(в интернет\w*|онлайн|в сети|в гугл\w*|там|мне|ка|пожалуйста)|поищи\s+(в интернет\w*|онлайн|в сети|в гугл\w*)|посмотри\s+(в интернет\w*|онлайн|в сети|в гугл\w*|в инете)|загляни\s+(в интернет\w*|онлайн|в сети)|узнай\s+(в интернет\w*|онлайн|в сети)|погляди\s+(в интернет\w*|онлайн|в сети)|нагугли|погугли|загугли|что\s+(сейчас|сегодня|происходит|случилось|в новостях|актуальн)|что\s+есть\s+в\s+интернет\w*|последн\w+ новост|свежи\w+ новост|новости\s+(сегодня|сейчас)|актуальн\w+ (информ|цен|курс|новост)|найди онлайн|знайди\s+(в інтернет\w*|онлайн|в мережі)|пошукай\s+(в інтернет\w*|онлайн|в мережі)|подивись\s+(в інтернет\w*|онлайн|в мережі)|що\s+(зараз|сьогодні|є\s+в\s+інтернет\w*)|останні\s+новин|свіж\w+\s+новин|find (online|on internet|on the web)|search (the web|online)/i;
+                    var _webIntentRx = /найди\s+(в интернет\w*|онлайн|в сети|в гугл\w*|там|мне|ка|пожалуйста)|поищи\s+(в интернет\w*|онлайн|в сети|в гугл\w*)|посмотри\s+(в интернет\w*|онлайн|в сети|в гугл\w*|в инете)|загляни\s+(в интернет\w*|онлайн|в сети)|узнай\s+(в интернет\w*|онлайн|в сети)|погляди\s+(в интернет\w*|онлайн|в сети)|нагугли|погугли|загугли|что\s+(сейчас|сегодня|происходит|случилось|в новостях|актуальн)|что\s+есть\s+в\s+интернет\w*|последн\w+ новост|свежи\w+ новост|новости\s+(сегодня|сейчас)|актуальн\w+ (информ|цен|курс|новост)|найди онлайн|знайди\s+(в інтернет\w*|онлайн|в мережі)|пошукай\s+(в інтернет\w*|онлайн|в мережі)|подивись\s+(в інтернет\w*|онлайн|в мережі)|що\s+(зараз|сьогодні|є\s+в\s+інтернет\w*)|останні\s+новин|свіж\w+\s+новин|find (online|on internet|on the web)|search (the web|online)|(найди|поищи|посмотри|загляни|узнай|покажи).{1,40}в\s+(интернет\w+|сети|инете)|в\s+(интернет\w+|сети|инете).{0,40}(найди|поищи|посмотри)/i;
                     var _ddgAutoIntent = _webIntentRx.test(userText);
                     if ((_ddgOn && eitiGetCogMode() === 'websearch') || _ddgAutoIntent) {
                         var _lt = document.getElementById(liveId + '-text');
@@ -14651,13 +14651,60 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             doFetch();
                         }
 
-                        // Fallback: JSONP Instant Answer API
+                        // Fallback 4: Wikipedia RU/EN (CORS включён, без прокси)
+                        function _tryWikipedia() {
+                            if (_ddgMainDone) return;
+                            var _wTo = setTimeout(function() { _onDDGResults([], 'timeout'); }, 6000);
+                            var _wUrl = 'https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(_ddgQuery) + '&srlimit=8&utf8=&format=json&origin=*';
+                            fetch(_wUrl)
+                                .then(function(r) { clearTimeout(_wTo); return r.json(); })
+                                .then(function(data) {
+                                    var snips = [];
+                                    ((data.query && data.query.search) || []).forEach(function(r) {
+                                        var clean = r.snippet.replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+                                        snips.push('📖 **' + r.title + '**: ' + clean);
+                                    });
+                                    if (snips.length >= 1) { _onDDGResults(snips, 'Wikipedia'); return; }
+                                    // Пробуем English Wikipedia
+                                    return fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(_ddgQuery) + '&srlimit=5&utf8=&format=json&origin=*')
+                                        .then(function(r2) { return r2.json(); })
+                                        .then(function(d2) {
+                                            var s2 = [];
+                                            ((d2.query && d2.query.search) || []).forEach(function(r) {
+                                                var c = r.snippet.replace(/<[^>]+>/g, '');
+                                                s2.push('📖 **' + r.title + '** (EN): ' + c);
+                                            });
+                                            _onDDGResults(s2, 'Wikipedia EN');
+                                        });
+                                })
+                                .catch(function() { clearTimeout(_wTo); _onDDGResults([], 'ошибка'); });
+                        }
+
+                        // Fallback 3: SearXNG public instance (JSON API, no key needed)
+                        function _trySearXNG() {
+                            if (_ddgMainDone) return;
+                            var _sxTo = setTimeout(function() { _tryWikipedia(); }, 7000);
+                            var _sxUrl = 'https://searx.be/search?q=' + encodeURIComponent(_ddgQuery) + '&format=json&language=ru&categories=general,news';
+                            fetch(_sxUrl, { headers: { 'Accept': 'application/json' } })
+                                .then(function(r) { clearTimeout(_sxTo); return r.json(); })
+                                .then(function(data) {
+                                    var snips = [];
+                                    (data.results || []).slice(0, 10).forEach(function(r) {
+                                        snips.push('🔗 **' + (r.title||'') + '**: ' + (r.content||'').slice(0, 500));
+                                    });
+                                    if (snips.length >= 2) { _onDDGResults(snips, 'SearXNG'); }
+                                    else { _tryWikipedia(); }
+                                })
+                                .catch(function() { clearTimeout(_sxTo); _tryWikipedia(); });
+                        }
+
+                        // Fallback 2: JSONP Instant Answer API (только фактические запросы)
                         function _tryJSONP() {
                             if (_ddgMainDone) return;
                             var _cb = '_ddgCb_' + Date.now(), _cbDone = false;
                             var _jTo = setTimeout(function() {
                                 if (_cbDone) return; _cbDone = true; delete window[_cb];
-                                _onDDGResults([], 'timeout');
+                                _trySearXNG();
                             }, 5000);
                             window[_cb] = function(raw) {
                                 if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
@@ -14668,19 +14715,20 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     if (t.Topics) t.Topics.slice(0,3).forEach(function(st){ if(st.Text) snips.push('  ↳ '+st.Text.slice(0,250)); });
                                 });
                                 (raw.Results||[]).slice(0,5).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,300) + (r.FirstURL ? ' — '+r.FirstURL : '')); });
-                                _onDDGResults(snips, 'Instant');
+                                if (snips.length >= 1) { _onDDGResults(snips, 'DDG Instant'); }
+                                else { _trySearXNG(); }
                             };
                             var _sj = document.createElement('script');
                             _sj.onerror = function() {
                                 if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
-                                _onDDGResults([], 'ошибка');
+                                _trySearXNG();
                             };
                             _sj.src = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(_ddgQuery) + '&format=json&no_html=1&skip_disambig=1&callback=' + _cb;
                             document.head.appendChild(_sj);
                             setTimeout(function(){ if (_sj.parentNode) _sj.parentNode.removeChild(_sj); }, 8000);
                         }
 
-                        // Backup proxy: allorigins.win
+                        // Fallback 1: allorigins.win proxy
                         function _tryProxy2() {
                             if (_ddgMainDone) return;
                             var _p2Url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(_ddgQuery) + '&kl=ru-ru');
@@ -17308,6 +17356,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             function eitiIntentRouter(txt) {
                 var _e_esc = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); };
                 // Пузырь пользователя рендерится в doSend (не здесь — иначе дубль)
+
+                // ── Явный веб-поиск → не перехватываем, пусть DDG/AI обработают ──
+                var _irWebRx = /в\s+(интернет\w+|сети|инете|онлайн|інтернет\w+|мережі)/i;
+                var _irSearchVerbRx = /(найди|поищи|посмотри|загляни|узнай|покажи|погугли|нагугли|знайди|пошукай|подивись|find|search|look up)/i;
+                if (_irWebRx.test(txt) && _irSearchVerbRx.test(txt)) return false;
 
                 // ── P8: Обработка выбора обогащения KB (1 / 2) ───────
                 if (window._awaitingEnrichChoice && /^[12]$/.test(txt.trim())) {
@@ -20152,8 +20205,9 @@ window.eitiLLMClearAll = async function() {
                 // Re-send to AI
                 var input = document.getElementById('input');
                 // FIX v12.9.38: не вставляем текст в поле — только отправляем, потом очищаем
-                // Trigger send
-                var _editHandled = eitiIntentRouter(newTxt);
+                // Trigger send — в режиме ИИ (не offline) обходим intent router, всегда идём в AI
+                var _editOffline = localStorage.getItem('eiti_offline_mode') === '1';
+                var _editHandled = _editOffline ? eitiIntentRouter(newTxt) : false;
                 if (!_editHandled) {
                     (function(){
                         var _offlineMode = localStorage.getItem('eiti_offline_mode') === '1';
