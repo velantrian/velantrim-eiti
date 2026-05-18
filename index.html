@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.2.2"; // v13.2.2: one-shot icon bounce, globe axis spin, expanded DDG search
+        var EITI_VERSION = "13.3.0"; // v13.3.0: semantic KB search, L1 summarization, confidence logging
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -6240,12 +6240,64 @@
 
         function saveChat() {
             // v9.7p1: chatLog больше не пишется в localStorage (localStorage-бомба, лимит 5MB)
-            // История чатов хранится только в IDB (eitiAddMessage). 
+            // История чатов хранится только в IDB (eitiAddMessage).
             // Сохраняем только текущий chatId для восстановления сессии.
             try { if (eitiCurrentChatId) localStorage.setItem('eiti_current_chat_id', eitiCurrentChatId); } catch(e) {}
             clearTimeout(saveChat._snapshotTimer);
             saveChat._snapshotTimer = setTimeout(function(){ updateAiTextSnapshots(); }, 2500);
         }
+
+        // ── v13.3.0: L1 DYNAMIC SUMMARIZATION ───────────────────────────────
+        // Fires async when chatLog >= 20 msgs. Summarizes oldest unsummarized messages
+        // with DeepSeek and stores digest in localStorage for next context build.
+        function eitiL1Compress() {
+            var chatId = eitiCurrentChatId;
+            if (!chatId || chatLog.length < 20) return;
+            var _l1Key = 'eiti_l1_sum_' + chatId;
+            var _existing = null;
+            try { _existing = JSON.parse(localStorage.getItem(_l1Key) || 'null'); } catch(e) {}
+            var _summarizedUpTo = _existing ? (_existing.upTo || 0) : 0;
+            // Need at least 10 new messages since last summarization
+            if (chatLog.length - _summarizedUpTo < 12) return;
+            var _toSummarize = chatLog.slice(_summarizedUpTo, _summarizedUpTo + 10);
+            if (_toSummarize.length < 5) return;
+            var _provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
+            var _dsKey = typeof _deobfKey === 'function' ? _deobfKey(localStorage.getItem('deepseek_api_key') || '') : '';
+            var _gmKey = typeof _deobfKey === 'function' ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
+            if (!_dsKey && !_gmKey) return;
+            var dialogText = _toSummarize.map(function(m) {
+                return (m.role === 'user' ? 'Пользователь' : 'AI') + ': ' + (m.text || '').slice(0, 350);
+            }).join('\n');
+            var _sumPromise;
+            if (_dsKey) {
+                _sumPromise = fetch('https://api.deepseek.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + _dsKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 180,
+                        messages: [
+                            { role: 'system', content: 'Сделай краткий дайджест диалога в 2-3 предложениях. Сохрани ключевые факты, решения, имена и контекст. Пиши на русском.' },
+                            { role: 'user', content: dialogText }
+                        ] }) })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content; });
+            } else {
+                var _gmModel = localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash';
+                _sumPromise = fetch('https://generativelanguage.googleapis.com/v1beta/models/' + _gmModel + ':generateContent?key=' + _gmKey, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Сделай краткий дайджест диалога в 2-3 предложениях (ключевые факты, решения, контекст):\n' + dialogText }] }] }) })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { return d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text; });
+            }
+            _sumPromise.then(function(summary) {
+                if (!summary || summary.length < 10) return;
+                var prevSummary = _existing ? (_existing.summary || '') : '';
+                var combined = prevSummary ? prevSummary + '\n• ' + summary : summary;
+                localStorage.setItem(_l1Key, JSON.stringify({ summary: combined, upTo: _summarizedUpTo + 10, ts: Date.now() }));
+                if (window.EITI_DEBUG) console.log('[L1] Compressed messages', _summarizedUpTo, '–', _summarizedUpTo + 10);
+            }).catch(function() {});
+        }
+        window.eitiL1Compress = eitiL1Compress;
 
         // ── v8.4: системные файлы — единая константа ─────────────
         var EITI_SYS_FILES = ['chat_latest.txt', 'chat_graph.json'];
@@ -13288,6 +13340,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 if (typeof window.smhGetOrdersForPrompt === 'function') {
                     sysContent += window.smhGetOrdersForPrompt();
                 }
+                // v13.3.0: Confidence instruction
+                sysContent += '\n\nУВЕРЕННОСТЬ: Если ты не уверен в каком-либо факте или данных в своём ответе — добавь в самом конце строку "[[⚠️ низкая уверенность]]". Если полностью уверен — ничего не добавляй.';
 
                 // === DYNAMIC SUFFIX (меняется каждый запрос) ===
                 // v12.9.62 KV-CACHE FIX: точное время — в самом конце промпта после всего динамического контента
@@ -13354,6 +13408,18 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     });
                     sysContent += '\n=== КОНЕЦ L2 ===';
                 }
+
+                // ── v13.3.0: L1 SUMMARY (сжатый контекст текущей сессии) ─────
+                var _l1Key = 'eiti_l1_sum_' + (eitiCurrentChatId || 'default');
+                try {
+                    var _l1Raw = localStorage.getItem(_l1Key);
+                    if (_l1Raw) {
+                        var _l1Obj = JSON.parse(_l1Raw);
+                        if (_l1Obj && _l1Obj.summary) {
+                            sysContent += '\n\n=== СЖАТЫЙ КОНТЕКСТ ЭТОЙ СЕССИИ (L1) ===\n' + _l1Obj.summary + '\n=== КОНЕЦ L1 ===';
+                        }
+                    }
+                } catch(e) {}
 
                 // ── patch: Усиленная инструкция сохранения в личную память ──
                 // Если пользователь явно просит сохранить что-то в личную память — AI ОБЯЗАН использовать [MEM_ADD]
@@ -13636,6 +13702,35 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     // FIX v9.20: запомнить использованные KB-ID чтобы следующий вопрос получил другие факты
                     if (!window._eitiKbUsedIds) window._eitiKbUsedIds = new Set();
                     _relFacts.forEach(function(f){ if (f && f.id) window._eitiKbUsedIds.add(f.id); });
+
+                    // ── v13.3.0: LOCAL TRANSFORMERS.JS SEMANTIC SEARCH ───────
+                    // Uses locally cached query vector (computed async on prev query) + kb_vectors from IDB
+                    if (window.eitiSemanticModel && window._eitiKbVectorized && window._eitiKbVectorized.length) {
+                        var _localKbVec = window._eitiKbVectorized;
+                        var _localQVec = window._eitiQueryVecCache && window._eitiQueryVecCache[lower.slice(0, 60)];
+                        if (_localQVec && typeof eitiSemanticSearch === 'function') {
+                            var _semResult = eitiSemanticSearch(_localQVec, _localKbVec, 0.42, 8);
+                            if (_semResult && _semResult.all) {
+                                var _semFacts = _semResult.all.map(function(r) { return r.fact; });
+                                // Merge: add semantically-found facts not already in BM25 results
+                                _semFacts.forEach(function(sf) {
+                                    if (!_relFacts.some(function(rf) { return rf.id === sf.id; })) {
+                                        _relFacts.push(sf);
+                                    }
+                                });
+                                if (_relFacts.length > 10) _relFacts = _relFacts.slice(0, 10);
+                                _lastCtxSources.push('🧠Sem');
+                            }
+                        }
+                        // Async: compute and cache query vector for NEXT request
+                        window.eitiSemanticModel(lower, { pooling: 'mean', normalize: true }).then(function(out) {
+                            if (!window._eitiQueryVecCache) window._eitiQueryVecCache = {};
+                            window._eitiQueryVecCache[lower.slice(0, 60)] = Array.from(out.data);
+                            // Limit cache size
+                            var _cacheKeys = Object.keys(window._eitiQueryVecCache);
+                            if (_cacheKeys.length > 20) delete window._eitiQueryVecCache[_cacheKeys[0]];
+                        }).catch(function() {});
+                    }
 
                     // ── EMBEDDINGS через DeepSeek API (если KB ≥ 80 фактов) ─
                     // При большом KB дополнительно запрашиваем embeddings для семантического ранжирования
@@ -14240,13 +14335,35 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     ctrl.querySelectorAll('.msg-btn')[1].onclick = function(){ copyText(r2).then(function(){ showToast('Скопировано'); }); };
                                     row.appendChild(ctrl);
                                 }
-                                chatLog.push({id: liveId, role: 'assistant', text: result, ts: Date.now(), provider: _provider});
+                                // v13.3.0: confidence detection
+                                var _confMarker = '[[⚠️ низкая уверенность]]';
+                                var _hasLowConf = result.indexOf(_confMarker) !== -1;
+                                var _cleanResult = _hasLowConf ? result.replace(_confMarker, '').trim() : result;
+                                if (_hasLowConf) {
+                                    if (textEl) textEl.innerHTML = eitiRenderMarkdown(_cleanResult);
+                                    var _confBadge = document.createElement('div');
+                                    _confBadge.style.cssText = 'font-size:11px;opacity:0.7;margin-top:5px;padding:3px 8px;background:rgba(255,150,0,0.15);border-radius:8px;display:inline-block;';
+                                    _confBadge.textContent = '⚠️ ИИ не уверен в ответе';
+                                    if (liveDiv) liveDiv.querySelector('.message-body') && liveDiv.querySelector('.message-body').appendChild(_confBadge);
+                                    // Log confidence event
+                                    try {
+                                        var _cLog = JSON.parse(localStorage.getItem('eiti_conf_log') || '[]');
+                                        _cLog.push({ ts: Date.now(), q: typeof userText !== 'undefined' ? userText.slice(0, 80) : '', provider: _provider });
+                                        if (_cLog.length > 100) _cLog = _cLog.slice(-100);
+                                        localStorage.setItem('eiti_conf_log', JSON.stringify(_cLog));
+                                    } catch(e) {}
+                                }
+                                chatLog.push({id: liveId, role: 'assistant', text: _cleanResult, ts: Date.now(), provider: _provider});
                                 saveChat();
-                                eitiUpdateState(result); // v11.8
+                                eitiUpdateState(_cleanResult); // v11.8
                                 window._eitiIsStreaming = false;
                                 // v12.7: обновляем L2 после каждого ответа AI (фоново, с debounce 3s)
                                 if (eitiCurrentChatId) eitiL2Consolidate(eitiCurrentChatId);
-                                resolve(result);
+                                // v13.3.0: L1 compress trigger (async, background)
+                                setTimeout(function() {
+                                    if (typeof eitiL1Compress === 'function') eitiL1Compress();
+                                }, 2000);
+                                resolve(_cleanResult);
                                 return;
                             }
                             _dsSseBuffer += decoder.decode(chunk.value, {stream: true});
@@ -18600,6 +18717,8 @@ async function eitiVectorizeKB() {
         }
 
         if (window.EITI_DEBUG) console.log('✅ Векторизация завершена. Новых:', count, '| Из кэша:', kb.length - count);
+        // v13.3.0: expose vectorized KB for local semantic search in context builder
+        window._eitiKbVectorized = kb;
     } catch(e) { console.error('❌ Ошибка векторизации:', e); }
 }
 
