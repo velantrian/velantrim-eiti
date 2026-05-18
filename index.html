@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.2.0"; // v13.2.0: sync version across index.html / sw.js / manifest.json
+        var EITI_VERSION = "13.2.2"; // v13.2.2: one-shot icon bounce, globe axis spin, expanded DDG search
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -1607,6 +1607,33 @@
         .eiti-mode-brain  { display:inline-block; animation:eiti-brain-glow 1.0s ease-in-out infinite; }
         .eiti-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-color); border-radius: 50%; animation: eiti-spin 0.7s linear infinite; flex-shrink: 0; }
 
+        /* === v13.2.2: DDG animations — globe axis spin + one-shot icon bounce === */
+        @keyframes ddg-globe-axis {
+            from { transform: rotateY(0deg); }
+            to   { transform: rotateY(360deg); }
+        }
+        @keyframes ddg-btn-websearch {
+            0%,100% { box-shadow:0 0 0 0 rgba(30,180,255,0); border-color:var(--border-color); }
+            50%     { box-shadow:0 0 8px 2px rgba(30,180,255,0.35); border-color:rgba(30,180,255,0.7); }
+        }
+        @keyframes eiti-icon-pop {
+            0%   { transform: scale(1) rotate(0deg); }
+            25%  { transform: scale(1.55) rotate(-18deg); }
+            55%  { transform: scale(1.35) rotate(12deg); }
+            80%  { transform: scale(1.12) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        /* slowly spinning globe in chat during search */
+        .ddg-globe-spin-axis {
+            display: inline-block;
+            animation: ddg-globe-axis 4s linear infinite;
+            font-size: 15px;
+            opacity: 0.85;
+        }
+        /* one-shot bounce for provider icons on select */
+        .eiti-icon-pop { display:inline-block; animation: eiti-icon-pop 0.55s cubic-bezier(.36,.07,.19,.97) 1 both; }
+        #cm-websearch.ddg-btn-active { animation:ddg-btn-websearch 1.8s ease-in-out infinite; }
+
         /* === v12.9.51: FILE VIEWER MODAL === */
         #eiti-file-view-modal {
             display: none;
@@ -3041,8 +3068,6 @@
         <div class="app-header">
             <h1>𓆩 VELANTRIM EITI 𓆪</h1>
             <div class="header-actions">
-                <!-- v12.9.77: ручное сохранение чата в Daily Log -->
-                <button id="btn-smh-save" class="header-btn" title="Запомнить этот чат" onclick="smhManualSaveChat()" style="font-size:16px;display:none;">💾</button>
                 <button id="btn-pwa-install" class="header-btn" onclick="installPWA()" title="Установить приложение" style="display:none;font-size:18px;line-height:1;">📥</button>
             </div>
         </div>
@@ -3273,21 +3298,21 @@
                                 <div style="display:flex;flex-direction:column;gap:7px;">
                                     <div id="eiti-provider-card-ds" onclick="eitiSetProvider('deepseek')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🤖</span>
+                                        <span id="eiti-picon-ds" style="font-size:20px;flex-shrink:0;display:inline-block;">🤖</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">DeepSeek</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">v4-flash (быстро) · v4-pro (точно)</span></span>
                                         <span id="eiti-pcheck-ds" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-gm" onclick="eitiSetProvider('gemini')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">⚡</span>
+                                        <span id="eiti-picon-gm" style="font-size:20px;flex-shrink:0;display:inline-block;">⚡</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">Google Gemini</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Flash / Pro — введи ключ ниже</span></span>
                                         <span id="eiti-pcheck-gm" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-or" onclick="eitiSetProvider('openrouter')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--accent-color);background:rgba(255,200,0,0.12);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🔀</span>
+                                        <span id="eiti-picon-or" style="font-size:20px;flex-shrink:0;display:inline-block;">🔀</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">OpenRouter</span>
                                         <span id="eiti-pcard-or-model" style="display:block;font-size:11px;opacity:0.55;">openrouter/auto</span></span>
                                         <span id="eiti-pcheck-or" style="font-size:20px;">✅</span>
@@ -3295,21 +3320,21 @@
                                     
                                     <div id="eiti-provider-card-qwen" onclick="eitiSetProvider('qwen')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🟣</span>
+                                        <span id="eiti-picon-qwen" style="font-size:20px;flex-shrink:0;display:inline-block;">🟣</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">Qwen AI</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Alibaba · поиск · 235B</span></span>
                                         <span id="eiti-pcheck-qwen" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-ddg" onclick="eitiToggleDDG()"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🦆</span>
+                                        <span id="eiti-ddg-duck-icon" style="font-size:20px;flex-shrink:0;display:inline-block;">🦆</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">DuckDuckGo</span>
                                         <span id="eiti-ddg-sublabel" style="display:block;font-size:11px;opacity:0.55;">Веб-поиск в режиме 🌐 Поиск</span></span>
                                         <span id="eiti-pcheck-ddg" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-none" onclick="eitiSetProvider('none')"
                                         style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;opacity:0.7;">
-                                        <span style="font-size:18px;flex-shrink:0;">🚫</span>
+                                        <span id="eiti-picon-none" style="font-size:18px;flex-shrink:0;display:inline-block;">🚫</span>
                                         <span style="flex:1;"><span style="font-size:13px;font-weight:700;">Отключить AI</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Чат не отвечает — только локальный поиск</span></span>
                                         <span id="eiti-pcheck-none" style="font-size:20px;opacity:0.2;">⬜</span>
@@ -3493,6 +3518,16 @@
                                 <button id="qwen-model-qwen-turbo-latest" onclick="eitiQwenSetModel('qwen-turbo-latest')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:9px;font-size:11px;cursor:pointer;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);">
                                     <div>Qwen Turbo</div><div style="font-size:9px;opacity:0.5;">Быстрый</div>
                                 </button>
+                            </div>
+                            <!-- 📷 Qwen Vision модель -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:2px;">
+                                <div style="font-size:12px;font-weight:600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📷 Vision модель</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    <button id="qvl-model-qwen3-vl-max" onclick="eitiSetQwenVLModel('qwen3-vl-max')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;"><div>Qwen3-VL Max</div><div style="font-size:9px;opacity:0.5;">Флагман ✓</div></button>
+                                    <button id="qvl-model-qwen-vl-plus" onclick="eitiSetQwenVLModel('qwen-vl-plus')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:600;cursor:pointer;"><div>Qwen VL Plus</div><div style="font-size:9px;opacity:0.5;">Баланс</div></button>
+                                    <button id="qvl-model-qwen3-vl-32b" onclick="eitiSetQwenVLModel('qwen3-vl-32b')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:600;cursor:pointer;"><div>Qwen3-VL 32B</div><div style="font-size:9px;opacity:0.5;">Компакт</div></button>
+                                </div>
+                                <div id="qvl-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;"></div>
                             </div>
                             <div style="display:flex;gap:6px;">
                                 <input type="password" id="qwen-api-key-input" placeholder="sk-… (DashScope API Key)"
@@ -5069,6 +5104,12 @@
                                     <button onclick="eitiSaveAPIKey()" style="flex:1;padding:9px;border-radius:10px;border:none;background:var(--accent-color);color:#000;font-weight:700;font-size:13px;cursor:pointer;">💾 Сохранить</button>
                                     <button onclick="eitiClearAPIKey()" style="padding:9px 14px;border-radius:10px;border:1px solid rgba(255,80,80,0.3);background:rgba(255,50,50,0.1);color:#ff6060;font-size:13px;font-weight:600;cursor:pointer;">🗑</button>
                                 </div>
+                            </div>
+                            <!-- 📷 Выбор модели (OpenAI / Anthropic / Mistral / Grok) -->
+                            <div id="api-model-section" style="display:none;border-top:1px solid var(--border-color);padding-top:10px;">
+                                <div id="api-model-section-title" style="font-size:12px;font-weight:600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Модель</div>
+                                <div id="api-model-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                                <div id="api-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;"></div>
                             </div>
                             <!-- Кнопка проверки -->
                             <button onclick="eitiCheckAPIBalance()" id="api-check-btn"
@@ -12329,57 +12370,123 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             } catch(e) { _grokSendFnResult({ error: e.message }); }
 
                         } else if (fnName === 'ddg_search') {
-                            // v12.9.8: DDG через JSONP (без CORS)
+                            // v13.2.1: DDG real HTML via proxy + JSONP Instant fallback
                             var ddgQ = fnArgs.query || '';
                             var _dsSearchMode = localStorage.getItem('eiti_grok_search_mode') || 'ddg';
-                            var _cbName = '_grokDDGCb_' + Date.now();
                             var _ddgDone = false;
-                            var _ddgTimeout = setTimeout(function() {
-                                if (_ddgDone) return; _ddgDone = true; delete window[_cbName];
+                            var _ddgMasterTo = setTimeout(function() {
+                                if (_ddgDone) return; _ddgDone = true;
                                 _grokSendFnResult({ error: 'DDG таймаут', query: ddgQ });
-                            }, 7000);
-                            window[_cbName] = function(raw) {
-                                if (_ddgDone) return; _ddgDone = true; clearTimeout(_ddgTimeout); delete window[_cbName];
-                                var results = [];
-                                if (raw.AbstractText) results.push({ title: raw.Heading||'', text: raw.AbstractText.slice(0,500) });
-                                (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){
-                                    if (t.Text) results.push({ title: t.Text.slice(0,100), text: t.Text.slice(0,350) });
-                                    if (t.Topics) t.Topics.slice(0,2).forEach(function(st){ if(st.Text) results.push({ text: st.Text.slice(0,250) }); });
-                                });
-                                (raw.Results||[]).slice(0,4).forEach(function(r){ if(r.Text) results.push({ title: r.FirstURL||'', text: r.Text.slice(0,300) }); });
-                                var sliced = results.slice(0,7);
-                                if (!sliced.length) {
-                                    _grokSendFnResult({ query: ddgQ, results: [], message: 'Нет результатов. Попробуй запрос на английском.' });
+                            }, 12000);
+
+                            function _grokDDGFinish(results, src) {
+                                if (_ddgDone) return; _ddgDone = true;
+                                clearTimeout(_ddgMasterTo);
+                                if (!results.length) {
+                                    _grokSendFnResult({ query: ddgQ, results: [], message: 'Нет результатов по запросу. Попробуй на английском.' });
                                     return;
                                 }
                                 if (_dsSearchMode === 'ds') {
                                     var _dsKey2 = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
                                     if (_dsKey2) {
-                                        var rawText = sliced.map(function(r2,i){ return (i+1)+'. '+(r2.title||'')+': '+r2.text; }).join('\n');
+                                        var rawText = results.map(function(r2,i){ return (i+1)+'. '+(r2.title||'')+': '+r2.text; }).join('\n');
                                         fetch('https://api.deepseek.com/v1/chat/completions', {
                                             method: 'POST',
                                             headers: { 'Authorization': 'Bearer '+_dsKey2, 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 400, // v12.9.38 FIX: deepseek-chat deprecated 24.07.2026
+                                            body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 400,
                                                 messages: [
                                                     { role: 'system', content: 'Суммаризируй результаты поиска кратко. Только факты.' },
                                                     { role: 'user', content: 'Запрос: '+ddgQ+'\n\n'+rawText }
                                                 ] })
                                         }).then(function(r3){ return r3.json(); })
                                         .then(function(sum){ _grokSendFnResult({ query: ddgQ, summary: (sum.choices&&sum.choices[0]&&sum.choices[0].message&&sum.choices[0].message.content)||rawText, source: 'DeepSeek+DDG' }); })
-                                        .catch(function(){ _grokSendFnResult({ query: ddgQ, results: sliced }); });
+                                        .catch(function(){ _grokSendFnResult({ query: ddgQ, results: results, source: src }); });
                                         return;
                                     }
                                 }
-                                _grokSendFnResult({ query: ddgQ, results: sliced, source: 'DuckDuckGo JSONP' });
-                            };
-                            var _ddgS = document.createElement('script');
-                            _ddgS.onerror = function() {
-                                if (_ddgDone) return; _ddgDone = true; clearTimeout(_ddgTimeout); delete window[_cbName];
-                                _grokSendFnResult({ error: 'DDG network error', query: ddgQ });
-                            };
-                            _ddgS.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(ddgQ)+'&format=json&no_html=1&skip_disambig=1&callback='+_cbName;
-                            document.head.appendChild(_ddgS);
-                            setTimeout(function(){ if (_ddgS.parentNode) _ddgS.parentNode.removeChild(_ddgS); }, 9000);
+                                _grokSendFnResult({ query: ddgQ, results: results, source: src });
+                            }
+
+                            // Fallback: JSONP Instant Answer
+                            function _grokJSONP() {
+                                if (_ddgDone) return;
+                                var _cbName = '_grokDDGCb_' + Date.now(), _cbDone = false;
+                                var _jTo = setTimeout(function() {
+                                    if (_cbDone) return; _cbDone = true; delete window[_cbName];
+                                    _grokDDGFinish([], 'timeout');
+                                }, 5000);
+                                window[_cbName] = function(raw) {
+                                    if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cbName];
+                                    var results = [];
+                                    if (raw.AbstractText) results.push({ title: raw.Heading||'', text: raw.AbstractText.slice(0,500) });
+                                    (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){
+                                        if (t.Text) results.push({ title: t.Text.slice(0,100), text: t.Text.slice(0,350) });
+                                        if (t.Topics) t.Topics.slice(0,2).forEach(function(st){ if(st.Text) results.push({ text: st.Text.slice(0,250) }); });
+                                    });
+                                    (raw.Results||[]).slice(0,4).forEach(function(r){ if(r.Text) results.push({ title: r.FirstURL||'', text: r.Text.slice(0,300) }); });
+                                    _grokDDGFinish(results.slice(0,7), 'DuckDuckGo Instant');
+                                };
+                                var _ddgS = document.createElement('script');
+                                _ddgS.onerror = function() {
+                                    if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cbName];
+                                    _grokDDGFinish([], 'ошибка сети');
+                                };
+                                _ddgS.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(ddgQ)+'&format=json&no_html=1&skip_disambig=1&callback='+_cbName;
+                                document.head.appendChild(_ddgS);
+                                setTimeout(function(){ if (_ddgS.parentNode) _ddgS.parentNode.removeChild(_ddgS); }, 8000);
+                            }
+
+                            // Parse DDG HTML for Grok (shared by both proxies)
+                            function _grokParseDDG(html, fallback) {
+                                if (_ddgDone) return;
+                                var parser = new DOMParser();
+                                var doc = parser.parseFromString(html, 'text/html');
+                                var results = [];
+                                doc.querySelectorAll('.result, .web-result, .result--web').forEach(function(item) {
+                                    if (results.length >= 10) return;
+                                    var titleEl = item.querySelector('.result__title a, .result__a, a.result__a');
+                                    var snippetEl = item.querySelector('.result__snippet, .result__body');
+                                    var urlEl = item.querySelector('.result__url, .result__extras__url');
+                                    if (snippetEl) {
+                                        results.push({
+                                            title: titleEl ? titleEl.textContent.trim() : '',
+                                            text: snippetEl.textContent.trim().slice(0, 500),
+                                            url: urlEl ? urlEl.textContent.trim() : ''
+                                        });
+                                    }
+                                });
+                                doc.querySelectorAll('.result--news').forEach(function(item) {
+                                    if (results.length >= 12) return;
+                                    var titleEl = item.querySelector('.result__title a');
+                                    var snippetEl = item.querySelector('.result__snippet');
+                                    if (titleEl && snippetEl) {
+                                        results.push({ title: '[Новость] ' + titleEl.textContent.trim(), text: snippetEl.textContent.trim().slice(0, 350) });
+                                    }
+                                });
+                                if (results.length >= 2) { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
+                                else if (fallback) { fallback(); }
+                                else { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
+                            }
+
+                            // Backup proxy: allorigins.win
+                            function _grokProxy2() {
+                                if (_ddgDone) return;
+                                var _p2 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(ddgQ) + '&kl=ru-ru');
+                                var _p2To = setTimeout(function() { _grokJSONP(); }, 7000);
+                                fetch(_p2).then(function(r) { clearTimeout(_p2To); return r.text(); })
+                                    .then(function(html) { _grokParseDDG(html, _grokJSONP); })
+                                    .catch(function() { clearTimeout(_p2To); _grokJSONP(); });
+                            }
+
+                            // Primary: real DDG HTML via corsproxy.io
+                            (function() {
+                                var _pUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(ddgQ) + '&kl=ru-ru');
+                                var _pTo = setTimeout(function() { _grokProxy2(); }, 6000);
+                                fetch(_pUrl)
+                                    .then(function(r) { clearTimeout(_pTo); return r.text(); })
+                                    .then(function(html) { _grokParseDDG(html, _grokProxy2); })
+                                    .catch(function() { clearTimeout(_pTo); _grokProxy2(); });
+                            })();
                         }
                     }
                 };
@@ -12619,18 +12726,25 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         window.eitiToggleDDG = function() {
             var isOn = localStorage.getItem('eiti_ddg_on') === '1';
             localStorage.setItem('eiti_ddg_on', isOn ? '0' : '1');
-            _eitiUpdateDDGCard();
+            _eitiUpdateDDGCard(true);
             showToast(isOn ? '🦆 DuckDuckGo выключен' : '🦆 DuckDuckGo включён');
             if (!isOn && typeof eitiSetCogMode === 'function') eitiSetCogMode('websearch');
         };
-        function _eitiUpdateDDGCard() {
+        function _eitiUpdateDDGCard(animate) {
             var isOn = localStorage.getItem('eiti_ddg_on') === '1';
             var card = document.getElementById('eiti-provider-card-ddg');
             var check = document.getElementById('eiti-pcheck-ddg');
             var sub = document.getElementById('eiti-ddg-sublabel');
+            var duck = document.getElementById('eiti-ddg-duck-icon');
             if (card) { card.style.border = isOn ? '2px solid var(--accent-color)' : '2px solid var(--border-color)'; card.style.background = isOn ? 'rgba(255,200,0,0.12)' : 'var(--secondary-color)'; }
             if (check) { check.textContent = isOn ? '✅' : '⬜'; check.style.opacity = isOn ? '1' : '0.2'; }
-            if (sub) sub.textContent = isOn ? 'Включён — веб-поиск активен' : 'Веб-поиск в режиме 🌐 Поиск';
+            if (sub) sub.textContent = isOn ? '✅ Включён — реальный веб-поиск активен' : 'Веб-поиск в режиме 🌐 Поиск';
+            if (duck && animate) {
+                duck.className = '';
+                void duck.offsetWidth;
+                duck.className = 'eiti-icon-pop';
+                setTimeout(function() { duck.className = ''; }, 700);
+            }
         }
         window.eitiTestDDG = function() {
             var _cbName = '_ddgTestCb_' + Date.now(), _done = false;
@@ -12827,7 +12941,20 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             }).catch(function(e) { if (st) st.innerHTML = '<span style="color:#f66">❌ ' + String(e.message||'').replace(/</g,'&lt;') + '</span>'; });
         }
 
+        function _eitiPopIcon(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('eiti-icon-pop');
+            void el.offsetWidth;
+            el.classList.add('eiti-icon-pop');
+            setTimeout(function() { el.classList.remove('eiti-icon-pop'); }, 700);
+        }
+
         function eitiSetProvider(p, silent) {
+            if (!silent) {
+                var iconMap = { deepseek:'eiti-picon-ds', gemini:'eiti-picon-gm', openrouter:'eiti-picon-or', none:'eiti-picon-none' };
+                if (iconMap[p]) _eitiPopIcon(iconMap[p]);
+            }
             localStorage.setItem('eiti_ai_provider', p);
             var dsBtn = document.getElementById('eiti-provider-ds');
             var gmBtn = document.getElementById('eiti-provider-gm');
@@ -14160,29 +14287,110 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 });
                 } // end doFetch
 
-                // ── 🌐 WEB SEARCH — DDG JSONP (v12.9.8) ──────────
+                // ── 🌐 WEB SEARCH — DDG real HTML + JSONP fallback (v13.2.1) ──────────
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     if (_ddgOn && eitiGetCogMode() === 'websearch') {
                         var _lt = document.getElementById(liveId + '-text');
-                        if (_lt) _lt.innerHTML = '<span style="opacity:0.6;">🦆 Ищу…</span>';
-                        var _cb = '_ddgCb_' + Date.now(), _done = false;
-                        var _to = setTimeout(function(){ if(_done)return; _done=true; delete window[_cb]; doFetch(); }, 5000);
-                        window[_cb] = function(raw) {
-                            if(_done)return; _done=true; clearTimeout(_to); delete window[_cb];
-                            var snips = [];
-                            if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,500));
-                            (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){ if(t.Text) snips.push('• '+t.Text.slice(0,250)); });
-                            (raw.Results||[]).slice(0,3).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,200)); });
-                            if (snips.length) sysContent += '\n\n=== 🌐 DuckDuckGo ===\n'+snips.join('\n')+'\n===';
-                            else sysContent += '\n\n[🌐 DDG: нет результатов]';
+                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-spin-axis">🌐</span>' +
+                            ' <span style="opacity:0.65;font-size:12px;">Ищу в интернете…</span>';
+                        var _ddgMainDone = false;
+                        var _masterTo = setTimeout(function() {
+                            if (_ddgMainDone) return; _ddgMainDone = true;
+                            sysContent += '\n\n[🌐 DDG: таймаут поиска]';
                             doFetch();
-                        };
-                        var _s = document.createElement('script');
-                        _s.onerror = function(){ if(_done)return; _done=true; clearTimeout(_to); delete window[_cb]; doFetch(); };
-                        _s.src = 'https://api.duckduckgo.com/?q='+encodeURIComponent(userText)+'&format=json&no_html=1&skip_disambig=1&callback='+_cb;
-                        document.head.appendChild(_s);
-                        setTimeout(function(){ if (_s.parentNode) _s.parentNode.removeChild(_s); }, 9000); // v12.9.38 FIX: DDG script tag cleanup
+                        }, 11000);
+
+                        function _onDDGResults(snips, src) {
+                            if (_ddgMainDone) return; _ddgMainDone = true;
+                            clearTimeout(_masterTo);
+                            if (snips.length) sysContent += '\n\n=== 🌐 DuckDuckGo (' + src + ') ===\n' + snips.join('\n') + '\n===';
+                            else sysContent += '\n\n[🌐 DDG: нет результатов по запросу "' + userText.slice(0,60) + '"]';
+                            doFetch();
+                        }
+
+                        // Fallback: JSONP Instant Answer API
+                        function _tryJSONP() {
+                            if (_ddgMainDone) return;
+                            var _cb = '_ddgCb_' + Date.now(), _cbDone = false;
+                            var _jTo = setTimeout(function() {
+                                if (_cbDone) return; _cbDone = true; delete window[_cb];
+                                _onDDGResults([], 'timeout');
+                            }, 5000);
+                            window[_cb] = function(raw) {
+                                if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
+                                var snips = [];
+                                if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,600));
+                                (raw.RelatedTopics||[]).slice(0,8).forEach(function(t){
+                                    if (t.Text) snips.push('• ' + t.Text.slice(0,350));
+                                    if (t.Topics) t.Topics.slice(0,3).forEach(function(st){ if(st.Text) snips.push('  ↳ '+st.Text.slice(0,250)); });
+                                });
+                                (raw.Results||[]).slice(0,5).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,300) + (r.FirstURL ? ' — '+r.FirstURL : '')); });
+                                _onDDGResults(snips, 'Instant');
+                            };
+                            var _sj = document.createElement('script');
+                            _sj.onerror = function() {
+                                if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
+                                _onDDGResults([], 'ошибка');
+                            };
+                            _sj.src = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(userText) + '&format=json&no_html=1&skip_disambig=1&callback=' + _cb;
+                            document.head.appendChild(_sj);
+                            setTimeout(function(){ if (_sj.parentNode) _sj.parentNode.removeChild(_sj); }, 8000);
+                        }
+
+                        // Backup proxy: allorigins.win
+                        function _tryProxy2() {
+                            if (_ddgMainDone) return;
+                            var _p2Url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _p2To = setTimeout(function() { _tryJSONP(); }, 7000);
+                            fetch(_p2Url)
+                                .then(function(r) { clearTimeout(_p2To); return r.text(); })
+                                .then(function(html) { _parseDDGHtml(html, _tryJSONP); })
+                                .catch(function() { clearTimeout(_p2To); _tryJSONP(); });
+                        }
+
+                        // Parse DDG HTML into snips (shared by both proxies)
+                        function _parseDDGHtml(html, fallback) {
+                            if (_ddgMainDone) return;
+                            var parser = new DOMParser();
+                            var doc = parser.parseFromString(html, 'text/html');
+                            var snips = [];
+                            // Organic results
+                            doc.querySelectorAll('.result, .web-result, .result--web').forEach(function(item) {
+                                if (snips.length >= 10) return;
+                                var titleEl = item.querySelector('.result__title a, .result__a, a.result__a');
+                                var snippetEl = item.querySelector('.result__snippet, .result__body');
+                                var urlEl = item.querySelector('.result__url, .result__extras__url');
+                                if (snippetEl) {
+                                    var t = titleEl ? titleEl.textContent.trim() : '';
+                                    var s = snippetEl.textContent.trim().slice(0, 500);
+                                    var u = urlEl ? urlEl.textContent.trim() : '';
+                                    if (t || s) snips.push('🔗 ' + (t ? '**' + t + '**' + (u ? ' (' + u + ')' : '') + ': ' : '') + s);
+                                }
+                            });
+                            // Also grab any news results
+                            doc.querySelectorAll('.result--news').forEach(function(item) {
+                                if (snips.length >= 12) return;
+                                var titleEl = item.querySelector('.result__title a');
+                                var snippetEl = item.querySelector('.result__snippet');
+                                if (titleEl && snippetEl) {
+                                    snips.push('📰 **' + titleEl.textContent.trim() + '**: ' + snippetEl.textContent.trim().slice(0, 350));
+                                }
+                            });
+                            if (snips.length >= 2) { _onDDGResults(snips, 'Веб'); }
+                            else if (fallback) { fallback(); }
+                            else { _onDDGResults(snips, 'Веб'); }
+                        }
+
+                        // Primary: real DDG HTML via corsproxy.io
+                        (function _tryRealSearch() {
+                            var _proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _rTo = setTimeout(function() { _tryProxy2(); }, 6000);
+                            fetch(_proxyUrl)
+                                .then(function(r) { clearTimeout(_rTo); return r.text(); })
+                                .then(function(html) { _parseDDGHtml(html, _tryProxy2); })
+                                .catch(function() { clearTimeout(_rTo); _tryProxy2(); });
+                        })();
                     } else { doFetch(); }
                 }
 
@@ -21128,6 +21336,7 @@ window.eitiLLMClearAll = async function() {
                 eitiRefreshBrowserVoices();
                 // Cognitive mode UI
                 eitiRenderCogMode();
+                if (typeof _eitiUpdateDDGCard === 'function') _eitiUpdateDDGCard();
                 eitiKBLoadAsync().then(function(){ eitiKBRenderStats(); });
                 eitiRenderReason();
                 eitiRenderOnlyAI();
@@ -24741,6 +24950,15 @@ window.eitiLLMClearAll = async function() {
                 btn.style.borderColor = m === mode ? 'var(--accent-color)' : 'var(--border-color)';
                 btn.style.background  = m === mode ? 'var(--accent-color)' : 'var(--secondary-color)';
                 btn.style.color       = m === mode ? '#000' : 'var(--text-color)';
+                if (m === 'websearch') {
+                    if (mode === 'websearch') {
+                        btn.classList.add('ddg-btn-active');
+                        btn.innerHTML = '<span class="ddg-globe-spin-axis" style="font-size:13px;">🌐</span> Поиск';
+                    } else {
+                        btn.classList.remove('ddg-btn-active');
+                        btn.innerHTML = '🌐 Поиск';
+                    }
+                }
             });
             var desc = document.getElementById('cm-desc');
             if (desc) desc.textContent = _CMODE_DESCS[mode] || '';
@@ -29527,6 +29745,7 @@ window.eitiLLMClearAll = async function() {
             }, 2600);
         });
 
+        window._rneCallLLM = _rneCallLLM; // expose for Smart Memory Hub (different IIFE)
         })(); // конец EITI RNE
 
         // ══════════════════════════════════════════════════════════════════
@@ -29915,38 +30134,25 @@ window.eitiLLMClearAll = async function() {
                 return (m.role==='user'?'Я':'AI') + ': ' + (m.text||'').slice(0,400);
             }).join('\n');
             var prompt = 'Выдели 2-4 самых важных факта, решения или выводов из этого диалога. Каждый — отдельная строка, до 120 символов. Только суть, без воды.\n\n' + recent;
-            if (typeof _rneCallLLM === 'function') {
-                _rneCallLLM(prompt, true).then(function(result) {
-                    if (btn) btn.textContent = '💾';
-                    if (!result || !result.trim()) { showToast('🤷 Нечего сохранять', 2000); return; }
+            if (typeof window._rneCallLLM === 'function') {
+                window._rneCallLLM(prompt, true).then(function(result) {
+                    if (!result || !result.trim()) { if (btn) btn.textContent = '🔖'; showToast('🤷 Нечего сохранять', 2000); return; }
                     var saved = 0;
                     result.trim().split('\n').forEach(function(line) {
                         var l = line.replace(/^[-•*\d.]+\s*/, '').trim();
                         if (l.length > 5) { smhDailyAdd(l); saved++; }
                     });
-                    showToast('💾 Сохранено ' + saved + ' ' + (saved===1?'факт':saved<5?'факта':'фактов') + ' в лог', 2500);
+                    showToast('✅ Сохранено ' + saved + ' ' + (saved===1?'факт':saved<5?'факта':'фактов') + ' в лог', 2500);
+                    if (btn) { btn.textContent = '✅'; setTimeout(function(){ btn.style.display = 'none'; }, 2000); }
                 }).catch(function(e) {
-                    if (btn) btn.textContent = '💾';
+                    if (btn) { btn.textContent = '❌'; setTimeout(function(){ btn.textContent = '🔖'; }, 2000); }
                     showToast('❌ ' + (e.message||'Ошибка'), 3000);
                 });
             } else {
-                if (btn) btn.textContent = '💾';
+                if (btn) btn.textContent = '🔖';
                 showToast('⚠️ AI не подключён', 2000);
             }
         };
-
-        // Показывать кнопку 💾 только на вкладке Чат
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                var saveBtn = document.getElementById('btn-smh-save');
-                if (!saveBtn) return;
-                document.querySelectorAll('.tab-item').forEach(function(tab) {
-                    tab.addEventListener('click', function() {
-                        saveBtn.style.display = tab.dataset.view === 'chat' ? '' : 'none';
-                    });
-                });
-            }, 1000);
-        });
 
         })(); // конец Smart Memory Hub
         // ══════════════════════════════════════════════════════════════════
@@ -32327,6 +32533,104 @@ window._eitiInitSQL = _initSQL;
             inp.value = saved ? '●'.repeat(Math.min(saved.length, 24)) : '';
             inp.setAttribute('data-loaded', saved ? '1' : '0');
         }
+        if (typeof _eitiRenderModelPicker === 'function') _eitiRenderModelPicker(p);
+    };
+
+    // Модели провайдеров с поддержкой Vision (все модели поддерживают Vision)
+    var _PROV_MODELS = {
+        openai: {
+            title: '🟢 Модель ChatGPT',
+            key: 'eiti_openai_model',
+            defs: [
+                { id: 'gpt-5.5',      label: 'GPT-5.5',   desc: 'Флагман' },
+                { id: 'gpt-5.4',      label: 'GPT-5.4',   desc: 'Топ' },
+                { id: 'gpt-5.4-mini', label: '5.4 Mini',  desc: 'Быстро' },
+                { id: 'o3',           label: 'o3',         desc: 'Reasoning' },
+            ]
+        },
+        anthropic: {
+            title: '🟠 Модель Claude',
+            key: 'eiti_anthropic_model',
+            defs: [
+                { id: 'claude-opus-4-7',           label: 'Opus 4.7',   desc: 'Флагман' },
+                { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6', desc: 'Баланс ✓' },
+                { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5',  desc: 'Быстро' },
+            ]
+        },
+        mistral: {
+            title: '📷 Vision Mistral',
+            key: 'eiti_mistral_vision_model',
+            defs: [
+                { id: 'pixtral-large-latest', label: 'Pixtral Large', desc: 'Лучший' },
+                { id: 'pixtral-12b-2409',     label: 'Pixtral 12B',   desc: 'Быстрее' },
+                { id: 'mistral-small-latest', label: 'Small Latest',  desc: 'Универсал' },
+            ]
+        },
+        grok: {
+            title: '📷 Vision Grok',
+            key: 'eiti_grok_vision_model',
+            defs: [
+                { id: 'grok-2-vision-1212', label: 'Grok Vision', desc: 'Vision API' },
+            ]
+        },
+    };
+
+    function _eitiRenderModelPicker(p) {
+        var section = document.getElementById('api-model-section');
+        var btns    = document.getElementById('api-model-btns');
+        var label   = document.getElementById('api-model-label');
+        var title   = document.getElementById('api-model-section-title');
+        if (!section || !btns) return;
+        var cfg = _PROV_MODELS[p];
+        if (!cfg) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        if (title) title.textContent = cfg.title;
+        var cur = localStorage.getItem(cfg.key) || cfg.defs[0].id;
+        btns.innerHTML = '';
+        cfg.defs.forEach(function(m) {
+            var active = m.id === cur;
+            var btn = document.createElement('button');
+            btn.id = 'apivmod-' + m.id.replace(/[^a-z0-9]/g, '-');
+            btn.style.cssText =
+                'flex:1;min-width:72px;padding:8px 4px;border-radius:10px;' +
+                'border:2px solid ' + (active ? 'var(--accent-color)' : 'rgba(255,255,255,0.15)') + ';' +
+                'background:' + (active ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)') + ';' +
+                'color:var(--text-color);font-size:11px;font-weight:' + (active ? '700' : '600') + ';cursor:pointer;';
+            btn.innerHTML = '<div>' + m.label + '</div><div style="font-size:9px;opacity:0.5;">' + m.desc + '</div>';
+            btn.onclick = (function(mid) { return function() { window.eitiSetVisionModel(p, mid); }; })(m.id);
+            btns.appendChild(btn);
+        });
+        if (label) label.textContent = 'Выбрано: ' + cur;
+    }
+
+    window.eitiSetVisionModel = function(p, model) {
+        var cfg = _PROV_MODELS[p];
+        if (!cfg) return;
+        localStorage.setItem(cfg.key, model);
+        document.querySelectorAll('#api-model-btns button').forEach(function(b) {
+            b.style.borderColor = 'rgba(255,255,255,0.15)';
+            b.style.background  = 'var(--secondary-color)';
+            b.style.fontWeight  = '600';
+        });
+        var sel = document.getElementById('apivmod-' + model.replace(/[^a-z0-9]/g, '-'));
+        if (sel) { sel.style.borderColor = 'var(--accent-color)'; sel.style.background = 'rgba(255,215,0,0.12)'; sel.style.fontWeight = '700'; }
+        var lbl = document.getElementById('api-model-label');
+        if (lbl) lbl.textContent = 'Выбрано: ' + model;
+        if (typeof showToast === 'function') showToast('✅ ' + model, 1500);
+    };
+
+    window.eitiSetQwenVLModel = function(model) {
+        localStorage.setItem('eiti_qwen_vision_model', model);
+        document.querySelectorAll('[id^="qvl-model-"]').forEach(function(b) {
+            b.style.borderColor = 'rgba(255,255,255,0.15)';
+            b.style.background  = 'var(--secondary-color)';
+            b.style.fontWeight  = '600';
+        });
+        var sel = document.getElementById('qvl-model-' + model.replace(/[^a-z0-9]/g, '-'));
+        if (sel) { sel.style.borderColor = 'var(--accent-color)'; sel.style.background = 'rgba(255,215,0,0.12)'; sel.style.fontWeight = '700'; }
+        var lbl = document.getElementById('qvl-model-label');
+        if (lbl) lbl.textContent = 'Выбрано: ' + model;
+        if (typeof showToast === 'function') showToast('📷 ' + model, 1500);
     };
 
     window.eitiToggleAPIKeyVis = function() {
@@ -34554,6 +34858,7 @@ window.eitiSetProvider = function(p, silent) {
         if (check) { check.textContent = '✅'; check.style.opacity = '1'; }
         var lbl = document.getElementById('eiti-provider-label');
         if (lbl) lbl.textContent = 'Активен: 🟣 Qwen AI';
+        if (!silent && typeof _eitiPopIcon === 'function') _eitiPopIcon('eiti-picon-qwen');
         if (!silent && typeof showToast === 'function') showToast('🟣 Qwen AI активирован');
         return;
     }
@@ -35296,7 +35601,7 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
             'Content-Type':  'application/json',
         },
         body: JSON.stringify({
-            model:      'deepseek-vision',   // или deepseek-vl-7b-chat
+            model:      (typeof eitiGetDsModel === 'function' ? eitiGetDsModel() : localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash'),
             messages:   apiMsgs,
             max_tokens: 2000,
             stream:     false,
@@ -35309,6 +35614,195 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
     }).then(function(d) {
         var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
         if (!text) throw new Error('DeepSeek Vision: пустой ответ');
+        return text;
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OpenAI Vision (GPT-4o / any vision-capable model)
+function _eitiOpenAIVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_openai_key') || _dk('eiti_apikey_openai');
+    if (!key) return Promise.reject(new Error('Нет OpenAI ключа'));
+    var model = localStorage.getItem('eiti_openai_model') || 'gpt-5.5';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model, messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('OpenAI Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('OpenAI Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Anthropic Vision (Claude 3+ with vision)
+function _eitiAnthropicVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_apikey_anthropic');
+    if (!key) return Promise.reject(new Error('Нет Anthropic ключа'));
+    var model = localStorage.getItem('eiti_anthropic_model') || 'claude-opus-4-7';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    // Anthropic: images first, then text
+    var lastContent = [];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.base64 } });
+    });
+    lastContent.push({ type: 'text', text: userText || '' });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    var body = { model: model, messages: apiMsgs, max_tokens: 2000 };
+    if (sysMsg) body.system = sysMsg.content;
+    return fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Anthropic Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.content && d.content[0] && d.content[0].text;
+        if (!text) throw new Error('Anthropic Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Qwen Vision (qwen-vl-max via DashScope OpenAI-compatible)
+function _eitiQwenVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_qwen_key') || '') : (localStorage.getItem('eiti_qwen_key') || '');
+    if (!key) return Promise.reject(new Error('Нет Qwen ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: localStorage.getItem('eiti_qwen_vision_model') || 'qwen3-vl-max', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Qwen Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Qwen Vision: пустой ответ');
+        return text;
+    });
+}
+
+// OpenRouter Vision (uses currently selected OR model, OpenAI-compatible format)
+function _eitiOpenRouterVision(userText, images, history) {
+    var _dk = function(k) { return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem(k) || '') : (localStorage.getItem(k) || ''); };
+    var key = _dk('eiti_or_key') || _dk('openrouter_api_key');
+    if (!key) return Promise.reject(new Error('Нет OpenRouter ключа'));
+    var model = localStorage.getItem('eiti_or_model') || 'openai/gpt-4o';
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model, messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('OpenRouter Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('OpenRouter Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Grok Vision (grok-2-vision via xAI)
+function _eitiGrokVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_grok_key') || '') : (localStorage.getItem('eiti_grok_key') || '');
+    if (!key) return Promise.reject(new Error('Нет Grok ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64, detail: 'high' } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: localStorage.getItem('eiti_grok_vision_model') || 'grok-2-vision-1212', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Grok Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Grok Vision: пустой ответ');
+        return text;
+    });
+}
+
+// Mistral Vision (Pixtral)
+function _eitiMistralVision(userText, images, history) {
+    var key = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_apikey_mistral') || '') : (localStorage.getItem('eiti_apikey_mistral') || '');
+    if (!key) return Promise.reject(new Error('Нет Mistral ключа'));
+    var sysMsg = history.find(function(m) { return m.role === 'system'; });
+    var apiMsgs = [];
+    if (sysMsg) apiMsgs.push({ role: 'system', content: sysMsg.content });
+    history.filter(function(m) { return m.role !== 'system'; }).slice(0, -1).forEach(function(m) {
+        apiMsgs.push({ role: m.role, content: m.content });
+    });
+    var lastContent = [{ type: 'text', text: userText || '' }];
+    images.forEach(function(img) {
+        lastContent.push({ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.base64 } });
+    });
+    apiMsgs.push({ role: 'user', content: lastContent });
+    return fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: localStorage.getItem('eiti_mistral_vision_model') || 'pixtral-large-latest', messages: apiMsgs, max_tokens: 2000 })
+    }).then(function(r) {
+        if (!r.ok) return r.json().then(function(e) { throw new Error('Mistral Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
+        return r.json();
+    }).then(function(d) {
+        var text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (!text) throw new Error('Mistral Vision: пустой ответ');
         return text;
     });
 }
@@ -35399,7 +35893,13 @@ window.eitiAskDeepSeek = function(userText) {
         var liveId = 'eiti-vision-' + Date.now();
         liveDiv.id = liveId;
         var time   = new Date().toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' });
-        var pLabel = provider === 'gemini' ? 'Gemini 📷 Vision 🔵' : 'DeepSeek 📷 Vision 🤖';
+        var _visionLabels = {
+            gemini: 'Gemini 📷 Vision 🔵', deepseek: 'DeepSeek 📷 Vision 🤖',
+            openai: 'ChatGPT 📷 Vision 🟢', anthropic: 'Claude 📷 Vision 🟠',
+            qwen: 'Qwen 📷 Vision 🟣', openrouter: 'OpenRouter 📷 Vision 🔀',
+            grok: 'Grok 📷 Vision ⚡', mistral: 'Mistral 📷 Vision 🌟',
+        };
+        var pLabel = _visionLabels[provider] || (provider + ' 📷 Vision');
         liveDiv.innerHTML =
             '<div class="message-row"><div class="message-body">' +
             '<div class="message-sender">' + pLabel + '</div>' +
@@ -35428,19 +35928,31 @@ window.eitiAskDeepSeek = function(userText) {
         // Восстанавливаем оригинальный L0
         window.eitiL0 = _savedL0;
 
+        // Fallback на Gemini если ключ есть
+        var _visionFallback = function(e) {
+            _log('Vision failed: ' + e.message + ' → trying Gemini Vision');
+            var gmKey = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
+            if (gmKey) return _eitiGeminiVision(userText, images, sysContent, history, liveId);
+            throw e;
+        };
         var visionPromise;
         if (provider === 'gemini') {
             visionPromise = _eitiGeminiVision(userText, images, sysContent, history, liveId);
+        } else if (provider === 'openai') {
+            visionPromise = _eitiOpenAIVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'anthropic') {
+            visionPromise = _eitiAnthropicVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'qwen') {
+            visionPromise = _eitiQwenVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'openrouter') {
+            visionPromise = _eitiOpenRouterVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'grok') {
+            visionPromise = _eitiGrokVision(userText, images, history).catch(_visionFallback);
+        } else if (provider === 'mistral') {
+            visionPromise = _eitiMistralVision(userText, images, history).catch(_visionFallback);
         } else {
-            // DeepSeek Vision или fallback на Gemini если DeepSeek-vision недоступен
-            visionPromise = _eitiDeepSeekVision(userText, images, history, liveId)
-                .catch(function(e) {
-                    _log('DS Vision failed: ' + e.message + ' → trying Gemini Vision');
-                    var gmKey = (typeof _deobfKey === 'function')
-                        ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
-                    if (gmKey) return _eitiGeminiVision(userText, images, sysContent, history, liveId);
-                    throw e;
-                });
+            // deepseek или неизвестный → DeepSeek Vision с fallback на Gemini
+            visionPromise = _eitiDeepSeekVision(userText, images, history, liveId).catch(_visionFallback);
         }
 
         return visionPromise.then(function(result) {
@@ -35620,12 +36132,21 @@ window.eitiChatDetachFile = function(idx) {
 var _p3OrigInject = window.eitiInjectAttachedFile;
 window.eitiInjectAttachedFile = function(txt) {
     var result = typeof _p3OrigInject === 'function' ? _p3OrigInject(txt) : txt;
-    // Если были vision images — добавляем маркер и скрываем чип
+    // Если были vision images — добавляем маркер
     if (window._eitiVisionImages && window._eitiVisionImages.length > 0) {
         result = '[📷 ' + window._eitiVisionImages.length + ' фото прикреплено] ' + result;
     }
-    // Всегда прячем после отправки
-    setTimeout(_hideVisionChip, 100);
+    // Скрываем UI чипа НЕ трогая _eitiVisionImages — они нужны eitiAskDeepSeek.
+    // Очистка _eitiVisionImages происходит внутри vision-обёртки eitiAskDeepSeek
+    // после получения ответа AI (чтобы избежать гонки с eitiUpdateL0).
+    setTimeout(function() {
+        var ind = document.getElementById('chat-attach-indicator');
+        if (ind) ind.classList.remove('visible');
+        var list = document.getElementById('chat-attach-files-list');
+        if (list) list.innerHTML = '';
+        var inp = document.getElementById('chat-file-input');
+        if (inp) inp.value = '';
+    }, 100);
     return result;
 };
 

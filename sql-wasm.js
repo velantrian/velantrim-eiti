@@ -9,7 +9,12 @@
 // However, that function might be called multiple times, and on subsequent calls, we don't actually want it to instantiate a new instance of the Module
 // Instead, we want to return the previously loaded module
 
-// TODO: Make this not declare a global if used in the browser
+// Wrapped in an IIFE so `initSqlJsPromise` and `initSqlJs` aren't leaked as
+// implicit globals via top-level `var`. In the browser, `initSqlJs` is
+// explicitly attached to the global object at the bottom of this file when no
+// module system is detected.
+(function (globalRoot) {
+
 var initSqlJsPromise = undefined;
 
 var initSqlJs = function (moduleConfig) {
@@ -764,4 +769,12 @@ else if (typeof define === 'function' && define['amd']) {
 else if (typeof exports === 'object'){
     exports["Module"] = initSqlJs;
 }
+else if (globalRoot) {
+    globalRoot.initSqlJs = initSqlJs;
+}
+
+})(typeof globalThis !== 'undefined' ? globalThis
+   : typeof window !== 'undefined' ? window
+   : typeof self !== 'undefined' ? self
+   : this);
 
