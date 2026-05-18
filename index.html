@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.3.0"; // v13.3.0: semantic KB search, L1 summarization, confidence logging
+        var EITI_VERSION = "13.3.1"; // v13.3.1: globe round 3D ball spin + glow ring
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -1607,10 +1607,20 @@
         .eiti-mode-brain  { display:inline-block; animation:eiti-brain-glow 1.0s ease-in-out infinite; }
         .eiti-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-color); border-radius: 50%; animation: eiti-spin 0.7s linear infinite; flex-shrink: 0; }
 
-        /* === v13.2.2: DDG animations — globe axis spin + one-shot icon bounce === */
-        @keyframes ddg-globe-axis {
-            from { transform: rotateY(0deg); }
-            to   { transform: rotateY(360deg); }
+        /* === v13.2.3: DDG globe — round 3D ball spin + glow === */
+
+        /* 3D sphere rotation: perspective + brightness mimic lighting on a ball */
+        @keyframes ddg-globe-3d {
+            0%   { transform: perspective(110px) rotateY(0deg)   scale(1);    filter: brightness(1.25) drop-shadow(0 0 5px #1eb4ff); }
+            22%  { transform: perspective(110px) rotateY(80deg)  scale(0.88); filter: brightness(0.82); }
+            50%  { transform: perspective(110px) rotateY(180deg) scale(1);    filter: brightness(1.05) drop-shadow(0 0 3px #1eb4ff); }
+            78%  { transform: perspective(110px) rotateY(270deg) scale(0.88); filter: brightness(0.82); }
+            100% { transform: perspective(110px) rotateY(360deg) scale(1);    filter: brightness(1.25) drop-shadow(0 0 5px #1eb4ff); }
+        }
+        /* outer ring pulses like a glowing ball */
+        @keyframes ddg-globe-glow-ring {
+            0%,100% { box-shadow: 0 0 0 2px rgba(30,180,255,0.35), 0 0 10px 3px rgba(30,180,255,0.45); }
+            50%     { box-shadow: 0 0 0 3px rgba(30,180,255,0.7),  0 0 22px 8px rgba(30,180,255,0.75); }
         }
         @keyframes ddg-btn-websearch {
             0%,100% { box-shadow:0 0 0 0 rgba(30,180,255,0); border-color:var(--border-color); }
@@ -1623,12 +1633,25 @@
             80%  { transform: scale(1.12) rotate(-5deg); }
             100% { transform: scale(1) rotate(0deg); }
         }
-        /* slowly spinning globe in chat during search */
+        /* circular glowing shell — makes it look like a round ball */
+        .ddg-globe-sphere-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 38% 32%, rgba(30,180,255,0.28) 0%, rgba(0,50,120,0.12) 100%);
+            animation: ddg-globe-glow-ring 1.5s ease-in-out infinite;
+            vertical-align: middle;
+            flex-shrink: 0;
+            position: relative;
+        }
+        /* the emoji itself rotates in 3D inside the sphere */
         .ddg-globe-spin-axis {
             display: inline-block;
-            animation: ddg-globe-axis 4s linear infinite;
-            font-size: 15px;
-            opacity: 0.85;
+            animation: ddg-globe-3d 2.8s linear infinite;
+            font-size: 17px;
+            line-height: 1;
         }
         /* one-shot bounce for provider icons on select */
         .eiti-icon-pop { display:inline-block; animation: eiti-icon-pop 0.55s cubic-bezier(.36,.07,.19,.97) 1 both; }
@@ -14409,8 +14432,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     if (_ddgOn && eitiGetCogMode() === 'websearch') {
                         var _lt = document.getElementById(liveId + '-text');
-                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-spin-axis">🌐</span>' +
-                            ' <span style="opacity:0.65;font-size:12px;">Ищу в интернете…</span>';
+                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-sphere-wrap"><span class="ddg-globe-spin-axis">🌐</span></span>' +
+                            ' <span style="opacity:0.7;font-size:12px;vertical-align:middle;">Ищу в интернете…</span>';
                         var _ddgMainDone = false;
                         var _masterTo = setTimeout(function() {
                             if (_ddgMainDone) return; _ddgMainDone = true;
@@ -25072,7 +25095,7 @@ window.eitiLLMClearAll = async function() {
                 if (m === 'websearch') {
                     if (mode === 'websearch') {
                         btn.classList.add('ddg-btn-active');
-                        btn.innerHTML = '<span class="ddg-globe-spin-axis" style="font-size:13px;">🌐</span> Поиск';
+                        btn.innerHTML = '<span class="ddg-globe-sphere-wrap" style="width:20px;height:20px;display:inline-flex;"><span class="ddg-globe-spin-axis" style="font-size:12px;">🌐</span></span> Поиск';
                     } else {
                         btn.classList.remove('ddg-btn-active');
                         btn.innerHTML = '🌐 Поиск';
