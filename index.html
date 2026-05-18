@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.3.4"; // v13.3.4: globe H-scroll, auto DDG intent, instruction priority fix, splash tweaks
+        var EITI_VERSION = "13.3.5"; // v13.3.5: DDG fix for all AI, WEB badge, more results, _ddgQuery in proxies
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -14208,6 +14208,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         return {role: m.role==='user'?'user':'assistant', content: m.content};
                     }));
                 history.push({role:'user', content: userText});
+                var _ddgWebUsed = false; // set true when DDG returns actual results → WEB badge
 
                 _lastCtxSources = [];
                 if (l2digests && l2digests.length > 0) _lastCtxSources.push('L2·' + l2digests.length);
@@ -14217,6 +14218,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                 // ── doFetch: called directly or after async history scan ──
                 function doFetch() {
+                // Sync history[0] with latest sysContent — DDG/KB results may have been appended after history was created
+                if (history && history[0] && history[0].role === 'system') history[0].content = sysContent;
                 var _abortCtrl = new AbortController();
                 var _abortTimer = setTimeout(function(){ _abortCtrl.abort(); }, 60000);
                 var _maxTok = parseInt(localStorage.getItem('eiti_token_budget') || '8000', 10);
@@ -14269,6 +14272,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         var _gmSenderEl = le.querySelector('.message-sender');
                                         if (_gmSenderEl) {
                                             var _gmProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                            if (_ddgWebUsed) _gmProvLabel += ' · WEB 🌎';
                                             _gmSenderEl.innerHTML = _gmProvLabel;
                                         }
                                         var row = le.querySelector('.message-row');
@@ -14356,6 +14360,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     var _senderEl = liveDiv.querySelector('.message-sender');
                                     if (_senderEl) {
                                         var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                        if (_ddgWebUsed) _orProvLabel += ' · WEB 🌎';
                                         _senderEl.innerHTML = _orProvLabel;
                                     }
                                     var row = liveDiv.querySelector('.message-row');
@@ -14507,6 +14512,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 var _senderEl2 = liveDiv.querySelector('.message-sender');
                                 if (_senderEl2) {
                                     var _dsProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                    if (_ddgWebUsed) _dsProvLabel += ' · WEB 🌎';
                                     _senderEl2.innerHTML = _dsProvLabel;
                                 }
                                 scheduleScroll();
@@ -14598,28 +14604,37 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 });
                 } // end doFetch
 
-                // ── 🌐 WEB SEARCH — DDG real HTML + JSONP fallback (v13.2.1) ──────────
+                // ── 🌐 WEB SEARCH — DDG real HTML + JSONP fallback ──────────────────────
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
-                    // v13.3.3: auto-detect explicit web search intent even when DDG toggle is off
-                    var _webIntentRx = /найди (в интернет|онлайн|в сети|в гугл)|поищи (в интернет|онлайн|в сети|в гугл)|нагугли|погугли|что (сейчас|сегодня) (происходит|случилось|в новостях)|последн\w* новост|свежи\w* новост|найди онлайн|find (online|on internet|on the web|in internet)|search (the web|online|for this online)/i;
+                    // auto-detect explicit web search intent even when DDG toggle is off
+                    var _webIntentRx = /найди\s+(в интернет\w*|онлайн|в сети|в гугл\w*|там|мне|ка|пожалуйста)|поищи\s+(в интернет\w*|онлайн|в сети|в гугл\w*)|нагугли|погугли|загугли|что\s+(сейчас|сегодня|происходит|случилось|в новостях|актуальн)|последн\w+ новост|свежи\w+ новост|новости\s+(сегодня|сейчас)|актуальн\w+ (информ|цен|курс|новост)|найди онлайн|find (online|on internet|on the web)|search (the web|online)/i;
                     var _ddgAutoIntent = _webIntentRx.test(userText);
                     if ((_ddgOn && eitiGetCogMode() === 'websearch') || _ddgAutoIntent) {
                         var _lt = document.getElementById(liveId + '-text');
                         if (_lt) _lt.innerHTML = '<span class="ddg-globe-sphere-wrap"><span class="ddg-globe-spin-axis">🌐🌐</span></span>' +
                             ' <span style="opacity:0.7;font-size:12px;vertical-align:middle;">Ищу в интернете…</span>';
+                        // Extract clean search query — strip "найди в интернете" preamble
+                        var _ddgQuery = userText
+                            .replace(/^(найди|поищи|нагугли|погугли|загугли)\s+(в интернет\w*|онлайн|в сети|в гугл\w*)[\s,]*/i, '')
+                            .replace(/^(find|search|look up)\s+(online|the web|in internet|for)\s*/i, '')
+                            .trim() || userText;
                         var _ddgMainDone = false;
                         var _masterTo = setTimeout(function() {
                             if (_ddgMainDone) return; _ddgMainDone = true;
                             sysContent += '\n\n[🌐 DDG: таймаут поиска]';
                             doFetch();
-                        }, 11000);
+                        }, 12000);
 
                         function _onDDGResults(snips, src) {
                             if (_ddgMainDone) return; _ddgMainDone = true;
                             clearTimeout(_masterTo);
-                            if (snips.length) sysContent += '\n\n=== 🌐 DuckDuckGo (' + src + ') ===\n' + snips.join('\n') + '\n===';
-                            else sysContent += '\n\n[🌐 DDG: нет результатов по запросу "' + userText.slice(0,60) + '"]';
+                            if (snips.length) {
+                                _ddgWebUsed = true;
+                                sysContent += '\n\n=== 🌐 Результаты DuckDuckGo (' + src + ') по запросу: "' + _ddgQuery.slice(0,80) + '" ===\n' + snips.join('\n') + '\n=== КОНЕЦ РЕЗУЛЬТАТОВ ===\n⬆️ Используй эти результаты для ответа.';
+                            } else {
+                                sysContent += '\n\n[🌐 DDG: нет результатов по запросу "' + _ddgQuery.slice(0,60) + '"]';
+                            }
                             doFetch();
                         }
 
@@ -14647,7 +14662,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
                                 _onDDGResults([], 'ошибка');
                             };
-                            _sj.src = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(userText) + '&format=json&no_html=1&skip_disambig=1&callback=' + _cb;
+                            _sj.src = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(_ddgQuery) + '&format=json&no_html=1&skip_disambig=1&callback=' + _cb;
                             document.head.appendChild(_sj);
                             setTimeout(function(){ if (_sj.parentNode) _sj.parentNode.removeChild(_sj); }, 8000);
                         }
@@ -14655,7 +14670,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         // Backup proxy: allorigins.win
                         function _tryProxy2() {
                             if (_ddgMainDone) return;
-                            var _p2Url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _p2Url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(_ddgQuery) + '&kl=ru-ru');
                             var _p2To = setTimeout(function() { _tryJSONP(); }, 7000);
                             fetch(_p2Url)
                                 .then(function(r) { clearTimeout(_p2To); return r.text(); })
@@ -14671,24 +14686,24 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             var snips = [];
                             // Organic results
                             doc.querySelectorAll('.result, .web-result, .result--web').forEach(function(item) {
-                                if (snips.length >= 10) return;
+                                if (snips.length >= 15) return;
                                 var titleEl = item.querySelector('.result__title a, .result__a, a.result__a');
                                 var snippetEl = item.querySelector('.result__snippet, .result__body');
                                 var urlEl = item.querySelector('.result__url, .result__extras__url');
                                 if (snippetEl) {
                                     var t = titleEl ? titleEl.textContent.trim() : '';
-                                    var s = snippetEl.textContent.trim().slice(0, 500);
+                                    var s = snippetEl.textContent.trim().slice(0, 600);
                                     var u = urlEl ? urlEl.textContent.trim() : '';
                                     if (t || s) snips.push('🔗 ' + (t ? '**' + t + '**' + (u ? ' (' + u + ')' : '') + ': ' : '') + s);
                                 }
                             });
                             // Also grab any news results
                             doc.querySelectorAll('.result--news').forEach(function(item) {
-                                if (snips.length >= 12) return;
+                                if (snips.length >= 18) return;
                                 var titleEl = item.querySelector('.result__title a');
                                 var snippetEl = item.querySelector('.result__snippet');
                                 if (titleEl && snippetEl) {
-                                    snips.push('📰 **' + titleEl.textContent.trim() + '**: ' + snippetEl.textContent.trim().slice(0, 350));
+                                    snips.push('📰 **' + titleEl.textContent.trim() + '**: ' + snippetEl.textContent.trim().slice(0, 450));
                                 }
                             });
                             if (snips.length >= 2) { _onDDGResults(snips, 'Веб'); }
@@ -14698,7 +14713,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                         // Primary: real DDG HTML via corsproxy.io
                         (function _tryRealSearch() {
-                            var _proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(_ddgQuery) + '&kl=ru-ru');
                             var _rTo = setTimeout(function() { _tryProxy2(); }, 6000);
                             fetch(_proxyUrl)
                                 .then(function(r) { clearTimeout(_rTo); return r.text(); })
