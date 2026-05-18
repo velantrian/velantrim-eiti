@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.3.3"; // v13.3.3: globe Z-spin, slower icon anims, splash skeuomorph redesign
+        var EITI_VERSION = "13.3.4"; // v13.3.4: globe H-scroll, auto DDG intent, instruction priority fix, splash tweaks
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -1610,11 +1610,11 @@
 
         /* === v13.3.3: globe Z-spin, slower icon anims, splash redesign === */
 
-        /* Globe: rotate on Z-axis — 🌐 emoji already looks 3D, spinning it looks like a real globe */
+        /* Globe: horizontal translateX scroll — looks like Earth rotating around vertical axis */
         @keyframes ddg-globe-3d {
-            0%   { transform: rotate(0deg);   filter: brightness(1.35) drop-shadow(0 0 6px #1eb4ff); }
-            50%  { transform: rotate(180deg);  filter: brightness(1.05); }
-            100% { transform: rotate(360deg);  filter: brightness(1.35) drop-shadow(0 0 6px #1eb4ff); }
+            0%   { transform: translateY(-50%) translateX(5px);   filter: brightness(1.4) drop-shadow(0 0 6px #1eb4ff); }
+            50%  { transform: translateY(-50%) translateX(-4px);   filter: brightness(1.1); }
+            100% { transform: translateY(-50%) translateX(-14px);  filter: brightness(1.4) drop-shadow(0 0 6px #1eb4ff); }
         }
         @keyframes ddg-globe-glow-ring {
             0%,100% { box-shadow: 0 0 0 2px rgba(30,180,255,0.35), 0 0 10px 3px rgba(30,180,255,0.45); }
@@ -1721,24 +1721,27 @@
             50%     { transform: translateY(-5px) scale(1.06); filter: brightness(1.3) drop-shadow(0 4px 14px rgba(255,200,0,0.65)); }
         }
 
-        /* sphere shell */
+        /* sphere shell — position:relative + overflow:hidden for horizontal scroll */
         .ddg-globe-sphere-wrap {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            display: inline-block;
+            position: relative;
             width: 30px; height: 30px;
             border-radius: 50%;
+            overflow: hidden;
             background: radial-gradient(circle at 35% 30%, rgba(30,180,255,0.35) 0%, rgba(0,60,140,0.22) 55%, rgba(0,20,80,0.42) 100%);
             animation: ddg-globe-glow-ring 1.5s ease-in-out infinite;
             vertical-align: middle;
             flex-shrink: 0;
-            position: relative;
         }
+        /* absolute + translateY-centered so translateX moves horizontally only */
         .ddg-globe-spin-axis {
-            display: inline-block;
-            animation: ddg-globe-3d 3.5s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 0;
+            white-space: nowrap;
             font-size: 17px;
             line-height: 1;
+            animation: ddg-globe-3d 3.5s linear infinite;
         }
         .eiti-icon-pop           { display:inline-block; animation: eiti-icon-pop      0.9s cubic-bezier(.36,.07,.19,.97) 1 both; }
         .eiti-icon-pop-robot     { display:inline-block; animation: eiti-pop-robot     1.1s ease-in-out 1 both; }
@@ -2431,7 +2434,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: splash-metal-shine 2.8s linear infinite;
+            animation: splash-metal-shine 4.5s linear infinite;
             filter: drop-shadow(0 2px 6px rgba(0,0,0,0.55));
         }
         .splash-subtitle {
@@ -3216,7 +3219,7 @@
                 <div class="splash-title-text">VELANTRIM EITI</div>
                 <span class="splash-wing-char splash-wing-r" aria-hidden="true">𓆪</span>
             </div>
-            <div class="splash-subtitle">AI · MEMORY · CHAT</div>
+            <div class="splash-subtitle">AI Smart Memory</div>
         </div>
     </div>
     
@@ -13489,6 +13492,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                 // === STATIC PREFIX (кэшируется DeepSeek KV-cache) ===
                 var _sysStatic = EITI_SYSTEM_KNOWLEDGE;
+                // v13.3.3: prepend user instructions at TOP for maximum compliance
+                var _instrTop = eitiGetInstructions();
+                if (_instrTop) {
+                    _sysStatic = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _instrTop + '\n\n' + _sysStatic;
+                }
                 // Заменяем время один раз на округлённое до часа (меняется раз в час → кэш живёт час)
                 var _nowHour = new Date();
                 _nowHour.setMinutes(0, 0, 0);
@@ -14593,9 +14601,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 // ── 🌐 WEB SEARCH — DDG real HTML + JSONP fallback (v13.2.1) ──────────
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
-                    if (_ddgOn && eitiGetCogMode() === 'websearch') {
+                    // v13.3.3: auto-detect explicit web search intent even when DDG toggle is off
+                    var _webIntentRx = /найди (в интернет|онлайн|в сети|в гугл)|поищи (в интернет|онлайн|в сети|в гугл)|нагугли|погугли|что (сейчас|сегодня) (происходит|случилось|в новостях)|последн\w* новост|свежи\w* новост|найди онлайн|find (online|on internet|on the web|in internet)|search (the web|online|for this online)/i;
+                    var _ddgAutoIntent = _webIntentRx.test(userText);
+                    if ((_ddgOn && eitiGetCogMode() === 'websearch') || _ddgAutoIntent) {
                         var _lt = document.getElementById(liveId + '-text');
-                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-sphere-wrap"><span class="ddg-globe-spin-axis">🌐</span></span>' +
+                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-sphere-wrap"><span class="ddg-globe-spin-axis">🌐🌐</span></span>' +
                             ' <span style="opacity:0.7;font-size:12px;vertical-align:middle;">Ищу в интернете…</span>';
                         var _ddgMainDone = false;
                         var _masterTo = setTimeout(function() {
@@ -25689,7 +25700,7 @@ window.eitiLLMClearAll = async function() {
                 if (m === 'websearch') {
                     if (mode === 'websearch') {
                         btn.classList.add('ddg-btn-active');
-                        btn.innerHTML = '<span class="ddg-globe-sphere-wrap" style="width:20px;height:20px;display:inline-flex;"><span class="ddg-globe-spin-axis" style="font-size:12px;">🌐</span></span> Поиск';
+                        btn.innerHTML = '<span class="ddg-globe-sphere-wrap" style="width:20px;height:20px;display:inline-block;"><span class="ddg-globe-spin-axis" style="font-size:12px;">🌐🌐</span></span> Поиск';
                     } else {
                         btn.classList.remove('ddg-btn-active');
                         btn.innerHTML = '🌐 Поиск';
@@ -35515,6 +35526,9 @@ window.eitiAskDeepSeek = function(userText) {
         // Собрать историю
         var history = [];
         var sysContent = (typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '';
+        // v13.3.3: inject user instructions into Qwen system prompt
+        var _qInstr = (typeof eitiGetInstructions === 'function') ? eitiGetInstructions() : '';
+        if (_qInstr) sysContent = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _qInstr + '\n\n' + sysContent + '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
         history.push({ role: 'system', content: sysContent });
 
         if (typeof chatLog !== 'undefined') {
