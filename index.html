@@ -21,7 +21,7 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.2.1"; // v13.2.1: DDG real web search (corsproxy.io) + duck animation
+        var EITI_VERSION = "13.2.2"; // v13.2.2: one-shot icon bounce, globe axis spin, expanded DDG search
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -1607,31 +1607,31 @@
         .eiti-mode-brain  { display:inline-block; animation:eiti-brain-glow 1.0s ease-in-out infinite; }
         .eiti-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--accent-color); border-radius: 50%; animation: eiti-spin 0.7s linear infinite; flex-shrink: 0; }
 
-        /* === v13.2.1: DDG duck + internet search animations === */
-        @keyframes ddg-duck-waddle {
-            0%,100% { transform: rotate(-12deg) translateY(0) scale(1); }
-            25%     { transform: rotate(0deg)   translateY(-5px) scale(1.15); }
-            50%     { transform: rotate(12deg)  translateY(0) scale(1); }
-            75%     { transform: rotate(0deg)   translateY(-5px) scale(1.15); }
-        }
-        @keyframes ddg-inet-pulse {
-            0%,100% { filter: drop-shadow(0 0 0px rgba(30,180,255,0)); }
-            50%     { filter: drop-shadow(0 0 9px rgba(30,180,255,1)) drop-shadow(0 0 18px rgba(30,130,255,0.5)); }
-        }
-        @keyframes ddg-wave-signal {
-            0%   { opacity:0.15; transform:scale(0.6); }
-            50%  { opacity:1;    transform:scale(1.15); }
-            100% { opacity:0.15; transform:scale(0.6); }
+        /* === v13.2.2: DDG animations — globe axis spin + one-shot icon bounce === */
+        @keyframes ddg-globe-axis {
+            from { transform: rotateY(0deg); }
+            to   { transform: rotateY(360deg); }
         }
         @keyframes ddg-btn-websearch {
             0%,100% { box-shadow:0 0 0 0 rgba(30,180,255,0); border-color:var(--border-color); }
             50%     { box-shadow:0 0 8px 2px rgba(30,180,255,0.35); border-color:rgba(30,180,255,0.7); }
         }
-        .ddg-duck-searching { display:inline-block; animation:ddg-duck-waddle 0.55s ease-in-out infinite; }
-        .ddg-globe-searching { display:inline-block; animation:ddg-inet-pulse 1.1s ease-in-out infinite; }
-        .ddg-signal-dot { display:inline-block; animation:ddg-wave-signal 1.2s ease-in-out infinite; }
-        .ddg-signal-dot:nth-child(2) { animation-delay:0.2s; }
-        .ddg-signal-dot:nth-child(3) { animation-delay:0.4s; }
+        @keyframes eiti-icon-pop {
+            0%   { transform: scale(1) rotate(0deg); }
+            25%  { transform: scale(1.55) rotate(-18deg); }
+            55%  { transform: scale(1.35) rotate(12deg); }
+            80%  { transform: scale(1.12) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        /* slowly spinning globe in chat during search */
+        .ddg-globe-spin-axis {
+            display: inline-block;
+            animation: ddg-globe-axis 4s linear infinite;
+            font-size: 15px;
+            opacity: 0.85;
+        }
+        /* one-shot bounce for provider icons on select */
+        .eiti-icon-pop { display:inline-block; animation: eiti-icon-pop 0.55s cubic-bezier(.36,.07,.19,.97) 1 both; }
         #cm-websearch.ddg-btn-active { animation:ddg-btn-websearch 1.8s ease-in-out infinite; }
 
         /* === v12.9.51: FILE VIEWER MODAL === */
@@ -3298,21 +3298,21 @@
                                 <div style="display:flex;flex-direction:column;gap:7px;">
                                     <div id="eiti-provider-card-ds" onclick="eitiSetProvider('deepseek')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🤖</span>
+                                        <span id="eiti-picon-ds" style="font-size:20px;flex-shrink:0;display:inline-block;">🤖</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">DeepSeek</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">v4-flash (быстро) · v4-pro (точно)</span></span>
                                         <span id="eiti-pcheck-ds" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-gm" onclick="eitiSetProvider('gemini')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">⚡</span>
+                                        <span id="eiti-picon-gm" style="font-size:20px;flex-shrink:0;display:inline-block;">⚡</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">Google Gemini</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Flash / Pro — введи ключ ниже</span></span>
                                         <span id="eiti-pcheck-gm" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-or" onclick="eitiSetProvider('openrouter')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--accent-color);background:rgba(255,200,0,0.12);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🔀</span>
+                                        <span id="eiti-picon-or" style="font-size:20px;flex-shrink:0;display:inline-block;">🔀</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">OpenRouter</span>
                                         <span id="eiti-pcard-or-model" style="display:block;font-size:11px;opacity:0.55;">openrouter/auto</span></span>
                                         <span id="eiti-pcheck-or" style="font-size:20px;">✅</span>
@@ -3320,7 +3320,7 @@
                                     
                                     <div id="eiti-provider-card-qwen" onclick="eitiSetProvider('qwen')"
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
-                                        <span style="font-size:20px;flex-shrink:0;">🟣</span>
+                                        <span id="eiti-picon-qwen" style="font-size:20px;flex-shrink:0;display:inline-block;">🟣</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">Qwen AI</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Alibaba · поиск · 235B</span></span>
                                         <span id="eiti-pcheck-qwen" style="font-size:20px;opacity:0.2;">⬜</span>
@@ -3334,7 +3334,7 @@
                                     </div>
                                     <div id="eiti-provider-card-none" onclick="eitiSetProvider('none')"
                                         style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;opacity:0.7;">
-                                        <span style="font-size:18px;flex-shrink:0;">🚫</span>
+                                        <span id="eiti-picon-none" style="font-size:18px;flex-shrink:0;display:inline-block;">🚫</span>
                                         <span style="flex:1;"><span style="font-size:13px;font-weight:700;">Отключить AI</span>
                                         <span style="display:block;font-size:11px;opacity:0.55;">Чат не отвечает — только локальный поиск</span></span>
                                         <span id="eiti-pcheck-none" style="font-size:20px;opacity:0.2;">⬜</span>
@@ -12436,34 +12436,56 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 setTimeout(function(){ if (_ddgS.parentNode) _ddgS.parentNode.removeChild(_ddgS); }, 8000);
                             }
 
-                            // Primary: real DDG HTML via CORS proxy
+                            // Parse DDG HTML for Grok (shared by both proxies)
+                            function _grokParseDDG(html, fallback) {
+                                if (_ddgDone) return;
+                                var parser = new DOMParser();
+                                var doc = parser.parseFromString(html, 'text/html');
+                                var results = [];
+                                doc.querySelectorAll('.result, .web-result, .result--web').forEach(function(item) {
+                                    if (results.length >= 10) return;
+                                    var titleEl = item.querySelector('.result__title a, .result__a, a.result__a');
+                                    var snippetEl = item.querySelector('.result__snippet, .result__body');
+                                    var urlEl = item.querySelector('.result__url, .result__extras__url');
+                                    if (snippetEl) {
+                                        results.push({
+                                            title: titleEl ? titleEl.textContent.trim() : '',
+                                            text: snippetEl.textContent.trim().slice(0, 500),
+                                            url: urlEl ? urlEl.textContent.trim() : ''
+                                        });
+                                    }
+                                });
+                                doc.querySelectorAll('.result--news').forEach(function(item) {
+                                    if (results.length >= 12) return;
+                                    var titleEl = item.querySelector('.result__title a');
+                                    var snippetEl = item.querySelector('.result__snippet');
+                                    if (titleEl && snippetEl) {
+                                        results.push({ title: '[Новость] ' + titleEl.textContent.trim(), text: snippetEl.textContent.trim().slice(0, 350) });
+                                    }
+                                });
+                                if (results.length >= 2) { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
+                                else if (fallback) { fallback(); }
+                                else { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
+                            }
+
+                            // Backup proxy: allorigins.win
+                            function _grokProxy2() {
+                                if (_ddgDone) return;
+                                var _p2 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(ddgQ) + '&kl=ru-ru');
+                                var _p2To = setTimeout(function() { _grokJSONP(); }, 7000);
+                                fetch(_p2).then(function(r) { clearTimeout(_p2To); return r.text(); })
+                                    .then(function(html) { _grokParseDDG(html, _grokJSONP); })
+                                    .catch(function() { clearTimeout(_p2To); _grokJSONP(); });
+                            }
+
+                            // Primary: real DDG HTML via corsproxy.io
                             (function() {
                                 var _pUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(ddgQ) + '&kl=ru-ru');
-                                var _pTo = setTimeout(function() { _grokJSONP(); }, 6000);
+                                var _pTo = setTimeout(function() { _grokProxy2(); }, 6000);
                                 fetch(_pUrl)
                                     .then(function(r) { clearTimeout(_pTo); return r.text(); })
-                                    .then(function(html) {
-                                        if (_ddgDone) return;
-                                        var parser = new DOMParser();
-                                        var doc = parser.parseFromString(html, 'text/html');
-                                        var results = [];
-                                        doc.querySelectorAll('.result').forEach(function(item) {
-                                            if (results.length >= 7) return;
-                                            var titleEl = item.querySelector('.result__title a');
-                                            var snippetEl = item.querySelector('.result__snippet');
-                                            var urlEl = item.querySelector('.result__url');
-                                            if (snippetEl) {
-                                                results.push({
-                                                    title: titleEl ? titleEl.textContent.trim() : '',
-                                                    text: snippetEl.textContent.trim().slice(0, 300),
-                                                    url: urlEl ? urlEl.textContent.trim() : ''
-                                                });
-                                            }
-                                        });
-                                        if (results.length) { _grokDDGFinish(results, 'DuckDuckGo Веб'); }
-                                        else { _grokJSONP(); }
-                                    })
-                                    .catch(function() { clearTimeout(_pTo); _grokJSONP(); });
+                                    .then(function(html) { _grokParseDDG(html, _grokProxy2); })
+                                    .catch(function() { clearTimeout(_pTo); _grokProxy2(); });
                             })();
                         }
                     }
@@ -12704,11 +12726,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         window.eitiToggleDDG = function() {
             var isOn = localStorage.getItem('eiti_ddg_on') === '1';
             localStorage.setItem('eiti_ddg_on', isOn ? '0' : '1');
-            _eitiUpdateDDGCard();
+            _eitiUpdateDDGCard(true);
             showToast(isOn ? '🦆 DuckDuckGo выключен' : '🦆 DuckDuckGo включён');
             if (!isOn && typeof eitiSetCogMode === 'function') eitiSetCogMode('websearch');
         };
-        function _eitiUpdateDDGCard() {
+        function _eitiUpdateDDGCard(animate) {
             var isOn = localStorage.getItem('eiti_ddg_on') === '1';
             var card = document.getElementById('eiti-provider-card-ddg');
             var check = document.getElementById('eiti-pcheck-ddg');
@@ -12717,7 +12739,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             if (card) { card.style.border = isOn ? '2px solid var(--accent-color)' : '2px solid var(--border-color)'; card.style.background = isOn ? 'rgba(255,200,0,0.12)' : 'var(--secondary-color)'; }
             if (check) { check.textContent = isOn ? '✅' : '⬜'; check.style.opacity = isOn ? '1' : '0.2'; }
             if (sub) sub.textContent = isOn ? '✅ Включён — реальный веб-поиск активен' : 'Веб-поиск в режиме 🌐 Поиск';
-            if (duck) { duck.className = isOn ? 'ddg-duck-searching' : ''; duck.style.fontSize = isOn ? '22px' : '20px'; }
+            if (duck && animate) {
+                duck.className = '';
+                void duck.offsetWidth;
+                duck.className = 'eiti-icon-pop';
+                setTimeout(function() { duck.className = ''; }, 700);
+            }
         }
         window.eitiTestDDG = function() {
             var _cbName = '_ddgTestCb_' + Date.now(), _done = false;
@@ -12914,7 +12941,20 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             }).catch(function(e) { if (st) st.innerHTML = '<span style="color:#f66">❌ ' + String(e.message||'').replace(/</g,'&lt;') + '</span>'; });
         }
 
+        function _eitiPopIcon(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('eiti-icon-pop');
+            void el.offsetWidth;
+            el.classList.add('eiti-icon-pop');
+            setTimeout(function() { el.classList.remove('eiti-icon-pop'); }, 700);
+        }
+
         function eitiSetProvider(p, silent) {
+            if (!silent) {
+                var iconMap = { deepseek:'eiti-picon-ds', gemini:'eiti-picon-gm', openrouter:'eiti-picon-or', none:'eiti-picon-none' };
+                if (iconMap[p]) _eitiPopIcon(iconMap[p]);
+            }
             localStorage.setItem('eiti_ai_provider', p);
             var dsBtn = document.getElementById('eiti-provider-ds');
             var gmBtn = document.getElementById('eiti-provider-gm');
@@ -14252,11 +14292,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     if (_ddgOn && eitiGetCogMode() === 'websearch') {
                         var _lt = document.getElementById(liveId + '-text');
-                        if (_lt) _lt.innerHTML = '<span class="ddg-duck-searching">🦆</span> <span class="ddg-globe-searching">🌐</span>' +
-                            ' <span style="opacity:0.75;font-size:12px;">Ищу в интернете</span>' +
-                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>' +
-                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>' +
-                            '<span class="ddg-signal-dot" style="opacity:0.5;font-size:11px;">●</span>';
+                        if (_lt) _lt.innerHTML = '<span class="ddg-globe-spin-axis">🌐</span>' +
+                            ' <span style="opacity:0.65;font-size:12px;">Ищу в интернете…</span>';
                         var _ddgMainDone = false;
                         var _masterTo = setTimeout(function() {
                             if (_ddgMainDone) return; _ddgMainDone = true;
@@ -14283,9 +14320,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             window[_cb] = function(raw) {
                                 if (_cbDone) return; _cbDone = true; clearTimeout(_jTo); delete window[_cb];
                                 var snips = [];
-                                if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,500));
-                                (raw.RelatedTopics||[]).slice(0,6).forEach(function(t){ if(t.Text) snips.push('• '+t.Text.slice(0,250)); });
-                                (raw.Results||[]).slice(0,3).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,200)); });
+                                if (raw.AbstractText) snips.push('📄 ' + (raw.Heading||'') + ': ' + raw.AbstractText.slice(0,600));
+                                (raw.RelatedTopics||[]).slice(0,8).forEach(function(t){
+                                    if (t.Text) snips.push('• ' + t.Text.slice(0,350));
+                                    if (t.Topics) t.Topics.slice(0,3).forEach(function(st){ if(st.Text) snips.push('  ↳ '+st.Text.slice(0,250)); });
+                                });
+                                (raw.Results||[]).slice(0,5).forEach(function(r){ if(r.Text) snips.push('🔗 '+r.Text.slice(0,300) + (r.FirstURL ? ' — '+r.FirstURL : '')); });
                                 _onDDGResults(snips, 'Instant');
                             };
                             var _sj = document.createElement('script');
@@ -14298,33 +14338,58 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             setTimeout(function(){ if (_sj.parentNode) _sj.parentNode.removeChild(_sj); }, 8000);
                         }
 
-                        // Primary: real DDG HTML via CORS proxy (returns actual web results)
+                        // Backup proxy: allorigins.win
+                        function _tryProxy2() {
+                            if (_ddgMainDone) return;
+                            var _p2Url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
+                            var _p2To = setTimeout(function() { _tryJSONP(); }, 7000);
+                            fetch(_p2Url)
+                                .then(function(r) { clearTimeout(_p2To); return r.text(); })
+                                .then(function(html) { _parseDDGHtml(html, _tryJSONP); })
+                                .catch(function() { clearTimeout(_p2To); _tryJSONP(); });
+                        }
+
+                        // Parse DDG HTML into snips (shared by both proxies)
+                        function _parseDDGHtml(html, fallback) {
+                            if (_ddgMainDone) return;
+                            var parser = new DOMParser();
+                            var doc = parser.parseFromString(html, 'text/html');
+                            var snips = [];
+                            // Organic results
+                            doc.querySelectorAll('.result, .web-result, .result--web').forEach(function(item) {
+                                if (snips.length >= 10) return;
+                                var titleEl = item.querySelector('.result__title a, .result__a, a.result__a');
+                                var snippetEl = item.querySelector('.result__snippet, .result__body');
+                                var urlEl = item.querySelector('.result__url, .result__extras__url');
+                                if (snippetEl) {
+                                    var t = titleEl ? titleEl.textContent.trim() : '';
+                                    var s = snippetEl.textContent.trim().slice(0, 500);
+                                    var u = urlEl ? urlEl.textContent.trim() : '';
+                                    if (t || s) snips.push('🔗 ' + (t ? '**' + t + '**' + (u ? ' (' + u + ')' : '') + ': ' : '') + s);
+                                }
+                            });
+                            // Also grab any news results
+                            doc.querySelectorAll('.result--news').forEach(function(item) {
+                                if (snips.length >= 12) return;
+                                var titleEl = item.querySelector('.result__title a');
+                                var snippetEl = item.querySelector('.result__snippet');
+                                if (titleEl && snippetEl) {
+                                    snips.push('📰 **' + titleEl.textContent.trim() + '**: ' + snippetEl.textContent.trim().slice(0, 350));
+                                }
+                            });
+                            if (snips.length >= 2) { _onDDGResults(snips, 'Веб'); }
+                            else if (fallback) { fallback(); }
+                            else { _onDDGResults(snips, 'Веб'); }
+                        }
+
+                        // Primary: real DDG HTML via corsproxy.io
                         (function _tryRealSearch() {
                             var _proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(userText) + '&kl=ru-ru');
-                            var _rTo = setTimeout(function() { _tryJSONP(); }, 6000);
+                            var _rTo = setTimeout(function() { _tryProxy2(); }, 6000);
                             fetch(_proxyUrl)
                                 .then(function(r) { clearTimeout(_rTo); return r.text(); })
-                                .then(function(html) {
-                                    if (_ddgMainDone) return;
-                                    var parser = new DOMParser();
-                                    var doc = parser.parseFromString(html, 'text/html');
-                                    var snips = [];
-                                    doc.querySelectorAll('.result').forEach(function(item) {
-                                        if (snips.length >= 6) return;
-                                        var titleEl = item.querySelector('.result__title a');
-                                        var snippetEl = item.querySelector('.result__snippet');
-                                        var urlEl = item.querySelector('.result__url');
-                                        if (snippetEl) {
-                                            var t = titleEl ? titleEl.textContent.trim() : '';
-                                            var s = snippetEl.textContent.trim().slice(0, 300);
-                                            var u = urlEl ? urlEl.textContent.trim() : '';
-                                            snips.push('🔗 ' + (t ? t + ': ' : '') + s + (u ? ' — ' + u : ''));
-                                        }
-                                    });
-                                    if (snips.length) { _onDDGResults(snips, 'Веб'); }
-                                    else { _tryJSONP(); }
-                                })
-                                .catch(function() { clearTimeout(_rTo); _tryJSONP(); });
+                                .then(function(html) { _parseDDGHtml(html, _tryProxy2); })
+                                .catch(function() { clearTimeout(_rTo); _tryProxy2(); });
                         })();
                     } else { doFetch(); }
                 }
@@ -24888,7 +24953,7 @@ window.eitiLLMClearAll = async function() {
                 if (m === 'websearch') {
                     if (mode === 'websearch') {
                         btn.classList.add('ddg-btn-active');
-                        btn.innerHTML = '<span class="ddg-globe-searching" style="font-size:13px;">🌐</span> Поиск';
+                        btn.innerHTML = '<span class="ddg-globe-spin-axis" style="font-size:13px;">🌐</span> Поиск';
                     } else {
                         btn.classList.remove('ddg-btn-active');
                         btn.innerHTML = '🌐 Поиск';
@@ -34793,6 +34858,7 @@ window.eitiSetProvider = function(p, silent) {
         if (check) { check.textContent = '✅'; check.style.opacity = '1'; }
         var lbl = document.getElementById('eiti-provider-label');
         if (lbl) lbl.textContent = 'Активен: 🟣 Qwen AI';
+        if (!silent && typeof _eitiPopIcon === 'function') _eitiPopIcon('eiti-picon-qwen');
         if (!silent && typeof showToast === 'function') showToast('🟣 Qwen AI активирован');
         return;
     }
