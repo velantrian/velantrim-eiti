@@ -8867,7 +8867,7 @@
                 msg.dataset.msgid = m.id;
 
                 const time = new Date(m.ts).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
-                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
+                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
                 const senderHtml = (m.role !== 'user') ? '<div class="message-sender">' + (_pLabels[m.provider] || 'EITI AI 🤖') + '</div>' : '';
 
                 // v12.9.72: мульти-чипы — показываем все прикреплённые файлы
@@ -10342,6 +10342,19 @@
             "  · После анализа: пользователь говорит 'применить' или 'отклонить'",
             "",
             "  НЕ ТРОГАЙ: JS-функции, IndexedDB структуру, Service Worker, HTML",
+            "=================================================",
+            "",
+            "ПРАВИЛО ИНТЕРНЕТ-ПОИСКА (DDG Web Search):",
+            "  · EITI ИМЕЕТ встроенный поиск DuckDuckGo — он срабатывает автоматически когда нужен.",
+            "  · Если в контексте видишь '=== 🌐 Результаты DuckDuckGo' — ЭТО РЕАЛЬНЫЕ результаты из интернета.",
+            "  · ОБЯЗАН использовать эти результаты в ответе. НЕ ГОВОРИ что у тебя нет доступа к интернету.",
+            "  · Если видишь '[🌐 DDG: нет результатов]' — скажи что поиск не дал результатов по этому запросу.",
+            "  · НИКОГДА не говори 'у меня нет доступа к интернету' или 'я не могу искать в интернете' —",
+            "    система EITI имеет DDG поиск, он просто мог не вернуть результаты по данному запросу.",
+            "  · Если пользователь НЕ просит искать в интернете, но ты думаешь что актуальные данные",
+            "    помогут ответу — МОЖЕШЬ предложить: 'Хочешь я поищу это в интернете?'",
+            "  · Если пользователь пишет 'посмотри в интернете', 'найди в интернете', 'подивись в інтернеті'",
+            "    и т.п. — система автоматически запустит DDG поиск ДО отправки этого сообщения тебе.",
             "================================================="
         ].join("\n");
         window.EITI_SYSTEM_KNOWLEDGE = EITI_SYSTEM_KNOWLEDGE; // v12.9.47 FIX: expose to global scope for cross-script mutations
@@ -11595,7 +11608,7 @@
                 : eitiRenderMarkdown(m.content);
             div.innerHTML =
                 '<div class="message-row"><div class="message-body">' +
-                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
+                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
                 fileChipHtml +
                 '<div>' + rendered + '</div>' +
                 '<div class="message-time" style="font-size:11px;opacity:0.55;margin-top:3px">' + time + '</div>' +
@@ -14271,8 +14284,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         // v12.9.79 FIX: сбрасываем анимацию Think 🧠 — Gemini завершил ответ
                                         var _gmSenderEl = le.querySelector('.message-sender');
                                         if (_gmSenderEl) {
-                                            var _gmProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
-                                            if (_ddgWebUsed) _gmProvLabel += ' · WEB 🌎';
+                                            var _gmProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                            if (_ddgWebUsed) _gmProvLabel += ' + Web🌎';
                                             _gmSenderEl.innerHTML = _gmProvLabel;
                                         }
                                         var row = le.querySelector('.message-row');
@@ -14359,8 +14372,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     // v12.9.78: убираем анимацию мышления — ответ готов
                                     var _senderEl = liveDiv.querySelector('.message-sender');
                                     if (_senderEl) {
-                                        var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
-                                        if (_ddgWebUsed) _orProvLabel += ' · WEB 🌎';
+                                        var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                        if (_ddgWebUsed) _orProvLabel += ' + Web🌎';
                                         _senderEl.innerHTML = _orProvLabel;
                                     }
                                     var row = liveDiv.querySelector('.message-row');
@@ -14511,8 +14524,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 // v12.9.78: убираем анимацию мышления — ответ готов
                                 var _senderEl2 = liveDiv.querySelector('.message-sender');
                                 if (_senderEl2) {
-                                    var _dsProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
-                                    if (_ddgWebUsed) _dsProvLabel += ' · WEB 🌎';
+                                    var _dsProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                    if (_ddgWebUsed) _dsProvLabel += ' + Web🌎';
                                     _senderEl2.innerHTML = _dsProvLabel;
                                 }
                                 scheduleScroll();
@@ -14608,7 +14621,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 function startQuery() {
                     var _ddgOn = localStorage.getItem('eiti_ddg_on') === '1';
                     // auto-detect explicit web search intent even when DDG toggle is off
-                    var _webIntentRx = /найди\s+(в интернет\w*|онлайн|в сети|в гугл\w*|там|мне|ка|пожалуйста)|поищи\s+(в интернет\w*|онлайн|в сети|в гугл\w*)|нагугли|погугли|загугли|что\s+(сейчас|сегодня|происходит|случилось|в новостях|актуальн)|последн\w+ новост|свежи\w+ новост|новости\s+(сегодня|сейчас)|актуальн\w+ (информ|цен|курс|новост)|найди онлайн|find (online|on internet|on the web)|search (the web|online)/i;
+                    var _webIntentRx = /найди\s+(в интернет\w*|онлайн|в сети|в гугл\w*|там|мне|ка|пожалуйста)|поищи\s+(в интернет\w*|онлайн|в сети|в гугл\w*)|посмотри\s+(в интернет\w*|онлайн|в сети|в гугл\w*|в инете)|загляни\s+(в интернет\w*|онлайн|в сети)|узнай\s+(в интернет\w*|онлайн|в сети)|погляди\s+(в интернет\w*|онлайн|в сети)|нагугли|погугли|загугли|что\s+(сейчас|сегодня|происходит|случилось|в новостях|актуальн)|что\s+есть\s+в\s+интернет\w*|последн\w+ новост|свежи\w+ новост|новости\s+(сегодня|сейчас)|актуальн\w+ (информ|цен|курс|новост)|найди онлайн|знайди\s+(в інтернет\w*|онлайн|в мережі)|пошукай\s+(в інтернет\w*|онлайн|в мережі)|подивись\s+(в інтернет\w*|онлайн|в мережі)|що\s+(зараз|сьогодні|є\s+в\s+інтернет\w*)|останні\s+новин|свіж\w+\s+новин|find (online|on internet|on the web)|search (the web|online)/i;
                     var _ddgAutoIntent = _webIntentRx.test(userText);
                     if ((_ddgOn && eitiGetCogMode() === 'websearch') || _ddgAutoIntent) {
                         var _lt = document.getElementById(liveId + '-text');
@@ -21971,7 +21984,7 @@ window.eitiLLMClearAll = async function() {
             // P6-fix: показываем источник данных рядом с меткой EITI AI
             var _kbBadge = '';
             var _providerNow = localStorage.getItem('eiti_ai_provider') || 'ai';
-            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
+            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
             var _senderLabel = _provLabelMap[_providerNow] || 'EITI AI 🤖';
             if (window._lastReplySource === 'mosc') {
                 _kbBadge = ' <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(147,197,253,0.18);color:#93c5fd;font-weight:600;vertical-align:middle;">🔷 MOSC</span>';
