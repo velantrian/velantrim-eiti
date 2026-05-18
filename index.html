@@ -14222,6 +14222,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     }));
                 history.push({role:'user', content: userText});
                 var _ddgWebUsed = false; // set true when DDG returns actual results → WEB badge
+                var _geminiNeedSearch = false; // set true when Gemini should use Google Search grounding
 
                 _lastCtxSources = [];
                 if (l2digests && l2digests.length > 0) _lastCtxSources.push('L2·' + l2digests.length);
@@ -14248,6 +14249,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     // Use proper systemInstruction field (Gemini 1.5+) instead of prepending to user message
                     var _gmBody = { contents: _gmContents, generationConfig: { maxOutputTokens: _maxTok } };
                     if (_sysMsg) _gmBody.systemInstruction = { parts: [{ text: _sysMsg }] };
+                    // Google Search grounding — включается когда пользователь просит искать в интернете
+                    if (_geminiNeedSearch) _gmBody.tools = [{ google_search: {} }];
                     var _gmModel = (typeof eitiGetGeminiModel==='function') ? eitiGetGeminiModel() : 'gemini-2.5-flash';
                     var _gmUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + _gmModel + ':streamGenerateContent?alt=sse&key=' + _geminiKey;
                     fetch(_gmUrl, {
@@ -14313,6 +14316,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     if (!d || d === '[DONE]') return;
                                     try {
                                         var j = JSON.parse(d);
+                                        // Detect Google Search grounding usage → показываем Web badge
+                                        if (j.candidates && j.candidates[0] && j.candidates[0].groundingMetadata &&
+                                            j.candidates[0].groundingMetadata.groundingChunks &&
+                                            j.candidates[0].groundingMetadata.groundingChunks.length > 0) {
+                                            _ddgWebUsed = true;
+                                        }
                                         var delta = j.candidates && j.candidates[0] && j.candidates[0].content &&
                                                     j.candidates[0].content.parts && j.candidates[0].content.parts[0] &&
                                                     j.candidates[0].content.parts[0].text || '';
@@ -14627,6 +14636,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         var _lt = document.getElementById(liveId + '-text');
                         if (_lt) _lt.innerHTML = '<span class="ddg-globe-sphere-wrap"><span class="ddg-globe-spin-axis">🌐🌐</span></span>' +
                             ' <span style="opacity:0.7;font-size:12px;vertical-align:middle;">Ищу в интернете…</span>';
+                        // Gemini: используем Google Search grounding вместо DDG-прокси
+                        if (_provider === 'gemini') {
+                            _geminiNeedSearch = true;
+                            doFetch();
+                            return;
+                        }
                         // Extract clean search query — strip "найди в интернете" preamble
                         var _ddgQuery = userText
                             .replace(/^(найди|поищи|нагугли|погугли|загугли)\s+(в интернет\w*|онлайн|в сети|в гугл\w*)[\s,]*/i, '')
