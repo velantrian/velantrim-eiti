@@ -9145,9 +9145,57 @@
                 var editBtn = msg.querySelector('[data-act="edit"]');
                 if (editBtn) { msg.dataset.msgtxt = m.text; editBtn.onclick = function(){ eitiEditUserMsg(msg, m.id, m.text); }; }
 
+                // v13.4.0 P1 FIX #9: feedback 👍/👎 для AI-ответов (PKG/MOSC learning).
+                if (m.role !== 'user') {
+                    var fbDiv = document.createElement('div');
+                    fbDiv.className = 'eiti-fb-row';
+                    fbDiv.style.cssText = 'display:flex;gap:6px;margin-top:4px;opacity:0.5;';
+                    var btnUp = document.createElement('button');
+                    btnUp.textContent = '👍'; btnUp.title = 'Хороший ответ';
+                    btnUp.style.cssText = 'background:none;border:none;cursor:pointer;font-size:15px;padding:2px 6px;';
+                    btnUp.addEventListener('click', function() {
+                        if (typeof eitiMsgFeedback === 'function') eitiMsgFeedback(m.id, true);
+                        fbDiv.style.opacity = '0.25';
+                    });
+                    var btnDown = document.createElement('button');
+                    btnDown.textContent = '👎'; btnDown.title = 'Плохой ответ';
+                    btnDown.style.cssText = 'background:none;border:none;cursor:pointer;font-size:15px;padding:2px 6px;';
+                    btnDown.addEventListener('click', function() {
+                        if (typeof eitiMsgFeedback === 'function') eitiMsgFeedback(m.id, false);
+                        fbDiv.style.opacity = '0.25';
+                    });
+                    fbDiv.appendChild(btnUp); fbDiv.appendChild(btnDown);
+                    var bodyEl = msg.querySelector('.message-body');
+                    (bodyEl || msg).appendChild(fbDiv);
+                }
+
                 messages.appendChild(msg);
                 messages.scrollTop = messages.scrollHeight;
             }
+
+            // v13.4.0 P1 FIX #9: learning loop — bumps PKG node weights и MOSC-веса.
+            function eitiMsgFeedback(msgId, positive) {
+                var msg = (chatLog || []).find(function(m) { return m && m.id === msgId; });
+                if (!msg || msg.role === 'user') return;
+                var text = msg.text || msg.content || '';
+                var entities = (typeof vbEntities === 'function') ? vbEntities(text) : [];
+                var pkgBoost = positive ? 1.0 : -0.8;
+                if (typeof pkgSaveNode === 'function' && entities && entities.length) {
+                    entities.forEach(function(e) {
+                        try {
+                            pkgSaveNode({ concept: e, category: 'feedback', weight: pkgBoost, emotional: true });
+                        } catch(_) {}
+                    });
+                }
+                var lastIntent = window._eitiIntentStack && window._eitiIntentStack.slice(-1)[0];
+                if (lastIntent && typeof moscLearn === 'function') {
+                    try { moscLearn(text, lastIntent, positive); } catch(_) {}
+                }
+                if (typeof showToast === 'function') {
+                    showToast(positive ? '👍 Учту!' : '👎 Учту, исправлюсь', 1500);
+                }
+            }
+            window.eitiMsgFeedback = eitiMsgFeedback;
 
             function addMessage(text, isUser, persist=true) {
                 const m = {
