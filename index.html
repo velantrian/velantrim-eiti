@@ -47,6 +47,7 @@
         window._eitiSafeHTML = _eitiSafeHTML;
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
+        // TODO v14: dominant_topic/mood → PersonaCard (Слой 2)
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
         window._eitiLemma = {};                 // словарь из lemma.json (или IDB)
         window._eitiLemmaPending = null;        // ожидает подтверждения обогащения
