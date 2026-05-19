@@ -82,32 +82,39 @@
             if (typeof eitiInitTTSProviderUI === 'function') setTimeout(eitiInitTTSProviderUI, 200);
             if (typeof eitiORKeyInit === 'function') setTimeout(eitiORKeyInit, 150);
             if (typeof eitiInitHeaderToggle === 'function') setTimeout(eitiInitHeaderToggle, 100);
-            var _initKey = 'eiti_init_v' + EITI_VERSION;
-            // v13: cleanup stale chat keys (v1..v72)
-            try {
-                var _curChatKey = 'velantrim_messenger_chat_v73';
-                for (var _ki = 0; _ki < localStorage.length; _ki++) {
-                    var _k = localStorage.key(_ki);
-                    if (_k && _k.startsWith('velantrim_messenger_chat_v') && _k !== _curChatKey) {
-                        localStorage.removeItem(_k); _ki--;
-                    }
+
+            // v13.4.0 P1 FIX #5: разделяем FIRST_RUN seed и PER_VERSION cleanup.
+            // Раньше _initKey зависел от EITI_VERSION → bump версии перезаписывал
+            // пользовательские настройки (eiti_ai_provider и т.п.).
+            var _firstRunKey = 'eiti_first_run_done_v1';
+            if (!localStorage.getItem(_firstRunKey)) {
+                localStorage.setItem(_firstRunKey, '1');
+                localStorage.setItem('eiti_offline_mode', '0');
+                localStorage.setItem('eiti_only_ai', '1');
+                localStorage.setItem('eiti_ai_provider', 'openrouter');
+                localStorage.setItem('eiti_token_budget', '8000');
+                localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
+                localStorage.setItem('eiti_icon_mode', 'emoji_classic');
+                localStorage.setItem('eiti_header_hidden', '0');
+                if (!localStorage.getItem('eiti_hidden_tabs')) {
+                    localStorage.setItem('eiti_hidden_tabs', JSON.stringify(['timeline']));
                 }
-            } catch(e) {}
-            if (localStorage.getItem(_initKey)) return;
-            localStorage.setItem(_initKey, '1');
-            // v12.9.9: chat bubble fix, player track append, + button top
-            localStorage.setItem('eiti_offline_mode', '0');
-            localStorage.setItem('eiti_only_ai', '1');
-            localStorage.setItem('eiti_ai_provider', 'openrouter');
-            localStorage.setItem('eiti_token_budget', '8000');
-            localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
-            localStorage.setItem('eiti_icon_mode', 'emoji_classic');
-            // v12.9.70: шапка включена по умолчанию, Лента скрыта по умолчанию
-            localStorage.setItem('eiti_header_hidden', '0');
-            if (!localStorage.getItem('eiti_hidden_tabs')) {
-                localStorage.setItem('eiti_hidden_tabs', JSON.stringify(['timeline']));
             }
 
+            // PER_VERSION — только cleanup стейл-ключей.
+            var _initKey = 'eiti_init_v' + EITI_VERSION;
+            if (!localStorage.getItem(_initKey)) {
+                localStorage.setItem(_initKey, '1');
+                try {
+                    var _curChatKey = 'velantrim_messenger_chat_v73';
+                    for (var _ki = 0; _ki < localStorage.length; _ki++) {
+                        var _k = localStorage.key(_ki);
+                        if (_k && _k.startsWith('velantrim_messenger_chat_v') && _k !== _curChatKey) {
+                            localStorage.removeItem(_k); _ki--;
+                        }
+                    }
+                } catch(e) {}
+            }
         });
         var EITI_BUILD_DATE = "2026-05-17T12:00"; // v13.3.5 — Google+Tavily search, TTS cache fix, memory context fix: index.html / sw.js / manifest.json / README.md
     </script>
