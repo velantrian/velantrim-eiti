@@ -6787,6 +6787,8 @@
 
         // ── Provider selector ─────────────────────────────────────────────
         function eitiSetTTSProvider(prov) {
+            // v13.4.0 P1 #4: остановить любое текущее озвучивание при смене провайдера.
+            if (typeof _eitiTTSStopAll === 'function') { try { _eitiTTSStopAll(); } catch(e) {} }
             try { localStorage.setItem('eiti_tts_provider', prov); } catch(e) {}
             ['webspeech','openai','google','elevenlabs','gemini-tts'].forEach(function(p) {
                 var btn = document.getElementById('tprov-' + p);
@@ -7583,9 +7585,40 @@
         var _ttsBoundaryFired = false;
         var _ttsResumeOffset = 0;
 
+        // v13.4.0 P1 FIX #4: атомарная остановка TTS обоих движков (web + api).
+        function _eitiTTSStopAll() {
+            if (typeof _ttsAudio !== 'undefined' && _ttsAudio) {
+                try { _ttsAudio.pause(); } catch(e) {}
+                _ttsAudio = null;
+            }
+            if (typeof _ttsAudioUrl !== 'undefined') _ttsAudioUrl = null;
+            if (typeof _ttsAudioMsgId !== 'undefined') _ttsAudioMsgId = null;
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch(e) {}
+            }
+            if (typeof _ttsCharOffset !== 'undefined') _ttsCharOffset = 0;
+            if (typeof _ttsPaused !== 'undefined') _ttsPaused = false;
+            if (typeof _ttsFullText !== 'undefined') _ttsFullText = '';
+            if (typeof _ttsResumeOffset !== 'undefined') _ttsResumeOffset = 0;
+            if (typeof _ttsBoundaryFired !== 'undefined') _ttsBoundaryFired = false;
+            if (typeof speakingMsgId !== 'undefined' && speakingMsgId && typeof _eitiUpdateSpeakBtn === 'function') {
+                try { _eitiUpdateSpeakBtn(speakingMsgId, 'idle'); } catch(e) {}
+            }
+            if (typeof speakingMsgId !== 'undefined') speakingMsgId = null;
+            if (typeof _eitiFloatPlayerHide === 'function') {
+                try { _eitiFloatPlayerHide(); } catch(e) {}
+            }
+        }
+        window._eitiTTSStopAll = _eitiTTSStopAll;
+
         function _eitiWebSpeak(msgId, text) {
             if (!('speechSynthesis' in window)) { showToast('Озвучка недоступна'); return; }
             var synth = window.speechSynthesis;
+
+            // v13.4.0 P1 #4: если запускаем НА ДРУГОМ сообщении — атомарно гасим всё (вкл. API TTS).
+            if (typeof speakingMsgId !== 'undefined' && speakingMsgId && speakingMsgId !== msgId) {
+                _eitiTTSStopAll();
+            }
 
             // ── Тот же msg: пауза или продолжение ──
             if (speakingMsgId === msgId) {
@@ -7730,9 +7763,8 @@
         var _ttsFPSpeedIdx = 0;
 
         function _eitiApiSpeak(provider, msgId, text) {
-            // Stop any current
-            if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            // v13.4.0 P1 #4: атомарная остановка обоих движков перед стартом API TTS.
+            _eitiTTSStopAll();
             _ttsAudioMsgId = msgId;
             var prevId = speakingMsgId;
             if (prevId && prevId !== msgId) _eitiUpdateSpeakBtn(prevId, 'idle');
