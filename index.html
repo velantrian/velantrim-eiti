@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.3"; // v13.4.3: collapse line-clamp fix + SW update on visibilitychange
+        var EITI_VERSION = "13.4.4"; // v13.4.4: render \n→<br> for user msgs (collapse on first send) + 4-line clamp
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -9750,7 +9750,7 @@
                         <div class="message-body">
                             ${senderHtml}
                             ${fileChipHtml}
-                            <div class="${m.role === 'user' ? 'msg-text-display' : ''}">${(m.role === 'user') ? escapeHtml(displayText) : eitiRenderMarkdown(m.text)}</div>
+                            <div class="${m.role === 'user' ? 'msg-text-display' : ''}">${(m.role === 'user') ? escapeHtml(displayText).replace(/\n/g,'<br>') : eitiRenderMarkdown(m.text)}</div>
                             <div class="message-time">${time}</div>
                         </div>
                         <div class="message-controls">
@@ -9809,7 +9809,7 @@
                 textDiv.dataset.eitiCollapseAttached = '1';
                 function applyCollapsed() {
                     textDiv.style.display = '-webkit-box';
-                    textDiv.style.webkitLineClamp = '3';
+                    textDiv.style.webkitLineClamp = '4';
                     textDiv.style.webkitBoxOrient = 'vertical';
                     textDiv.style.overflow = 'hidden';
                     textDiv.style.maxHeight = '';
@@ -21203,6 +21203,10 @@ window.eitiLLMClearAll = async function() {
             displayDiv.style.overflow = '';
             displayDiv.style.webkitMaskImage = '';
             displayDiv.style.maskImage = '';
+            // v13.4.4: также сбрасываем line-clamp стили (v13.4.3+)
+            displayDiv.style.display = '';
+            displayDiv.style.webkitLineClamp = '';
+            displayDiv.style.webkitBoxOrient = '';
             delete displayDiv.dataset.eitiCollapsed;
             delete displayDiv.dataset.eitiCollapseAttached;
 
