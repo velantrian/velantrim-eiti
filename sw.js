@@ -12,7 +12,9 @@ var CORE = [
     BASE + 'icon-192.png',
     BASE + 'icon-192-maskable.png',
     BASE + 'icon-512.png',
-    BASE + 'icon-512-maskable.png'
+    BASE + 'icon-512-maskable.png',
+    // v13.4.0 P0 #2: DOMPurify в CORE — XSS-защита должна работать офлайн
+    'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js'
 ];
 
 // Тяжёлые файлы — кешируем в той же install цепочке, но не блокируем
@@ -86,6 +88,23 @@ self.addEventListener('fetch', function(e) {
 
     var url = new URL(e.request.url);
     var sameOrigin = url.origin === self.location.origin;
+
+    // v13.4.0 P0 #2: DOMPurify — cache-first (offline-first XSS protection)
+    if (!sameOrigin && /cdnjs\.cloudflare\.com\/ajax\/libs\/dompurify\//.test(url.href)) {
+        e.respondWith(
+            caches.match(e.request).then(function(cached) {
+                if (cached) return cached;
+                return fetch(e.request).then(function(resp) {
+                    if (resp && (resp.status === 200 || resp.type === 'opaque')) {
+                        var clone = resp.clone();
+                        caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                    }
+                    return resp;
+                });
+            })
+        );
+        return;
+    }
 
     // Пропускаем API-запросы (DeepSeek, Gemini, OpenRouter, xAI и т.д.)
     if (!sameOrigin) return;

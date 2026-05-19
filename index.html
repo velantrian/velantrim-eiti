@@ -22,6 +22,29 @@
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
         var EITI_VERSION = "13.3.5"; // v13.3.5: DDG fix for all AI, WEB badge, more results, _ddgQuery in proxies
+        // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
+        function _eitiSafeHTML(html) {
+            if (html == null) return '';
+            try {
+                if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
+                    return DOMPurify.sanitize(html, {
+                        ALLOWED_TAGS: [
+                            'b','i','em','strong','p','br','hr','ul','ol','li',
+                            'h1','h2','h3','h4','h5','code','pre','blockquote',
+                            'mark','span','div','a','table','tr','td','th','thead','tbody'
+                        ],
+                        ALLOWED_ATTR: ['href','class','style','data-msgid','data-id','title'],
+                        FORBID_TAGS: ['script','iframe','object','embed','form','input','svg'],
+                        FORBID_ATTR: ['onerror','onload','onclick','onmouseover','onfocus']
+                    });
+                }
+            } catch(e) {}
+            return String(html)
+                .replace(/<script[\s\S]*?<\/script>/gi, '')
+                .replace(/<(iframe|object|embed|form|svg|math)[\s\S]*?<\/\1>/gi, '')
+                .replace(/\s(on\w+|href\s*=\s*["']?javascript)/gi, ' data-removed=');
+        }
+        window._eitiSafeHTML = _eitiSafeHTML;
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
@@ -96,6 +119,8 @@
     <!-- PDF.js CDN — для парсинга PDF файлов в браузере (v12.9.50) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <!-- v13.4.0 P0 #2: DOMPurify для санитизации HTML (offline-first через SW CORE) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js" defer></script>
     <script>if(typeof pdfjsLib!=='undefined'){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <script>
 (function(){
@@ -10980,7 +11005,8 @@
             t = t.replace(/\n\n/g, '<br><br>');
             // Single newline → <br>
             t = t.replace(/\n/g, '<br>');
-            return t;
+            // v13.4.0 P0 #2: финальная санитизация результата markdown-рендера
+            return (typeof _eitiSafeHTML === 'function') ? _eitiSafeHTML(t) : t;
         }
 
         var EITI_DOMAIN_CONFIG = {
@@ -17220,6 +17246,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             window.eitiRecalculateAllEmbeddings = eitiRecalculateAllEmbeddings;
 
             // ── Рендер ответа интента в чат ─────────────────────────
+            // v13.4.0 P0 #2: _intentReply принимает dev-controlled HTML
+            // с inline-button onclick (moscConfirm и т.п.). DOMPurify FORBID_ATTR
+            // удалил бы эти обработчики и сломал UI. Санитизация AI-текста
+            // выполняется выше — в eitiRenderMarkdown.
             function _intentReply(html, sender) {
                 var _vbOn=typeof _vbEnabled!=='undefined'&&_vbEnabled;
                 var _isOff=localStorage.getItem('eiti_offline_mode')==='1';
@@ -23235,6 +23265,8 @@ window.eitiLLMClearAll = async function() {
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
+        // v13.4.0 P0 #2: _eitiInlineReply принимает dev-controlled HTML.
+        // Санитизация выполняется при рендере AI-текста через eitiRenderMarkdown.
         function _eitiInlineReply(html, sender) {
             var msgs = document.getElementById('messages');
             if (!msgs) return;
