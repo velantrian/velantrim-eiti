@@ -9489,58 +9489,92 @@
             const input = document.getElementById('input');
             const send = document.getElementById('send');
 
-            // v13.4.0 P1 FIX #15: чип для больших вставок (>800 симв.) — текст
-            // не засоряет textarea, инжектится при отправке.
-            if (input && !input._eitiPasteBound) {
-                input.addEventListener('paste', function(e) {
-                    var pasted = (e.clipboardData || window.clipboardData).getData('text');
+            // v13.4.0 P1 FIX #15 (redesign): чип в стиле Claude + модальное окно превью.
+            // Привязка через capture-phase на document — работает даже если #input
+            // пересоздаётся другим кодом.
+            if (!window._eitiPasteHookInstalled) {
+                window._eitiPasteHookInstalled = true;
+                document.addEventListener('paste', function(e) {
+                    var t = e.target;
+                    if (!t || t.id !== 'input') return;
+                    var pasted = '';
+                    try {
+                        pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
+                    } catch(_) { return; }
                     if (!pasted || pasted.length < 800) return;
                     e.preventDefault();
+                    e.stopPropagation();
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
-                });
-                input._eitiPasteBound = true;
+                }, true);
             }
 
             function _eitiShowPastedChip(text) {
                 var old = document.getElementById('eiti-paste-chip');
                 if (old) old.remove();
+
                 var sizeKB = (text.length / 1024).toFixed(1);
                 var lines = text.split('\n').length;
-                var preview = text.slice(0, 120).replace(/\n/g, ' ').trim();
-                if (text.length > 120) preview += '…';
 
                 var chip = document.createElement('div');
                 chip.id = 'eiti-paste-chip';
-                chip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 8px 0;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:12px;cursor:pointer;font-size:12px;';
+                chip.title = 'Вставленный текст · ' + sizeKB + ' КБ · ' + lines + ' строк · нажми для просмотра';
+                chip.style.cssText =
+                    'display:inline-flex;align-items:center;gap:8px;' +
+                    'padding:6px 8px 6px 6px;margin:4px 8px 4px;' +
+                    'background:var(--secondary-color,rgba(0,0,0,0.18));' +
+                    'border:1px solid var(--border-color,rgba(255,255,255,0.18));' +
+                    'border-radius:12px;cursor:pointer;font-size:12px;' +
+                    'box-shadow:0 1px 3px rgba(0,0,0,0.18);' +
+                    'max-width:230px;line-height:1.2;align-self:flex-start;';
 
-                var icon = document.createElement('span');
-                icon.textContent = '📄';
-                icon.style.cssText = 'font-size:18px;flex-shrink:0;';
-                var info = document.createElement('div');
-                info.style.cssText = 'flex:1;overflow:hidden;';
-                var head = document.createElement('div');
-                head.style.cssText = 'font-weight:700;color:var(--accent-color);';
-                head.textContent = 'Вставленный текст · ' + sizeKB + ' КБ · ' + lines + ' строк';
-                var prev = document.createElement('div');
-                prev.id = 'eiti-paste-preview';
-                prev.style.cssText = 'opacity:0.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-                prev.textContent = preview;
-                info.appendChild(head); info.appendChild(prev);
+                var badge = document.createElement('div');
+                badge.textContent = 'TXT';
+                badge.style.cssText =
+                    'flex-shrink:0;width:34px;height:34px;border-radius:8px;' +
+                    'border:1px solid var(--border-color,rgba(255,255,255,0.25));' +
+                    'background:rgba(255,255,255,0.04);' +
+                    'display:flex;align-items:center;justify-content:center;' +
+                    'font-size:10px;font-weight:800;letter-spacing:0.5px;color:var(--accent-color,#ffd700);';
+
+                var label = document.createElement('div');
+                label.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;';
+                var l1 = document.createElement('div');
+                l1.textContent = 'Pasted content';
+                l1.style.cssText = 'font-weight:600;color:var(--text-color,#fff);font-size:12px;line-height:1.2;';
+                var l2 = document.createElement('div');
+                l2.textContent = sizeKB + ' КБ · ' + lines + ' строк';
+                l2.style.cssText = 'opacity:0.55;font-size:10px;margin-top:2px;line-height:1.2;';
+                label.appendChild(l1); label.appendChild(l2);
 
                 var rmBtn = document.createElement('button');
                 rmBtn.id = 'eiti-paste-remove';
+                rmBtn.type = 'button';
+                rmBtn.setAttribute('aria-label', 'Удалить');
                 rmBtn.textContent = '✕';
-                rmBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.5;padding:0 4px;';
+                rmBtn.style.cssText =
+                    'flex-shrink:0;width:22px;height:22px;border-radius:50%;' +
+                    'border:none;background:rgba(0,0,0,0.55);color:#fff;' +
+                    'cursor:pointer;font-size:11px;line-height:1;padding:0;' +
+                    'display:flex;align-items:center;justify-content:center;';
 
-                chip.appendChild(icon); chip.appendChild(info); chip.appendChild(rmBtn);
+                chip.appendChild(badge);
+                chip.appendChild(label);
+                chip.appendChild(rmBtn);
 
-                var inputArea = input.parentElement;
-                if (inputArea) inputArea.insertBefore(chip, input);
+                // Вставляем чип внутрь колонки центра (та же, что содержит textarea)
+                var inputArea = (input && input.parentElement) ? input.parentElement : null;
+                if (inputArea) {
+                    inputArea.insertBefore(chip, input);
+                } else {
+                    // fallback — в начало messages, чтобы пользователь точно увидел
+                    var msgs = document.getElementById('messages');
+                    if (msgs && msgs.parentElement) msgs.parentElement.insertBefore(chip, msgs.nextSibling);
+                }
 
                 chip.addEventListener('click', function(e) {
                     if (e.target === rmBtn) return;
-                    _eitiTogglePastePreview();
+                    _eitiShowPasteModal();
                 });
                 rmBtn.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -9550,27 +9584,134 @@
             }
             window._eitiShowPastedChip = _eitiShowPastedChip;
 
-            function _eitiTogglePastePreview() {
-                var preview = document.getElementById('eiti-paste-preview');
-                if (!preview) return;
-                window._eitiPasteExpanded = !window._eitiPasteExpanded;
+            function _eitiShowPasteModal() {
                 var buf = window._eitiPastedTextBuffer || '';
-                if (window._eitiPasteExpanded) {
-                    var full = buf.slice(0, 600);
-                    if (buf.length > 600) full += '\n…';
-                    preview.style.whiteSpace = 'pre-wrap';
-                    preview.style.overflow   = 'visible';
-                    preview.style.opacity    = '0.8';
-                    preview.textContent      = full;
-                } else {
-                    var short = buf.slice(0, 120).replace(/\n/g, ' ').trim();
-                    if (buf.length > 120) short += '…';
-                    preview.style.whiteSpace = 'nowrap';
-                    preview.style.overflow   = 'hidden';
-                    preview.style.opacity    = '0.55';
-                    preview.textContent      = short;
-                }
+                if (!buf) return;
+                var existing = document.getElementById('eiti-paste-modal');
+                if (existing) existing.remove();
+
+                var overlay = document.createElement('div');
+                overlay.id = 'eiti-paste-modal';
+                overlay.style.cssText =
+                    'position:fixed;inset:0;background:rgba(0,0,0,0.72);' +
+                    'z-index:99998;display:flex;align-items:center;justify-content:center;' +
+                    'padding:16px;box-sizing:border-box;font-family:inherit;';
+
+                var card = document.createElement('div');
+                card.style.cssText =
+                    'background:var(--panel-bg,#1c1410);color:var(--text-color,#fff);' +
+                    'border:1px solid var(--border-color,rgba(255,255,255,0.18));' +
+                    'border-radius:14px;width:100%;max-width:720px;max-height:80vh;' +
+                    'display:flex;flex-direction:column;overflow:hidden;' +
+                    'box-shadow:0 12px 40px rgba(0,0,0,0.55);';
+
+                var header = document.createElement('div');
+                header.style.cssText =
+                    'display:flex;align-items:center;gap:10px;padding:14px 16px;' +
+                    'border-bottom:1px solid var(--border-color,rgba(255,255,255,0.12));';
+                var hBadge = document.createElement('div');
+                hBadge.textContent = 'TXT';
+                hBadge.style.cssText =
+                    'width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;' +
+                    'font-size:10px;font-weight:800;background:rgba(255,255,255,0.06);' +
+                    'border:1px solid var(--border-color,rgba(255,255,255,0.22));color:var(--accent-color,#ffd700);';
+                var hInfo = document.createElement('div');
+                hInfo.style.cssText = 'flex:1;min-width:0;';
+                var hT = document.createElement('div');
+                hT.textContent = 'Pasted content';
+                hT.style.cssText = 'font-weight:700;font-size:14px;';
+                var hM = document.createElement('div');
+                var _kb = (buf.length / 1024).toFixed(1);
+                var _ln = buf.split('\n').length;
+                hM.textContent = _kb + ' КБ · ' + _ln + ' строк · ' + buf.length.toLocaleString('ru') + ' симв.';
+                hM.style.cssText = 'opacity:0.55;font-size:11px;margin-top:2px;';
+                hInfo.appendChild(hT); hInfo.appendChild(hM);
+
+                var hClose = document.createElement('button');
+                hClose.type = 'button';
+                hClose.textContent = '✕';
+                hClose.setAttribute('aria-label', 'Закрыть');
+                hClose.style.cssText =
+                    'background:none;border:none;color:var(--text-color,#fff);cursor:pointer;' +
+                    'font-size:18px;padding:6px 10px;border-radius:8px;opacity:0.7;';
+
+                header.appendChild(hBadge);
+                header.appendChild(hInfo);
+                header.appendChild(hClose);
+
+                var body = document.createElement('pre');
+                body.textContent = buf;
+                body.style.cssText =
+                    'margin:0;padding:14px 16px;flex:1;overflow:auto;font-size:12px;' +
+                    'line-height:1.5;white-space:pre-wrap;word-break:break-word;' +
+                    'font-family:ui-monospace,Menlo,Consolas,monospace;' +
+                    'background:rgba(0,0,0,0.18);';
+
+                var footer = document.createElement('div');
+                footer.style.cssText =
+                    'display:flex;gap:8px;padding:10px 16px;' +
+                    'border-top:1px solid var(--border-color,rgba(255,255,255,0.12));';
+                var btnCopy = document.createElement('button');
+                btnCopy.type = 'button';
+                btnCopy.textContent = '📋 Скопировать';
+                btnCopy.style.cssText =
+                    'padding:8px 12px;border-radius:9px;border:1px solid var(--border-color,rgba(255,255,255,0.2));' +
+                    'background:var(--secondary-color,rgba(255,255,255,0.06));' +
+                    'color:var(--text-color,#fff);font-size:12px;cursor:pointer;';
+                var btnRemove = document.createElement('button');
+                btnRemove.type = 'button';
+                btnRemove.textContent = '🗑 Удалить';
+                btnRemove.style.cssText =
+                    'padding:8px 12px;border-radius:9px;border:1px solid rgba(255,80,80,0.4);' +
+                    'background:rgba(255,80,80,0.08);color:#ff8888;font-size:12px;cursor:pointer;';
+                var spacer = document.createElement('div');
+                spacer.style.cssText = 'flex:1;';
+                var btnDone = document.createElement('button');
+                btnDone.type = 'button';
+                btnDone.textContent = 'Готово';
+                btnDone.style.cssText =
+                    'padding:8px 16px;border-radius:9px;border:none;' +
+                    'background:var(--accent-color,#ffd700);color:#000;font-weight:700;font-size:12px;cursor:pointer;';
+
+                footer.appendChild(btnCopy);
+                footer.appendChild(btnRemove);
+                footer.appendChild(spacer);
+                footer.appendChild(btnDone);
+
+                card.appendChild(header);
+                card.appendChild(body);
+                card.appendChild(footer);
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+
+                function close() { overlay.remove(); }
+                overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+                hClose.addEventListener('click', close);
+                btnDone.addEventListener('click', close);
+                btnCopy.addEventListener('click', function() {
+                    if (typeof copyText === 'function') {
+                        copyText(buf).then(function() {
+                            if (typeof showToast === 'function') showToast('📋 Скопировано', 1200);
+                        });
+                    } else if (navigator.clipboard) {
+                        navigator.clipboard.writeText(buf);
+                    }
+                });
+                btnRemove.addEventListener('click', function() {
+                    window._eitiPastedTextBuffer = null;
+                    var chip = document.getElementById('eiti-paste-chip');
+                    if (chip) chip.remove();
+                    close();
+                    if (typeof showToast === 'function') showToast('🗑 Вставка удалена', 1200);
+                });
+                document.addEventListener('keydown', function _esc(e) {
+                    if (e.key === 'Escape') {
+                        document.removeEventListener('keydown', _esc);
+                        close();
+                    }
+                });
             }
+            window._eitiShowPasteModal = _eitiShowPasteModal;
 
             function renderMessage(m) {
                 const msg = document.createElement('div');
@@ -36916,6 +37057,205 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     } else {
         setTimeout(_decide, 600);
     }
+})();
+
+// v13.4.0 P1 FIX #15 (backup bootstrap): гарантируем что paste-чип работает,
+// даже если основной DOMContentLoaded блок прервался ранее.
+(function eitiPasteChipBackup() {
+    'use strict';
+    if (window._eitiPasteHookInstalled) return;
+    window._eitiPasteHookInstalled = true;
+
+    var PASTE_THRESHOLD = 800;
+
+    function _info(buf) {
+        return {
+            kb: (buf.length / 1024).toFixed(1),
+            lines: buf.split('\n').length,
+            chars: buf.length
+        };
+    }
+
+    function _showChip(text) {
+        var input = document.getElementById('input');
+        var old = document.getElementById('eiti-paste-chip');
+        if (old) old.remove();
+
+        var s = _info(text);
+        var chip = document.createElement('div');
+        chip.id = 'eiti-paste-chip';
+        chip.title = 'Вставленный текст · ' + s.kb + ' КБ · ' + s.lines + ' строк · нажми для просмотра';
+        chip.style.cssText =
+            'display:inline-flex;align-items:center;gap:8px;' +
+            'padding:6px 8px 6px 6px;margin:4px 8px 4px;' +
+            'background:var(--secondary-color,rgba(0,0,0,0.18));' +
+            'border:1px solid var(--border-color,rgba(255,255,255,0.18));' +
+            'border-radius:12px;cursor:pointer;font-size:12px;' +
+            'box-shadow:0 1px 3px rgba(0,0,0,0.18);' +
+            'max-width:230px;line-height:1.2;align-self:flex-start;';
+
+        var badge = document.createElement('div');
+        badge.textContent = 'TXT';
+        badge.style.cssText =
+            'flex-shrink:0;width:34px;height:34px;border-radius:8px;' +
+            'border:1px solid var(--border-color,rgba(255,255,255,0.25));' +
+            'background:rgba(255,255,255,0.04);' +
+            'display:flex;align-items:center;justify-content:center;' +
+            'font-size:10px;font-weight:800;letter-spacing:0.5px;' +
+            'color:var(--accent-color,#ffd700);';
+
+        var label = document.createElement('div');
+        label.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;';
+        var l1 = document.createElement('div');
+        l1.textContent = 'Pasted content';
+        l1.style.cssText = 'font-weight:600;color:var(--text-color,#fff);font-size:12px;line-height:1.2;';
+        var l2 = document.createElement('div');
+        l2.textContent = s.kb + ' КБ · ' + s.lines + ' строк';
+        l2.style.cssText = 'opacity:0.55;font-size:10px;margin-top:2px;line-height:1.2;';
+        label.appendChild(l1); label.appendChild(l2);
+
+        var rmBtn = document.createElement('button');
+        rmBtn.id = 'eiti-paste-remove';
+        rmBtn.type = 'button';
+        rmBtn.textContent = '✕';
+        rmBtn.style.cssText =
+            'flex-shrink:0;width:22px;height:22px;border-radius:50%;' +
+            'border:none;background:rgba(0,0,0,0.55);color:#fff;' +
+            'cursor:pointer;font-size:11px;line-height:1;padding:0;' +
+            'display:flex;align-items:center;justify-content:center;';
+
+        chip.appendChild(badge); chip.appendChild(label); chip.appendChild(rmBtn);
+
+        var anchor = input && input.parentElement ? input.parentElement : null;
+        if (anchor) anchor.insertBefore(chip, input);
+        else if (input) input.parentNode.insertBefore(chip, input);
+
+        chip.addEventListener('click', function(e) {
+            if (e.target === rmBtn) return;
+            _showModal();
+        });
+        rmBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            chip.remove();
+            window._eitiPastedTextBuffer = null;
+        });
+    }
+
+    function _showModal() {
+        var buf = window._eitiPastedTextBuffer || '';
+        if (!buf) return;
+        var existing = document.getElementById('eiti-paste-modal');
+        if (existing) existing.remove();
+
+        var s = _info(buf);
+        var overlay = document.createElement('div');
+        overlay.id = 'eiti-paste-modal';
+        overlay.style.cssText =
+            'position:fixed;inset:0;background:rgba(0,0,0,0.72);' +
+            'z-index:99998;display:flex;align-items:center;justify-content:center;' +
+            'padding:16px;box-sizing:border-box;font-family:inherit;';
+
+        var card = document.createElement('div');
+        card.style.cssText =
+            'background:var(--panel-bg,#1c1410);color:var(--text-color,#fff);' +
+            'border:1px solid var(--border-color,rgba(255,255,255,0.18));' +
+            'border-radius:14px;width:100%;max-width:720px;max-height:80vh;' +
+            'display:flex;flex-direction:column;overflow:hidden;' +
+            'box-shadow:0 12px 40px rgba(0,0,0,0.55);';
+
+        var header = document.createElement('div');
+        header.style.cssText =
+            'display:flex;align-items:center;gap:10px;padding:14px 16px;' +
+            'border-bottom:1px solid var(--border-color,rgba(255,255,255,0.12));';
+        var hBadge = document.createElement('div');
+        hBadge.textContent = 'TXT';
+        hBadge.style.cssText =
+            'width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;' +
+            'font-size:10px;font-weight:800;background:rgba(255,255,255,0.06);' +
+            'border:1px solid var(--border-color,rgba(255,255,255,0.22));color:var(--accent-color,#ffd700);';
+        var hInfo = document.createElement('div');
+        hInfo.style.cssText = 'flex:1;min-width:0;';
+        var hT = document.createElement('div');
+        hT.textContent = 'Pasted content';
+        hT.style.cssText = 'font-weight:700;font-size:14px;';
+        var hM = document.createElement('div');
+        hM.textContent = s.kb + ' КБ · ' + s.lines + ' строк · ' + s.chars.toLocaleString('ru') + ' симв.';
+        hM.style.cssText = 'opacity:0.55;font-size:11px;margin-top:2px;';
+        hInfo.appendChild(hT); hInfo.appendChild(hM);
+        var hClose = document.createElement('button');
+        hClose.type = 'button';
+        hClose.textContent = '✕';
+        hClose.style.cssText = 'background:none;border:none;color:var(--text-color,#fff);cursor:pointer;font-size:18px;padding:6px 10px;border-radius:8px;opacity:0.7;';
+        header.appendChild(hBadge); header.appendChild(hInfo); header.appendChild(hClose);
+
+        var body = document.createElement('pre');
+        body.textContent = buf;
+        body.style.cssText =
+            'margin:0;padding:14px 16px;flex:1;overflow:auto;font-size:12px;' +
+            'line-height:1.5;white-space:pre-wrap;word-break:break-word;' +
+            'font-family:ui-monospace,Menlo,Consolas,monospace;background:rgba(0,0,0,0.18);';
+
+        var footer = document.createElement('div');
+        footer.style.cssText = 'display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border-color,rgba(255,255,255,0.12));';
+        var btnCopy = document.createElement('button');
+        btnCopy.type = 'button';
+        btnCopy.textContent = '📋 Скопировать';
+        btnCopy.style.cssText = 'padding:8px 12px;border-radius:9px;border:1px solid var(--border-color,rgba(255,255,255,0.2));background:var(--secondary-color,rgba(255,255,255,0.06));color:var(--text-color,#fff);font-size:12px;cursor:pointer;';
+        var btnRemove = document.createElement('button');
+        btnRemove.type = 'button';
+        btnRemove.textContent = '🗑 Удалить';
+        btnRemove.style.cssText = 'padding:8px 12px;border-radius:9px;border:1px solid rgba(255,80,80,0.4);background:rgba(255,80,80,0.08);color:#ff8888;font-size:12px;cursor:pointer;';
+        var spacer = document.createElement('div'); spacer.style.cssText = 'flex:1;';
+        var btnDone = document.createElement('button');
+        btnDone.type = 'button';
+        btnDone.textContent = 'Готово';
+        btnDone.style.cssText = 'padding:8px 16px;border-radius:9px;border:none;background:var(--accent-color,#ffd700);color:#000;font-weight:700;font-size:12px;cursor:pointer;';
+        footer.appendChild(btnCopy); footer.appendChild(btnRemove); footer.appendChild(spacer); footer.appendChild(btnDone);
+
+        card.appendChild(header); card.appendChild(body); card.appendChild(footer);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+
+        function close() { overlay.remove(); }
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+        hClose.addEventListener('click', close);
+        btnDone.addEventListener('click', close);
+        btnCopy.addEventListener('click', function() {
+            if (typeof copyText === 'function') {
+                copyText(buf).then(function() {
+                    if (typeof showToast === 'function') showToast('📋 Скопировано', 1200);
+                });
+            } else if (navigator.clipboard) { navigator.clipboard.writeText(buf); }
+        });
+        btnRemove.addEventListener('click', function() {
+            window._eitiPastedTextBuffer = null;
+            var chip = document.getElementById('eiti-paste-chip');
+            if (chip) chip.remove();
+            close();
+            if (typeof showToast === 'function') showToast('🗑 Вставка удалена', 1200);
+        });
+        document.addEventListener('keydown', function _esc(e) {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', _esc);
+                close();
+            }
+        });
+    }
+
+    window._eitiShowPastedChip = _showChip;
+    window._eitiShowPasteModal = _showModal;
+
+    document.addEventListener('paste', function(e) {
+        var t = e.target;
+        if (!t || t.id !== 'input') return;
+        var pasted = '';
+        try { pasted = (e.clipboardData || window.clipboardData).getData('text') || ''; } catch(_) { return; }
+        if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        e.preventDefault();
+        e.stopPropagation();
+        window._eitiPastedTextBuffer = pasted;
+        _showChip(pasted);
+    }, true);
 })();
 </script>
 </body>
