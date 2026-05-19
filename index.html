@@ -9296,7 +9296,90 @@
 
             const input = document.getElementById('input');
             const send = document.getElementById('send');
-            
+
+            // v13.4.0 P1 FIX #15: чип для больших вставок (>800 симв.) — текст
+            // не засоряет textarea, инжектится при отправке.
+            if (input && !input._eitiPasteBound) {
+                input.addEventListener('paste', function(e) {
+                    var pasted = (e.clipboardData || window.clipboardData).getData('text');
+                    if (!pasted || pasted.length < 800) return;
+                    e.preventDefault();
+                    window._eitiPastedTextBuffer = pasted;
+                    _eitiShowPastedChip(pasted);
+                });
+                input._eitiPasteBound = true;
+            }
+
+            function _eitiShowPastedChip(text) {
+                var old = document.getElementById('eiti-paste-chip');
+                if (old) old.remove();
+                var sizeKB = (text.length / 1024).toFixed(1);
+                var lines = text.split('\n').length;
+                var preview = text.slice(0, 120).replace(/\n/g, ' ').trim();
+                if (text.length > 120) preview += '…';
+
+                var chip = document.createElement('div');
+                chip.id = 'eiti-paste-chip';
+                chip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 8px 0;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:12px;cursor:pointer;font-size:12px;';
+
+                var icon = document.createElement('span');
+                icon.textContent = '📄';
+                icon.style.cssText = 'font-size:18px;flex-shrink:0;';
+                var info = document.createElement('div');
+                info.style.cssText = 'flex:1;overflow:hidden;';
+                var head = document.createElement('div');
+                head.style.cssText = 'font-weight:700;color:var(--accent-color);';
+                head.textContent = 'Вставленный текст · ' + sizeKB + ' КБ · ' + lines + ' строк';
+                var prev = document.createElement('div');
+                prev.id = 'eiti-paste-preview';
+                prev.style.cssText = 'opacity:0.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+                prev.textContent = preview;
+                info.appendChild(head); info.appendChild(prev);
+
+                var rmBtn = document.createElement('button');
+                rmBtn.id = 'eiti-paste-remove';
+                rmBtn.textContent = '✕';
+                rmBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.5;padding:0 4px;';
+
+                chip.appendChild(icon); chip.appendChild(info); chip.appendChild(rmBtn);
+
+                var inputArea = input.parentElement;
+                if (inputArea) inputArea.insertBefore(chip, input);
+
+                chip.addEventListener('click', function(e) {
+                    if (e.target === rmBtn) return;
+                    _eitiTogglePastePreview();
+                });
+                rmBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    chip.remove();
+                    window._eitiPastedTextBuffer = null;
+                });
+            }
+            window._eitiShowPastedChip = _eitiShowPastedChip;
+
+            function _eitiTogglePastePreview() {
+                var preview = document.getElementById('eiti-paste-preview');
+                if (!preview) return;
+                window._eitiPasteExpanded = !window._eitiPasteExpanded;
+                var buf = window._eitiPastedTextBuffer || '';
+                if (window._eitiPasteExpanded) {
+                    var full = buf.slice(0, 600);
+                    if (buf.length > 600) full += '\n…';
+                    preview.style.whiteSpace = 'pre-wrap';
+                    preview.style.overflow   = 'visible';
+                    preview.style.opacity    = '0.8';
+                    preview.textContent      = full;
+                } else {
+                    var short = buf.slice(0, 120).replace(/\n/g, ' ').trim();
+                    if (buf.length > 120) short += '…';
+                    preview.style.whiteSpace = 'nowrap';
+                    preview.style.overflow   = 'hidden';
+                    preview.style.opacity    = '0.55';
+                    preview.textContent      = short;
+                }
+            }
+
             function renderMessage(m) {
                 const msg = document.createElement('div');
                 msg.className = 'message ' + (m.role === 'user' ? 'outgoing' : 'incoming');
@@ -21125,6 +21208,16 @@ window.eitiLLMClearAll = async function() {
             }
 
             function doSend() {
+                // v13.4.0 P1 FIX #15: если был paste-chip — инжектим полный текст в начало.
+                if (window._eitiPastedTextBuffer) {
+                    var _pastedContent = window._eitiPastedTextBuffer;
+                    var _currentVal = (input.value || '').trim();
+                    input.value = (_currentVal ? _currentVal + '\n\n' : 'Вот текст для анализа:\n\n') + _pastedContent;
+                    window._eitiPastedTextBuffer = null;
+                    var _chip0 = document.getElementById('eiti-paste-chip');
+                    if (_chip0) _chip0.remove();
+                    window._eitiPasteExpanded = false;
+                }
                 var txt = input.value.trim();
                 // v12.9.50: если прикреплён файл — инжектируем его в текст
                 txt = eitiInjectAttachedFile(txt);
