@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Один HTML-файл. Никаких зависимостей. Работает везде._
 
-[![Version](https://img.shields.io/badge/version-13.2.0-gold?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-13.4.0-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline](https://img.shields.io/badge/offline-supported-orange?style=flat-square)](#)
@@ -34,6 +34,31 @@ _Один HTML-файл. Никаких зависимостей. Работае
 _(правой кнопкой → Сохранить как)_
 
 Открой скачанный файл в браузере — всё работает без сервера и интернета.
+
+---
+
+## 🆕 Что нового в v13.4.0
+
+**🔴 Критичное (P0)**
+- 🔍 **FTS5 инкрементальный sync** — поиск по заметкам перестал тормозить (O(N²) → O(1) на заметку)
+- 🛡️ **DOMPurify XSS-защита** — санитизация AI/web/PDF-текста; работает офлайн (precache в Service Worker)
+- 🔐 **AES-GCM шифрование API-ключей** — PBKDF2-100k + AES-256, PIN при старте, синхронный RAM-кеш
+
+**🟡 Важное (P1)**
+- 🔊 **Атомарная остановка TTS** — переключение между сообщениями и провайдерами больше не зависает
+- ⚙️ **Сохранение настроек при обновлении** — апгрейд версии не сбрасывает выбор AI-провайдера/токены/инструкции
+- 👍👎 **Feedback Loop** — обучает PKG/MOSC из реакций на ответы
+- 🎚 **Canvas EQ в фоне** — плеер не жрёт CPU когда вкладка скрыта или на паузе
+- 🗄 **TTS Cache Manager** — статистика, очистка, TTL-слайдер в настройках
+- 📄 **Paste chip для больших вставок** — текст >800 символов сворачивается в чип, не засоряет ввод
+- 💡 **Умные подсказки** — параллельный AI генерирует 3 чипа после каждого ответа (Gemini Flash / DeepSeek / OpenRouter)
+
+**🟢 Чистка (P2)**
+- 🔄 IDB onblocked → toast + retry · MOSC граф вынесен в `data/mosc_default_v1.json` (-115 КБ в HTML)
+- 🗑 TTS cache LRU через openCursor · Blob URL auto-revoke через 5 мин · SW cache → `eiti-v13.4.0`
+
+📜 **Полный список изменений:** [коммиты v13.4.0](https://github.com/velantrian/velantrim-eiti/commits/main)
+🔍 **Открыть последнюю версию:** [velantrian.github.io/velantrim-eiti/](https://velantrian.github.io/velantrim-eiti/)
 
 ---
 

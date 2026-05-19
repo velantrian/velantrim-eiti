@@ -21,9 +21,51 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.3.5"; // v13.3.5: DDG fix for all AI, WEB badge, more results, _ddgQuery in proxies
+        /* v13.4.0:
+         * [P0] FTS5 incremental sync O(N²)→O(1)
+         * [P0] DOMPurify XSS protection (offline-first)
+         * [P0] AES-GCM key encryption (sync RAM-cache)
+         * [P1] Atomic TTS stop (web↔api)
+         * [P1] Settings preserved across updates
+         * [P1] Feedback Loop 👍/👎
+         * [P1] Canvas EQ paused in background
+         * [P1] TTS Cache Manager UI
+         * [P1] Paste text chip (>800 chars)
+         * [P1] Smart Suggestions (parallel AI)
+         * [P2] _eitiState marked for v14 PersonaCard
+         * [P2] IDB onblocked toast + retry
+         * [P2] MOSC graph → data/mosc_default_v1.json
+         * [P2] TTS cache LRU (openCursor, TTL-based)
+         * [P2] Blob URL auto-revoke 5 min
+         * [P2] SW cache → eiti-v13.4.0
+         */
+        var EITI_VERSION = "13.4.0"; // v13.4.0: SafeHTML · AES-Keys · FastFTS5 · TTSAtomic · FeedbackLoop · TTSManager · PasteChip · SmartSugg
+        // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
+        function _eitiSafeHTML(html) {
+            if (html == null) return '';
+            try {
+                if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
+                    return DOMPurify.sanitize(html, {
+                        ALLOWED_TAGS: [
+                            'b','i','em','strong','p','br','hr','ul','ol','li',
+                            'h1','h2','h3','h4','h5','code','pre','blockquote',
+                            'mark','span','div','a','table','tr','td','th','thead','tbody'
+                        ],
+                        ALLOWED_ATTR: ['href','class','style','data-msgid','data-id','title'],
+                        FORBID_TAGS: ['script','iframe','object','embed','form','input','svg'],
+                        FORBID_ATTR: ['onerror','onload','onclick','onmouseover','onfocus']
+                    });
+                }
+            } catch(e) {}
+            return String(html)
+                .replace(/<script[\s\S]*?<\/script>/gi, '')
+                .replace(/<(iframe|object|embed|form|svg|math)[\s\S]*?<\/\1>/gi, '')
+                .replace(/\s(on\w+|href\s*=\s*["']?javascript)/gi, ' data-removed=');
+        }
+        window._eitiSafeHTML = _eitiSafeHTML;
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
+        // TODO v14: dominant_topic/mood → PersonaCard (Слой 2)
         window._eitiState = { dominant_topic: '', mood: 'neutral', depth: 'medium', quality: 0.7 };
         window._eitiLemma = {};                 // словарь из lemma.json (или IDB)
         window._eitiLemmaPending = null;        // ожидает подтверждения обогащения
@@ -59,34 +101,41 @@
             if (typeof eitiInitTTSProviderUI === 'function') setTimeout(eitiInitTTSProviderUI, 200);
             if (typeof eitiORKeyInit === 'function') setTimeout(eitiORKeyInit, 150);
             if (typeof eitiInitHeaderToggle === 'function') setTimeout(eitiInitHeaderToggle, 100);
-            var _initKey = 'eiti_init_v' + EITI_VERSION;
-            // v13: cleanup stale chat keys (v1..v72)
-            try {
-                var _curChatKey = 'velantrim_messenger_chat_v73';
-                for (var _ki = 0; _ki < localStorage.length; _ki++) {
-                    var _k = localStorage.key(_ki);
-                    if (_k && _k.startsWith('velantrim_messenger_chat_v') && _k !== _curChatKey) {
-                        localStorage.removeItem(_k); _ki--;
-                    }
+
+            // v13.4.0 P1 FIX #5: разделяем FIRST_RUN seed и PER_VERSION cleanup.
+            // Раньше _initKey зависел от EITI_VERSION → bump версии перезаписывал
+            // пользовательские настройки (eiti_ai_provider и т.п.).
+            var _firstRunKey = 'eiti_first_run_done_v1';
+            if (!localStorage.getItem(_firstRunKey)) {
+                localStorage.setItem(_firstRunKey, '1');
+                localStorage.setItem('eiti_offline_mode', '0');
+                localStorage.setItem('eiti_only_ai', '1');
+                localStorage.setItem('eiti_ai_provider', 'openrouter');
+                localStorage.setItem('eiti_token_budget', '8000');
+                localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
+                localStorage.setItem('eiti_icon_mode', 'emoji_classic');
+                localStorage.setItem('eiti_header_hidden', '0');
+                if (!localStorage.getItem('eiti_hidden_tabs')) {
+                    localStorage.setItem('eiti_hidden_tabs', JSON.stringify(['timeline']));
                 }
-            } catch(e) {}
-            if (localStorage.getItem(_initKey)) return;
-            localStorage.setItem(_initKey, '1');
-            // v12.9.9: chat bubble fix, player track append, + button top
-            localStorage.setItem('eiti_offline_mode', '0');
-            localStorage.setItem('eiti_only_ai', '1');
-            localStorage.setItem('eiti_ai_provider', 'openrouter');
-            localStorage.setItem('eiti_token_budget', '8000');
-            localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
-            localStorage.setItem('eiti_icon_mode', 'emoji_classic');
-            // v12.9.70: шапка включена по умолчанию, Лента скрыта по умолчанию
-            localStorage.setItem('eiti_header_hidden', '0');
-            if (!localStorage.getItem('eiti_hidden_tabs')) {
-                localStorage.setItem('eiti_hidden_tabs', JSON.stringify(['timeline']));
             }
 
+            // PER_VERSION — только cleanup стейл-ключей.
+            var _initKey = 'eiti_init_v' + EITI_VERSION;
+            if (!localStorage.getItem(_initKey)) {
+                localStorage.setItem(_initKey, '1');
+                try {
+                    var _curChatKey = 'velantrim_messenger_chat_v73';
+                    for (var _ki = 0; _ki < localStorage.length; _ki++) {
+                        var _k = localStorage.key(_ki);
+                        if (_k && _k.startsWith('velantrim_messenger_chat_v') && _k !== _curChatKey) {
+                            localStorage.removeItem(_k); _ki--;
+                        }
+                    }
+                } catch(e) {}
+            }
         });
-        var EITI_BUILD_DATE = "2026-05-17T12:00"; // v13.3.5 — Google+Tavily search, TTS cache fix, memory context fix: index.html / sw.js / manifest.json / README.md
+        var EITI_BUILD_DATE = "2026-05-19T12:00"; // v13.4.0 — Layer 1: 16 surgical fixes (FTS5, DOMPurify, AES, TTS, MOSC JSON, etc.)
     </script>
     <!-- sql.js — SQLite WASM для FTS5 поиска, Attention Graph, эпистемических статусов -->
     <!-- v12.9.1 FIX: возвращён defer вместо async. async не гарантирует порядок выполнения
@@ -96,6 +145,8 @@
     <!-- PDF.js CDN — для парсинга PDF файлов в браузере (v12.9.50) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <!-- v13.4.0 P0 #2: DOMPurify для санитизации HTML (offline-first через SW CORE) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js" defer></script>
     <script>if(typeof pdfjsLib!=='undefined'){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <script>
 (function(){
@@ -3679,11 +3730,33 @@
                                     💾 Применить инструкции
                                 </button>
                             </div>
+                            <!-- v13.4.0 P1 FIX #16: Smart Suggestions toggle + provider picker -->
+                            <div id="eiti-suggestions-settings" style="margin-top:16px;padding:12px 14px;background:rgba(0,0,0,0.18);border-radius:12px;border:1px solid var(--border-color);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                                    <div>
+                                        <div style="font-size:13px;font-weight:700;">💡 Умные подсказки</div>
+                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;">3 вопроса после каждого ответа AI</div>
+                                    </div>
+                                    <div id="sugg-toggle-slider" onclick="eitiSuggToggle()" style="width:42px;height:24px;border-radius:12px;background:#444;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
+                                        <div id="sugg-toggle-knob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;"></div>
+                                    </div>
+                                </div>
+                                <div id="sugg-provider-block" style="display:none;">
+                                    <div style="font-size:11px;opacity:0.6;margin-bottom:6px;">AI для подсказок (параллельно с основным):</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                        <button id="sugg-prov-gemini" onclick="eitiSuggSetProvider('gemini')" style="padding:5px 12px;border-radius:8px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.08);color:var(--text-color);">🟢 Gemini Flash</button>
+                                        <button id="sugg-prov-deepseek" onclick="eitiSuggSetProvider('deepseek')" style="padding:5px 12px;border-radius:8px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.08);color:var(--text-color);">🔵 DeepSeek</button>
+                                        <button id="sugg-prov-openrouter" onclick="eitiSuggSetProvider('openrouter')" style="padding:5px 12px;border-radius:8px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.08);color:var(--text-color);">🔀 OpenRouter</button>
+                                        <button id="sugg-prov-same" onclick="eitiSuggSetProvider('same')" style="padding:5px 12px;border-radius:8px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.08);color:var(--text-color);">🔁 Тот же что в чате</button>
+                                    </div>
+                                    <div style="font-size:10px;opacity:0.4;margin-top:8px;">💡 Gemini Flash — быстрее и дешевле всего. Рекомендуется.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
+
                     <div class="settings-group">
-                        
+
                         <!-- ═══ QWEN AI SETTINGS ═══ -->
                         <div class="settings-title">🟣 Qwen AI — DashScope</div>
                         <div id="qwen-settings-panel" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
@@ -4487,6 +4560,36 @@
                             <button onclick="eitiTTSClearCache()" style="padding:8px;border-radius:10px;border:1px solid rgba(255,80,80,0.3);background:rgba(255,80,80,0.06);color:#ff8888;font-size:12px;cursor:pointer;">
                                 🗑 Очистить кэш аудио TTS (освобождает память браузера)
                             </button>
+                            <!-- v13.4.0 P1 FIX #14: TTS Cache Manager (stats + TTL slider) -->
+                            <div id="tts-cache-manager" style="margin-top:14px;padding:12px 14px;background:rgba(0,0,0,0.18);border-radius:12px;border:1px solid var(--border-color);">
+                                <div style="font-size:13px;font-weight:700;margin-bottom:10px;">🗄 TTS Кеш</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-count" style="font-size:18px;font-weight:700;color:var(--accent-color);">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">записей</div>
+                                    </div>
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-size" style="font-size:18px;font-weight:700;color:#4a9eff;">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">МБ</div>
+                                    </div>
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-oldest" style="font-size:13px;font-weight:700;color:#4ad700;">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">старейшая</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                                    <button id="tts-cache-clear-all" style="flex:1;padding:8px;border-radius:9px;border:none;background:rgba(255,80,80,0.18);color:#ff6b6b;font-size:12px;font-weight:700;cursor:pointer;">🗑 Очистить всё</button>
+                                    <button id="tts-cache-clear-old" style="flex:1;padding:8px;border-radius:9px;border:none;background:rgba(0,0,0,0.2);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">🧹 Старше <span id="tts-cache-ttl-label">30</span> дней</button>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:10px;font-size:12px;opacity:0.75;">
+                                    <span>Хранить:</span>
+                                    <input id="tts-cache-ttl-input" type="range" min="7" max="365" step="7" value="30" style="flex:1;accent-color:var(--accent-color);">
+                                    <span id="tts-cache-ttl-val" style="min-width:60px;text-align:right;font-weight:700;color:var(--accent-color);">30 дней</span>
+                                </div>
+                                <button id="tts-cache-refresh" style="margin-top:10px;width:100%;padding:7px;border-radius:8px;border:1px solid var(--border-color);background:none;color:var(--text-color);font-size:12px;opacity:0.6;cursor:pointer;">
+                                    🔄 Обновить статистику
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="settings-group">
@@ -6108,16 +6211,156 @@
         const CHAT_STORAGE_KEY = 'velantrim_messenger_chat_v73';
         const AITEXT_STORAGE_KEY = 'velantrim_messenger_aitext_v1';
         var APP_VERSION = 'v' + EITI_VERSION;
+        // v13.4.0 P0 FIX #3: AES-GCM шифрование ключей с синхронным RAM-кешем.
+        // 129+ call sites вызывают _deobfKey синхронно — async тут нельзя.
+        // Архитектура: PIN → async расшифровка → plaintext в window._eitiKeysCache.
+        // _deobfKey синхронно читает из RAM-кеша для enc2_-префикса.
+        window._eitiKeysCache = window._eitiKeysCache || {};
         function _obfKey(s) {
-            // Простая XOR-обфускация — не шифрование, но защита от случайного чтения
+            // Legacy XOR — оставлен для обратной совместимости и работы без PIN.
             return btoa(s.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join(''));
         }
         function _deobfKey(s) {
+            if (!s) return '';
+            // Новый формат — AES-GCM, читаем синхронно из RAM-кеша.
+            if (typeof s === 'string' && s.indexOf('enc2_') === 0) {
+                var cache = window._eitiKeysCache || {};
+                for (var k in cache) {
+                    if (cache.hasOwnProperty(k) && localStorage.getItem(k) === s) return cache[k];
+                }
+                return '';
+            }
+            // Legacy XOR — существующее поведение без изменений.
             try {
                 var dec = atob(s);
                 return dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
             } catch(e) { return s; }
         }
+
+        // ── eitiCrypto: AES-GCM модуль (PIN → derived key → encrypt/decrypt) ──
+        var eitiCrypto = (function() {
+            'use strict';
+            var _key = null;
+
+            function _hasSubtle() {
+                return typeof crypto !== 'undefined' && crypto.subtle;
+            }
+
+            async function _deriveKey(pin, salt) {
+                var enc = new TextEncoder();
+                var km = await crypto.subtle.importKey(
+                    'raw', enc.encode(pin), { name: 'PBKDF2' }, false, ['deriveKey']
+                );
+                return crypto.subtle.deriveKey(
+                    { name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' },
+                    km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+                );
+            }
+
+            async function init(pin) {
+                if (!_hasSubtle()) throw new Error('eitiCrypto: SubtleCrypto недоступен');
+                var saltB64 = localStorage.getItem('eiti_crypto_salt');
+                var salt;
+                if (!saltB64) {
+                    salt = crypto.getRandomValues(new Uint8Array(16));
+                    var saltArr = [];
+                    for (var i = 0; i < salt.length; i++) saltArr.push(String.fromCharCode(salt[i]));
+                    localStorage.setItem('eiti_crypto_salt', btoa(saltArr.join('')));
+                } else {
+                    salt = Uint8Array.from(atob(saltB64), function(c){ return c.charCodeAt(0); });
+                }
+                _key = await _deriveKey(pin, salt);
+                return true;
+            }
+
+            async function encrypt(plaintext) {
+                if (!_key) throw new Error('eitiCrypto: не инициализирован');
+                var iv = crypto.getRandomValues(new Uint8Array(12));
+                var enc = new TextEncoder();
+                var ct = await crypto.subtle.encrypt(
+                    { name:'AES-GCM', iv:iv }, _key, enc.encode(plaintext)
+                );
+                var result = new Uint8Array(iv.byteLength + ct.byteLength);
+                result.set(iv, 0);
+                result.set(new Uint8Array(ct), iv.byteLength);
+                var b64arr = [];
+                for (var i = 0; i < result.length; i++) b64arr.push(String.fromCharCode(result[i]));
+                return 'enc2_' + btoa(b64arr.join(''));
+            }
+
+            async function decrypt(ciphertext) {
+                if (!_key) return null;
+                if (!ciphertext || ciphertext.indexOf('enc2_') !== 0) return null;
+                try {
+                    var bytes = Uint8Array.from(
+                        atob(ciphertext.slice(5)), function(c){ return c.charCodeAt(0); }
+                    );
+                    var plain = await crypto.subtle.decrypt(
+                        { name:'AES-GCM', iv:bytes.slice(0,12) },
+                        _key, bytes.slice(12)
+                    );
+                    return new TextDecoder().decode(plain);
+                } catch(e) { return null; }
+            }
+
+            function isReady() { return _key !== null; }
+            function lock() { _key = null; window._eitiKeysCache = {}; }
+            return { init: init, encrypt: encrypt, decrypt: decrypt, isReady: isReady, lock: lock };
+        })();
+        window.eitiCrypto = eitiCrypto;
+
+        // ── eitiCryptoUnlock(pin): инициализация + разогрев RAM-кеша ──
+        async function eitiCryptoUnlock(pin) {
+            await eitiCrypto.init(pin);
+            var keyNames = [
+                'deepseek_api_key','eiti_gemini_key','eiti_or_key',
+                'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'
+            ];
+            for (var i = 0; i < keyNames.length; i++) {
+                var raw = localStorage.getItem(keyNames[i]);
+                if (raw && raw.indexOf('enc2_') === 0) {
+                    var plain = await eitiCrypto.decrypt(raw);
+                    if (plain) window._eitiKeysCache[keyNames[i]] = plain;
+                }
+            }
+            try {
+                if (typeof showToast === 'function') showToast('🔓 Ключи разблокированы', 1500);
+            } catch(e) {}
+        }
+        window.eitiCryptoUnlock = eitiCryptoUnlock;
+
+        // ── Миграция legacy XOR → enc2_ (после успешного unlock) ──
+        async function eitiCryptoMigrateLegacy() {
+            if (localStorage.getItem('eiti_keys_migrated_v1') === '1') return;
+            if (!eitiCrypto.isReady()) return;
+            var keyNames = [
+                'deepseek_api_key','eiti_gemini_key','eiti_or_key',
+                'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'
+            ];
+            var migrated = 0;
+            for (var i = 0; i < keyNames.length; i++) {
+                var raw = localStorage.getItem(keyNames[i]);
+                if (!raw || raw.indexOf('enc2_') === 0) continue;
+                // Legacy XOR → plain via старый алгоритм (inline, чтобы не зависеть от текущей логики _deobfKey)
+                var plain = '';
+                try {
+                    var dec = atob(raw);
+                    plain = dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
+                } catch(e) { continue; }
+                if (!plain) continue;
+                try {
+                    var enc = await eitiCrypto.encrypt(plain);
+                    localStorage.setItem(keyNames[i], enc);
+                    window._eitiKeysCache[keyNames[i]] = plain;
+                    migrated++;
+                } catch(e) {}
+            }
+            if (migrated > 0) {
+                localStorage.setItem('eiti_keys_migrated_v1', '1');
+                try { if (typeof showToast === 'function') showToast('🔐 Ключи зашифрованы (' + migrated + ')', 2000); } catch(e) {}
+            }
+        }
+        window.eitiCryptoMigrateLegacy = eitiCryptoMigrateLegacy;
 
         // ── API Key utilities ─────────────────────────────────────────────────
         // Universal clear key function (input field + localStorage)
@@ -6622,6 +6865,8 @@
 
         // ── Provider selector ─────────────────────────────────────────────
         function eitiSetTTSProvider(prov) {
+            // v13.4.0 P1 #4: остановить любое текущее озвучивание при смене провайдера.
+            if (typeof _eitiTTSStopAll === 'function') { try { _eitiTTSStopAll(); } catch(e) {} }
             try { localStorage.setItem('eiti_tts_provider', prov); } catch(e) {}
             ['webspeech','openai','google','elevenlabs','gemini-tts'].forEach(function(p) {
                 var btn = document.getElementById('tprov-' + p);
@@ -7370,6 +7615,309 @@
             });
         }
 
+        // v13.4.0 P2 FIX #11: LRU-чистка tts_cache по TTL (openCursor — без getAll).
+        function _eitiTTSCacheCleanup() {
+            if (!window.eitiDb) return;
+            var ttlDays = (typeof _ttsCacheTTLDays === 'function') ? _ttsCacheTTLDays() : 30;
+            var cutoff = Date.now() - (ttlDays * 24 * 60 * 60 * 1000);
+            var toDelete = [];
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                var store = tx.objectStore('tts_cache');
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        toDelete.forEach(function(id) { try { store.delete(id); } catch(err) {} });
+                        return;
+                    }
+                    var v = cursor.value || {};
+                    if ((v.ts || 0) < cutoff && v.id != null) toDelete.push(v.id);
+                    cursor.continue();
+                };
+            } catch(e) {}
+        }
+        window._eitiTTSCacheCleanup = _eitiTTSCacheCleanup;
+        setTimeout(_eitiTTSCacheCleanup, 15000);
+
+        // v13.4.0 P1 FIX #14: TTS Cache Manager UI (settings)
+        var TTS_CACHE_TTL_KEY = 'eiti_tts_cache_ttl_days';
+        function _ttsCacheTTLDays() {
+            return parseInt(localStorage.getItem(TTS_CACHE_TTL_KEY) || '30', 10) || 30;
+        }
+        window._ttsCacheTTLDays = _ttsCacheTTLDays;
+
+        function eitiTTSCacheStats(callback) {
+            if (!window.eitiDb) { callback({ count: 0, sizeMB: '0', oldest: null }); return; }
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readonly');
+                var store = tx.objectStore('tts_cache');
+                var count = 0, totalBytes = 0, oldestTs = null;
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        callback({
+                            count: count,
+                            sizeMB: (totalBytes / 1024 / 1024).toFixed(1),
+                            oldest: oldestTs ? new Date(oldestTs).toLocaleDateString('ru', { day:'2-digit', month:'short', year:'numeric' }) : null
+                        });
+                        return;
+                    }
+                    count++;
+                    var rec = cursor.value || {};
+                    if (rec.audio) totalBytes += Math.round(rec.audio.length * 0.75);
+                    if (!oldestTs || (rec.ts && rec.ts < oldestTs)) oldestTs = rec.ts;
+                    cursor.continue();
+                };
+                req.onerror = function() { callback({ count: 0, sizeMB: '0', oldest: null }); };
+            } catch(e) { callback({ count: 0, sizeMB: '0', oldest: null }); }
+        }
+        window.eitiTTSCacheStats = eitiTTSCacheStats;
+
+        function eitiTTSCacheRenderStats() {
+            var countEl = document.getElementById('tts-cache-count');
+            var sizeEl = document.getElementById('tts-cache-size');
+            var oldestEl = document.getElementById('tts-cache-oldest');
+            if (!countEl) return;
+            countEl.textContent = '…'; sizeEl.textContent = '…';
+            eitiTTSCacheStats(function(s) {
+                countEl.textContent = s.count;
+                sizeEl.textContent = s.sizeMB;
+                oldestEl.textContent = s.oldest || '—';
+                var mb = parseFloat(s.sizeMB);
+                sizeEl.style.color = mb > 500 ? '#ff6b6b' : (mb > 200 ? '#ffaa44' : '#4a9eff');
+            });
+        }
+        window.eitiTTSCacheRenderStats = eitiTTSCacheRenderStats;
+
+        function eitiTTSCacheClearAll() {
+            if (!window.eitiDb) return;
+            var _doClear = function() {
+                try {
+                    var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                    tx.objectStore('tts_cache').clear();
+                    tx.oncomplete = function() {
+                        if (typeof showToast === 'function') showToast('🗑 TTS кеш очищен', 2000);
+                        eitiTTSCacheRenderStats();
+                    };
+                } catch(e) {
+                    if (typeof showToast === 'function') showToast('❌ ' + e.message, 3000);
+                }
+            };
+            if (typeof eitiConfirm === 'function') {
+                eitiConfirm('🗑 Удалить весь TTS кеш?', _doClear);
+            } else if (confirm('Удалить весь TTS кеш?')) {
+                _doClear();
+            }
+        }
+        window.eitiTTSCacheClearAll = eitiTTSCacheClearAll;
+
+        function eitiTTSCacheClearOld(days) {
+            if (!window.eitiDb) return;
+            var cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+            var deleted = 0;
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                var store = tx.objectStore('tts_cache');
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        if (typeof showToast === 'function') showToast('🧹 Удалено ' + deleted + ' записей', 2000);
+                        eitiTTSCacheRenderStats();
+                        return;
+                    }
+                    if ((cursor.value.ts || 0) < cutoff) { cursor.delete(); deleted++; }
+                    cursor.continue();
+                };
+            } catch(e) {
+                if (typeof showToast === 'function') showToast('❌ ' + e.message, 3000);
+            }
+        }
+        window.eitiTTSCacheClearOld = eitiTTSCacheClearOld;
+
+        function eitiTTSCacheManagerInit() {
+            var slider = document.getElementById('tts-cache-ttl-input');
+            var valLbl = document.getElementById('tts-cache-ttl-val');
+            var oldLbl = document.getElementById('tts-cache-ttl-label');
+            if (slider) {
+                var saved = _ttsCacheTTLDays();
+                slider.value = saved;
+                if (valLbl) valLbl.textContent = saved + ' дней';
+                if (oldLbl) oldLbl.textContent = saved;
+                slider.addEventListener('input', function() {
+                    var v = parseInt(slider.value, 10);
+                    if (valLbl) valLbl.textContent = v + ' дней';
+                    if (oldLbl) oldLbl.textContent = v;
+                    localStorage.setItem(TTS_CACHE_TTL_KEY, v);
+                });
+            }
+            var btnAll = document.getElementById('tts-cache-clear-all');
+            if (btnAll && !btnAll._eitiBound) { btnAll.addEventListener('click', eitiTTSCacheClearAll); btnAll._eitiBound = true; }
+            var btnOld = document.getElementById('tts-cache-clear-old');
+            if (btnOld && !btnOld._eitiBound) {
+                btnOld.addEventListener('click', function() { eitiTTSCacheClearOld(_ttsCacheTTLDays()); });
+                btnOld._eitiBound = true;
+            }
+            var btnRef = document.getElementById('tts-cache-refresh');
+            if (btnRef && !btnRef._eitiBound) { btnRef.addEventListener('click', eitiTTSCacheRenderStats); btnRef._eitiBound = true; }
+            eitiTTSCacheRenderStats();
+        }
+        window.eitiTTSCacheManagerInit = eitiTTSCacheManagerInit;
+
+        // v13.4.0 P1 FIX #16: Smart Suggestions — параллельный AI с 3 чипами после ответа.
+        var SUGG_ENABLED_KEY  = 'eiti_suggestions_enabled';
+        var SUGG_PROVIDER_KEY = 'eiti_suggestions_provider';
+
+        function eitiSuggIsEnabled() { return localStorage.getItem(SUGG_ENABLED_KEY) === '1'; }
+        function eitiSuggGetProvider() { return localStorage.getItem(SUGG_PROVIDER_KEY) || 'gemini'; }
+        window.eitiSuggIsEnabled = eitiSuggIsEnabled;
+        window.eitiSuggGetProvider = eitiSuggGetProvider;
+
+        function eitiSuggToggle() {
+            var enabled = !eitiSuggIsEnabled();
+            localStorage.setItem(SUGG_ENABLED_KEY, enabled ? '1' : '0');
+            _eitiSuggRenderSettingsUI();
+            if (typeof showToast === 'function') {
+                showToast(enabled ? '💡 Подсказки включены' : '💡 Подсказки выключены', 1500);
+            }
+        }
+        window.eitiSuggToggle = eitiSuggToggle;
+
+        function eitiSuggSetProvider(prov) {
+            localStorage.setItem(SUGG_PROVIDER_KEY, prov);
+            _eitiSuggRenderSettingsUI();
+            var names = { gemini: '🟢 Gemini Flash', deepseek: '🔵 DeepSeek', openrouter: '🔀 OpenRouter', same: '🔁 Тот же что в чате' };
+            if (typeof showToast === 'function') showToast('💡 Подсказки: ' + (names[prov] || prov), 1500);
+        }
+        window.eitiSuggSetProvider = eitiSuggSetProvider;
+
+        function _eitiSuggRenderSettingsUI() {
+            var enabled = eitiSuggIsEnabled();
+            var prov    = eitiSuggGetProvider();
+            var knob    = document.getElementById('sugg-toggle-knob');
+            var slider  = document.getElementById('sugg-toggle-slider');
+            if (knob)   knob.style.transform    = enabled ? 'translateX(18px)' : '';
+            if (slider) slider.style.background = enabled ? 'var(--accent-color)' : '#444';
+            var block = document.getElementById('sugg-provider-block');
+            if (block) block.style.display = enabled ? 'block' : 'none';
+            ['gemini','deepseek','openrouter','same'].forEach(function(p) {
+                var btn = document.getElementById('sugg-prov-' + p);
+                if (!btn) return;
+                btn.style.background = (p === prov) ? 'rgba(255,215,0,0.18)' : 'rgba(255,255,255,0.08)';
+                btn.style.border = (p === prov) ? '1px solid rgba(255,215,0,0.4)' : 'none';
+                btn.style.fontWeight = (p === prov) ? '700' : '400';
+            });
+        }
+        window._eitiSuggRenderSettingsUI = _eitiSuggRenderSettingsUI;
+
+        function _eitiSuggGetAPIConfig() {
+            var prov = eitiSuggGetProvider();
+            if (prov === 'same') prov = localStorage.getItem('eiti_ai_provider') || 'deepseek';
+            var dk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('deepseek_api_key') || '') : '';
+            var gk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
+            var ork = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_or_key') || '') : '';
+            if (prov === 'gemini'     && gk)  return { type: 'gemini',     key: gk,  model: localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash' };
+            if (prov === 'deepseek'   && dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
+            if (prov === 'openrouter' && ork) return { type: 'openrouter', key: ork, model: localStorage.getItem('eiti_or_model') || 'openrouter/auto' };
+            if (gk)  return { type: 'gemini',     key: gk,  model: 'gemini-2.0-flash' };
+            if (dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
+            if (ork) return { type: 'openrouter', key: ork, model: 'openrouter/auto' };
+            return null;
+        }
+
+        async function eitiGenerateSuggestions(msgId, lastUserMsg, lastAIMsg) {
+            if (!eitiSuggIsEnabled()) return;
+            var cfg = _eitiSuggGetAPIConfig();
+            if (!cfg) return;
+
+            var prompt =
+                'На основе диалога предложи РОВНО 3 коротких вопроса или действия (7-10 слов каждый). ' +
+                'Верни ТОЛЬКО JSON массив без markdown: ["вопрос 1","вопрос 2","вопрос 3"]\n\n' +
+                'Пользователь: ' + (lastUserMsg || '').slice(0, 200) + '\n' +
+                'AI: ' + (lastAIMsg || '').slice(0, 400);
+
+            var raw = '';
+            try {
+                if (cfg.type === 'gemini') {
+                    var r = await fetch(
+                        'https://generativelanguage.googleapis.com/v1beta/models/' + cfg.model + ':generateContent?key=' + cfg.key,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                                generationConfig: { maxOutputTokens: 150, temperature: 0.7 }
+                            })
+                        }
+                    );
+                    var d = await r.json();
+                    raw = (d && d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text) || '';
+                } else {
+                    var endpoint = cfg.type === 'deepseek'
+                        ? 'https://api.deepseek.com/v1/chat/completions'
+                        : 'https://openrouter.ai/api/v1/chat/completions';
+                    var r2 = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + cfg.key
+                        },
+                        body: JSON.stringify({
+                            model: cfg.model, max_tokens: 150, temperature: 0.7,
+                            messages: [{ role: 'user', content: prompt }]
+                        })
+                    });
+                    var d2 = await r2.json();
+                    raw = (d2 && d2.choices && d2.choices[0] && d2.choices[0].message && d2.choices[0].message.content) || '';
+                }
+
+                var suggestions = JSON.parse(raw.replace(/```json|```/g, '').trim());
+                if (!Array.isArray(suggestions)) return;
+                suggestions = suggestions.slice(0, 3).filter(function(s) {
+                    return typeof s === 'string' && s.length > 3;
+                });
+                if (suggestions.length > 0) _eitiSuggRenderChips(msgId, suggestions);
+            } catch(e) {
+                if (window.EITI_DEBUG) console.warn('[Sugg] ошибка:', e.message);
+            }
+        }
+        window.eitiGenerateSuggestions = eitiGenerateSuggestions;
+
+        function _eitiSuggRenderChips(msgId, suggestions) {
+            var msgEl = document.querySelector('[data-msgid="' + msgId + '"]');
+            if (!msgEl) {
+                var all = document.querySelectorAll('.message.incoming');
+                msgEl = all[all.length - 1] || null;
+            }
+            if (!msgEl) return;
+            var old = msgEl.querySelector('.eiti-sugg-chips');
+            if (old) old.remove();
+
+            var wrap = document.createElement('div');
+            wrap.className = 'eiti-sugg-chips';
+            wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.07);';
+
+            suggestions.forEach(function(text) {
+                var chip = document.createElement('button');
+                chip.textContent = '💡 ' + text;
+                chip.style.cssText = 'padding:5px 12px;border-radius:16px;border:1px solid rgba(255,215,0,0.2);background:rgba(255,215,0,0.08);color:var(--text-color);font-size:12px;cursor:pointer;text-align:left;';
+                chip.addEventListener('mouseenter', function() { chip.style.background = 'rgba(255,215,0,0.16)'; });
+                chip.addEventListener('mouseleave', function() { chip.style.background = 'rgba(255,215,0,0.08)'; });
+                chip.addEventListener('click', function() {
+                    var inp = document.getElementById('input');
+                    if (inp) {
+                        inp.value = text;
+                        if (typeof doSend === 'function') doSend();
+                    }
+                });
+                wrap.appendChild(chip);
+            });
+            var bodyEl = msgEl.querySelector('.message-body');
+            (bodyEl || msgEl).appendChild(wrap);
+        }
+
         // Очистить TTS кэш: memory + IDB
         window.eitiTTSClearCache = function() {
             Object.values(_ttsBlobCache).forEach(function(url) { try { URL.revokeObjectURL(url); } catch(e) {} });
@@ -7418,9 +7966,40 @@
         var _ttsBoundaryFired = false;
         var _ttsResumeOffset = 0;
 
+        // v13.4.0 P1 FIX #4: атомарная остановка TTS обоих движков (web + api).
+        function _eitiTTSStopAll() {
+            if (typeof _ttsAudio !== 'undefined' && _ttsAudio) {
+                try { _ttsAudio.pause(); } catch(e) {}
+                _ttsAudio = null;
+            }
+            if (typeof _ttsAudioUrl !== 'undefined') _ttsAudioUrl = null;
+            if (typeof _ttsAudioMsgId !== 'undefined') _ttsAudioMsgId = null;
+            if ('speechSynthesis' in window) {
+                try { window.speechSynthesis.cancel(); } catch(e) {}
+            }
+            if (typeof _ttsCharOffset !== 'undefined') _ttsCharOffset = 0;
+            if (typeof _ttsPaused !== 'undefined') _ttsPaused = false;
+            if (typeof _ttsFullText !== 'undefined') _ttsFullText = '';
+            if (typeof _ttsResumeOffset !== 'undefined') _ttsResumeOffset = 0;
+            if (typeof _ttsBoundaryFired !== 'undefined') _ttsBoundaryFired = false;
+            if (typeof speakingMsgId !== 'undefined' && speakingMsgId && typeof _eitiUpdateSpeakBtn === 'function') {
+                try { _eitiUpdateSpeakBtn(speakingMsgId, 'idle'); } catch(e) {}
+            }
+            if (typeof speakingMsgId !== 'undefined') speakingMsgId = null;
+            if (typeof _eitiFloatPlayerHide === 'function') {
+                try { _eitiFloatPlayerHide(); } catch(e) {}
+            }
+        }
+        window._eitiTTSStopAll = _eitiTTSStopAll;
+
         function _eitiWebSpeak(msgId, text) {
             if (!('speechSynthesis' in window)) { showToast('Озвучка недоступна'); return; }
             var synth = window.speechSynthesis;
+
+            // v13.4.0 P1 #4: если запускаем НА ДРУГОМ сообщении — атомарно гасим всё (вкл. API TTS).
+            if (typeof speakingMsgId !== 'undefined' && speakingMsgId && speakingMsgId !== msgId) {
+                _eitiTTSStopAll();
+            }
 
             // ── Тот же msg: пауза или продолжение ──
             if (speakingMsgId === msgId) {
@@ -7565,9 +8144,8 @@
         var _ttsFPSpeedIdx = 0;
 
         function _eitiApiSpeak(provider, msgId, text) {
-            // Stop any current
-            if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            // v13.4.0 P1 #4: атомарная остановка обоих движков перед стартом API TTS.
+            _eitiTTSStopAll();
             _ttsAudioMsgId = msgId;
             var prevId = speakingMsgId;
             if (prevId && prevId !== msgId) _eitiUpdateSpeakBtn(prevId, 'idle');
@@ -7856,11 +8434,33 @@
             localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(next));
         }
 
+        // v13.4.0 P2 FIX #12: трекаем время создания blob URL и периодически revoke-аем
+        // те, что не использовались > 5 мин. Активный _ttsAudioUrl пропускаем.
+        var _eitiBlobURLTimestamps = new Map();
         function eitiCreateBlobURL(blob) {
             const url = URL.createObjectURL(blob);
             if (!window._eitiBlobURLs.includes(url)) window._eitiBlobURLs.push(url);
+            _eitiBlobURLTimestamps.set(url, Date.now());
             return url;
         }
+        function _eitiRevokeStaleBlobURLs() {
+            if (document.hidden) {
+                setTimeout(_eitiRevokeStaleBlobURLs, 60 * 1000);
+                return;
+            }
+            var cutoff = Date.now() - 5 * 60 * 1000;
+            _eitiBlobURLTimestamps.forEach(function(ts, url) {
+                if (ts < cutoff) {
+                    if (typeof _ttsAudioUrl !== 'undefined' && url === _ttsAudioUrl) return;
+                    try { URL.revokeObjectURL(url); } catch(e) {}
+                    _eitiBlobURLTimestamps.delete(url);
+                    var idx = window._eitiBlobURLs.indexOf(url);
+                    if (idx !== -1) window._eitiBlobURLs.splice(idx, 1);
+                }
+            });
+            setTimeout(_eitiRevokeStaleBlobURLs, 5 * 60 * 1000);
+        }
+        setTimeout(_eitiRevokeStaleBlobURLs, 5 * 60 * 1000);
 
         // v12.9.79: TTS-специфичный createBlobURL — НЕ добавляем в _eitiBlobURLs
         // чтобы visibilitychange:hidden не отзывал аудио-блобы TTS
@@ -8866,6 +9466,9 @@
                         if (typeof _eitiRenderTokenStats === 'function') _eitiRenderTokenStats();
                         if (typeof _eitiUpdateDDGCard === 'function') _eitiUpdateDDGCard();
                         if (typeof _eitiUpdateSysCards === 'function') _eitiUpdateSysCards();
+                        // v13.4.0 P1 FIX #14 + #16: init TTS Cache Manager и Smart Suggestions UI
+                        if (typeof eitiTTSCacheManagerInit === 'function') setTimeout(eitiTTSCacheManagerInit, 100);
+                        if (typeof _eitiSuggRenderSettingsUI === 'function') setTimeout(_eitiSuggRenderSettingsUI, 100);
                     });
                 }
             };
@@ -8885,7 +9488,90 @@
 
             const input = document.getElementById('input');
             const send = document.getElementById('send');
-            
+
+            // v13.4.0 P1 FIX #15: чип для больших вставок (>800 симв.) — текст
+            // не засоряет textarea, инжектится при отправке.
+            if (input && !input._eitiPasteBound) {
+                input.addEventListener('paste', function(e) {
+                    var pasted = (e.clipboardData || window.clipboardData).getData('text');
+                    if (!pasted || pasted.length < 800) return;
+                    e.preventDefault();
+                    window._eitiPastedTextBuffer = pasted;
+                    _eitiShowPastedChip(pasted);
+                });
+                input._eitiPasteBound = true;
+            }
+
+            function _eitiShowPastedChip(text) {
+                var old = document.getElementById('eiti-paste-chip');
+                if (old) old.remove();
+                var sizeKB = (text.length / 1024).toFixed(1);
+                var lines = text.split('\n').length;
+                var preview = text.slice(0, 120).replace(/\n/g, ' ').trim();
+                if (text.length > 120) preview += '…';
+
+                var chip = document.createElement('div');
+                chip.id = 'eiti-paste-chip';
+                chip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;margin:4px 8px 0;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:12px;cursor:pointer;font-size:12px;';
+
+                var icon = document.createElement('span');
+                icon.textContent = '📄';
+                icon.style.cssText = 'font-size:18px;flex-shrink:0;';
+                var info = document.createElement('div');
+                info.style.cssText = 'flex:1;overflow:hidden;';
+                var head = document.createElement('div');
+                head.style.cssText = 'font-weight:700;color:var(--accent-color);';
+                head.textContent = 'Вставленный текст · ' + sizeKB + ' КБ · ' + lines + ' строк';
+                var prev = document.createElement('div');
+                prev.id = 'eiti-paste-preview';
+                prev.style.cssText = 'opacity:0.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+                prev.textContent = preview;
+                info.appendChild(head); info.appendChild(prev);
+
+                var rmBtn = document.createElement('button');
+                rmBtn.id = 'eiti-paste-remove';
+                rmBtn.textContent = '✕';
+                rmBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.5;padding:0 4px;';
+
+                chip.appendChild(icon); chip.appendChild(info); chip.appendChild(rmBtn);
+
+                var inputArea = input.parentElement;
+                if (inputArea) inputArea.insertBefore(chip, input);
+
+                chip.addEventListener('click', function(e) {
+                    if (e.target === rmBtn) return;
+                    _eitiTogglePastePreview();
+                });
+                rmBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    chip.remove();
+                    window._eitiPastedTextBuffer = null;
+                });
+            }
+            window._eitiShowPastedChip = _eitiShowPastedChip;
+
+            function _eitiTogglePastePreview() {
+                var preview = document.getElementById('eiti-paste-preview');
+                if (!preview) return;
+                window._eitiPasteExpanded = !window._eitiPasteExpanded;
+                var buf = window._eitiPastedTextBuffer || '';
+                if (window._eitiPasteExpanded) {
+                    var full = buf.slice(0, 600);
+                    if (buf.length > 600) full += '\n…';
+                    preview.style.whiteSpace = 'pre-wrap';
+                    preview.style.overflow   = 'visible';
+                    preview.style.opacity    = '0.8';
+                    preview.textContent      = full;
+                } else {
+                    var short = buf.slice(0, 120).replace(/\n/g, ' ').trim();
+                    if (buf.length > 120) short += '…';
+                    preview.style.whiteSpace = 'nowrap';
+                    preview.style.overflow   = 'hidden';
+                    preview.style.opacity    = '0.55';
+                    preview.textContent      = short;
+                }
+            }
+
             function renderMessage(m) {
                 const msg = document.createElement('div');
                 msg.className = 'message ' + (m.role === 'user' ? 'outgoing' : 'incoming');
@@ -8940,9 +9626,57 @@
                 var editBtn = msg.querySelector('[data-act="edit"]');
                 if (editBtn) { msg.dataset.msgtxt = m.text; editBtn.onclick = function(){ eitiEditUserMsg(msg, m.id, m.text); }; }
 
+                // v13.4.0 P1 FIX #9: feedback 👍/👎 для AI-ответов (PKG/MOSC learning).
+                if (m.role !== 'user') {
+                    var fbDiv = document.createElement('div');
+                    fbDiv.className = 'eiti-fb-row';
+                    fbDiv.style.cssText = 'display:flex;gap:6px;margin-top:4px;opacity:0.5;';
+                    var btnUp = document.createElement('button');
+                    btnUp.textContent = '👍'; btnUp.title = 'Хороший ответ';
+                    btnUp.style.cssText = 'background:none;border:none;cursor:pointer;font-size:15px;padding:2px 6px;';
+                    btnUp.addEventListener('click', function() {
+                        if (typeof eitiMsgFeedback === 'function') eitiMsgFeedback(m.id, true);
+                        fbDiv.style.opacity = '0.25';
+                    });
+                    var btnDown = document.createElement('button');
+                    btnDown.textContent = '👎'; btnDown.title = 'Плохой ответ';
+                    btnDown.style.cssText = 'background:none;border:none;cursor:pointer;font-size:15px;padding:2px 6px;';
+                    btnDown.addEventListener('click', function() {
+                        if (typeof eitiMsgFeedback === 'function') eitiMsgFeedback(m.id, false);
+                        fbDiv.style.opacity = '0.25';
+                    });
+                    fbDiv.appendChild(btnUp); fbDiv.appendChild(btnDown);
+                    var bodyEl = msg.querySelector('.message-body');
+                    (bodyEl || msg).appendChild(fbDiv);
+                }
+
                 messages.appendChild(msg);
                 messages.scrollTop = messages.scrollHeight;
             }
+
+            // v13.4.0 P1 FIX #9: learning loop — bumps PKG node weights и MOSC-веса.
+            function eitiMsgFeedback(msgId, positive) {
+                var msg = (chatLog || []).find(function(m) { return m && m.id === msgId; });
+                if (!msg || msg.role === 'user') return;
+                var text = msg.text || msg.content || '';
+                var entities = (typeof vbEntities === 'function') ? vbEntities(text) : [];
+                var pkgBoost = positive ? 1.0 : -0.8;
+                if (typeof pkgSaveNode === 'function' && entities && entities.length) {
+                    entities.forEach(function(e) {
+                        try {
+                            pkgSaveNode({ concept: e, category: 'feedback', weight: pkgBoost, emotional: true });
+                        } catch(_) {}
+                    });
+                }
+                var lastIntent = window._eitiIntentStack && window._eitiIntentStack.slice(-1)[0];
+                if (lastIntent && typeof moscLearn === 'function') {
+                    try { moscLearn(text, lastIntent, positive); } catch(_) {}
+                }
+                if (typeof showToast === 'function') {
+                    showToast(positive ? '👍 Учту!' : '👎 Учту, исправлюсь', 1500);
+                }
+            }
+            window.eitiMsgFeedback = eitiMsgFeedback;
 
             function addMessage(text, isUser, persist=true) {
                 const m = {
@@ -9581,6 +10315,24 @@
                     // Глобальная drawEq — всегда берёт актуальный canvas по id
                     window._eitiDrawEq = function _drawEqFrame() {
                         window._eitiEqAnimId = requestAnimationFrame(window._eitiDrawEq);
+                        // v13.4.0 P1 FIX #10: в фоне или на паузе — плоская линия, без FFT-рендера.
+                        var _audioEl = document.querySelector('#playerAudio') || window._eitiCurrentAudio;
+                        if (document.hidden || (_audioEl && _audioEl.paused)) {
+                            var _cIdle = _getCanvas();
+                            if (_cIdle) {
+                                var _ctxIdle = _cIdle._eitiCtx || (_cIdle._eitiCtx = _cIdle.getContext('2d'));
+                                if (_ctxIdle) {
+                                    _ctxIdle.clearRect(0, 0, _cIdle.width, _cIdle.height);
+                                    _ctxIdle.beginPath();
+                                    _ctxIdle.moveTo(0, _cIdle.height / 2);
+                                    _ctxIdle.lineTo(_cIdle.width, _cIdle.height / 2);
+                                    _ctxIdle.strokeStyle = 'rgba(255,215,0,0.15)';
+                                    _ctxIdle.lineWidth = 1;
+                                    _ctxIdle.stroke();
+                                }
+                            }
+                            return;
+                        }
                         var canvas = _getCanvas();
                         if (!canvas) return; // canvas ещё не в DOM
                         var ctx2d = canvas._eitiCtx || (canvas._eitiCtx = canvas.getContext('2d'));
@@ -9676,6 +10428,11 @@
 
                         function draw() {
                             _vizAnimId = requestAnimationFrame(draw);
+                            // v13.4.0 P1 FIX #10: пропускаем кадр в фоне или на паузе.
+                            var _drawAudio = document.getElementById('audio') || window._eitiCurrentAudio;
+                            if (document.hidden || (_drawAudio && _drawAudio.paused)) {
+                                return;
+                            }
                             var W = cv.offsetWidth * (window.devicePixelRatio || 1);
                             var H = cv.offsetHeight * (window.devicePixelRatio || 1);
                             if (W < 2 || H < 2) return;
@@ -10980,7 +11737,8 @@
             t = t.replace(/\n\n/g, '<br><br>');
             // Single newline → <br>
             t = t.replace(/\n/g, '<br>');
-            return t;
+            // v13.4.0 P0 #2: финальная санитизация результата markdown-рендера
+            return (typeof _eitiSafeHTML === 'function') ? _eitiSafeHTML(t) : t;
         }
 
         var EITI_DOMAIN_CONFIG = {
@@ -11061,10 +11819,27 @@
                     if (typeof _vbLoadAndMigrate === 'function') _vbLoadAndMigrate();
                     resolve(); };
                 req.onblocked = function() {
-                    console.warn('[EITI] IDB upgrade blocked — fallback open');
-                    var fb = indexedDB.open('eiti_v4', 16); // v12.9.79 FIX: match current schema version
-                    fb.onsuccess = function() { eitiDb = fb.result; if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; } resolve(); };
-                    fb.onerror = function() { if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; } resolve(); };
+                    // v13.4.0 P2 FIX #7: toast пользователю + единичный retry через 2 сек.
+                    console.warn('[EITI] IDB blocked — другая вкладка держит БД');
+                    if (typeof showToast === 'function') {
+                        try { showToast('⚠️ База занята другой вкладкой EITI. Закройте её и обновите страницу.', 8000); } catch(e) {}
+                    }
+                    var _resolved = false;
+                    setTimeout(function() {
+                        if (_resolved) return;
+                        var fb = indexedDB.open('eiti_v4', 16);
+                        fb.onsuccess = function() {
+                            if (_resolved) return; _resolved = true;
+                            eitiDb = fb.result; window.eitiDb = eitiDb;
+                            if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; }
+                            resolve();
+                        };
+                        fb.onerror = function() {
+                            if (_resolved) return; _resolved = true;
+                            if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; }
+                            resolve();
+                        };
+                    }, 2000);
                 };
                 req.onupgradeneeded = function(e) {
                     try {
@@ -17220,6 +17995,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             window.eitiRecalculateAllEmbeddings = eitiRecalculateAllEmbeddings;
 
             // ── Рендер ответа интента в чат ─────────────────────────
+            // v13.4.0 P0 #2: _intentReply принимает dev-controlled HTML
+            // с inline-button onclick (moscConfirm и т.п.). DOMPurify FORBID_ATTR
+            // удалил бы эти обработчики и сломал UI. Санитизация AI-текста
+            // выполняется выше — в eitiRenderMarkdown.
             function _intentReply(html, sender) {
                 var _vbOn=typeof _vbEnabled!=='undefined'&&_vbEnabled;
                 var _isOff=localStorage.getItem('eiti_offline_mode')==='1';
@@ -20334,1302 +21113,44 @@ window.eitiLLMClearAll = async function() {
                 window._eitiLemma = EITI_LEMMA_DEFAULTS;
             }
 
-            var MOSC_DEFAULT_GRAPH = {
-                "когда": { "действие_напоминание": 0.8, "действие_поиска_kb": 0.3, "вопрос_время": 0.8 },
-                "куда": { "действие_поиска": 0.7, "общение": 0.4 },
-                "откуда": { "действие_поиска": 0.6, "общение": 0.4 },
-                "почему": { "общение": 0.9, "действие_поиска_kb": 0.5, "вопрос_причина": 0.9 },
-                "зачем": { "общение": 0.85, "действие_поиска_kb": 0.5, "вопрос_цель": 0.85 },
-                "как так": { "общение": 0.9 },
-                "как работает": { "действие_поиска_kb": 0.9, "общение": 0.7, "вопрос_механизм": 0.85 },
-                "как решить": { "общение": 0.95, "действие_совет": 0.9 },
-                "как справиться": { "действие_совет": 0.95, "общение": 0.9, "вопрос_преодоление": 0.9 },
-                "что значит": { "действие_поиска_kb": 0.9, "общение": 0.7 },
-                "что такое": { "действие_поиска_kb": 0.95, "вопрос_определение": 0.95, "вопрос_определение_науки": 0.9 },
-                "что происходит": { "общение": 0.85, "вопрос_ситуация": 0.85 },
-                "что думаешь": { "общение": 0.95, "вопрос_личное_мнение": 0.9 },
-                "помоги решить": { "действие_совет": 1, "общение": 0.8 },
-                "можешь объяснить": { "общение": 0.95, "действие_поиска_kb": 0.7 },
-                "хочу понять": { "действие_поиска_kb": 0.85, "общение": 0.7 },
-                "хочу узнать": { "действие_поиска_kb": 0.85 },
-                "не понимаю": { "общение": 0.9, "действие_поиска_kb": 0.7, "выражение_непонимания_запрос_объяснения": 0.9 },
-                "расскажи мне": { "общение": 0.95, "действие_поиска_kb": 0.7 },
-                "поддержи меня": { "действие_эмпатия": 1 },
-                "поддержать": { "действие_эмпатия": 0.9 },
-                "выслушай": { "действие_эмпатия": 1 },
-                "мне нужно поговорить": { "действие_эмпатия": 1 },
-                "поговори со мной": { "действие_эмпатия": 1 },
-                "мне одиноко": { "действие_эмпатия": 1 },
-                "мне грустно": { "действие_эмпатия": 0.95, "действие_поиска_kb": 0.4 },
-                "мне плохо": { "действие_эмпатия": 1 },
-                "всё плохо": { "действие_эмпатия": 0.95 },
-                "боюсь": { "действие_эмпатия": 0.8, "действие_поиска_kb": 0.5, "выражение_страха_запрос_поддержки": 0.85 },
-                "страшно": { "действие_эмпатия": 0.8, "выражение_страха_или_вопрос": 0.8 },
-                "тревожусь": { "действие_эмпатия": 0.85, "здоровье": 0.6 },
-                "переживаю": { "действие_эмпатия": 0.8 },
-                "обидно": { "действие_эмпатия": 0.85, "выражение_обиды_или_вопрос": 0.7 },
-                "злюсь": { "действие_эмпатия": 0.8, "выражение_злости_или_контекст": 0.7 },
-                "расстроена": { "действие_эмпатия": 0.85 },
-                "нет сил": { "действие_эмпатия": 0.8, "здоровье": 0.7 },
-                "надоело": { "действие_эмпатия": 0.75 },
-                "устал от всего": { "действие_эмпатия": 0.9, "здоровье": 0.6 },
-                "болит": { "здоровье": 0.9, "симптом": 0.95, "действие_поиска_kb": 0.8 },
-                "боль": { "здоровье": 0.9, "симптом": 0.95, "действие_поиска_kb": 0.8 },
-                "температура": { "здоровье": 0.95, "симптом": 0.9, "действие_поиска_kb": 0.85 },
-                "давление": { "здоровье": 0.8, "симптом": 0.7, "действие_поиска_kb": 0.75 },
-                "анализ крови": { "здоровье": 0.9, "действие_поиска_kb": 0.8 },
-                "лекарство": { "здоровье": 0.85, "действие_поиска_kb": 0.8 },
-                "таблетки": { "здоровье": 0.85, "действие_поиска_kb": 0.8 },
-                "диета": { "здоровье": 0.75, "действие_поиска_kb": 0.8 },
-                "похудеть": { "здоровье": 0.8, "действие_поиска_kb": 0.85 },
-                "витамины": { "здоровье": 0.9, "действие_поиска_kb": 0.95 },
-                "дефицит": { "здоровье": 0.8, "действие_поиска_kb": 0.85 },
-                "иммунитет": { "здоровье": 0.9, "действие_поиска_kb": 0.9 },
-                "аллергия": { "здоровье": 0.9, "симптом": 0.8, "действие_поиска_kb": 0.85 },
-                "инфекция": { "здоровье": 0.9, "действие_поиска_kb": 0.8 },
-                "депрессия": { "здоровье": 0.85, "действие_эмпатия": 0.7, "действие_поиска_kb": 0.9 },
-                "выгорание": { "здоровье": 0.8, "действие_поиска_kb": 0.85, "действие_эмпатия": 0.6 },
-                "сон": { "здоровье": 0.7, "действие_поиска_kb": 0.75 },
-                "бессонница": { "здоровье": 0.9, "симптом": 0.85, "действие_поиска_kb": 0.9 },
-                "первая помощь": { "действие_поиска_kb": 1, "здоровье": 0.9 },
-                "физика": { "действие_поиска_kb": 0.9, "закон ома": 0.8 },
-                "химия": { "действие_поиска_kb": 0.9 },
-                "математика": { "действие_поиска_kb": 0.9, "вопрос_определение_науки": 0.9, "действие_вычисление": 0.85 },
-                "биология": { "действие_поиска_kb": 0.9, "вопрос_определение_науки": 0.9, "клетка": 0.9 },
-                "астрономия": { "действие_поиска_kb": 0.9, "вопрос_определение_науки": 0.9 },
-                "наука": { "действие_поиска_kb": 0.8 },
-                "ньютон": { "действие_поиска_kb": 0.95 },
-                "эйнштейн": { "действие_поиска_kb": 0.95 },
-                "гравитация": { "действие_поиска_kb": 0.95 },
-                "атом": { "действие_поиска_kb": 0.95 },
-                "молекула": { "действие_поиска_kb": 0.9 },
-                "квантовый": { "действие_поиска_kb": 0.9 },
-                "термодинамика": { "действие_поиска_kb": 0.95 },
-                "элемент": { "действие_поиска_kb": 0.7 },
-                "реакция": { "действие_поиска_kb": 0.7 },
-                "формула": { "действие_поиска_kb": 0.7, "действие_вычисление": 0.5 },
-                "уравнение": { "действие_вычисление": 0.8, "действие_поиска_kb": 0.6 },
-                "теорема": { "действие_поиска_kb": 0.9 },
-                "доказательство": { "действие_поиска_kb": 0.7, "общение": 0.4 },
-                "планета": { "действие_поиска_kb": 0.95 },
-                "звезда": { "действие_поиска_kb": 0.85 },
-                "вселенная": { "действие_поиска_kb": 0.9 },
-                "галактика": { "действие_поиска_kb": 0.95 },
-                "вулкан": { "действие_поиска_kb": 0.9 },
-                "землетрясение": { "действие_поиска_kb": 0.9 },
-                "эволюция": { "действие_поиска_kb": 0.9 },
-                "клетка": { "действие_поиска_kb": 0.9, "биология": 0.9, "хромосома": 0.7, "ядро": 0.8 },
-                "днк": { "действие_поиска_kb": 0.95, "биология": 0.9, "ген": 0.8 },
-                "нейрон": { "действие_поиска_kb": 0.95 },
-                "мозг": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "барокко": { "действие_поиска_kb": 0.95 },
-                "классицизм": { "действие_поиска_kb": 0.95 },
-                "романтизм": { "действие_поиска_kb": 0.95 },
-                "импрессионизм": { "действие_поиска_kb": 0.95 },
-                "кубизм": { "действие_поиска_kb": 0.95 },
-                "сюрреализм": { "действие_поиска_kb": 0.95 },
-                "ренессанс": { "действие_поиска_kb": 0.95 },
-                "искусство": { "действие_поиска_kb": 0.8 },
-                "живопись": { "действие_поиска_kb": 0.85 },
-                "скульптура": { "действие_поиска_kb": 0.85 },
-                "история": { "действие_поиска_kb": 0.8 },
-                "философия": { "действие_поиска_kb": 0.85, "общение": 0.5, "вопрос_определение_науки": 0.9, "стоицизм": 0.8 },
-                "психология": { "действие_поиска_kb": 0.85, "общение": 0.5, "вопрос_определение_науки": 0.9 },
-                "стоицизм": { "действие_поиска_kb": 0.95, "эпиктет": 0.7 },
-                "буддизм": { "действие_поиска_kb": 0.95 },
-                "даосизм": { "действие_поиска_kb": 0.95 },
-                "конфуций": { "действие_поиска_kb": 0.95 },
-                "мудрость": { "действие_поиска_kb": 0.7, "общение": 0.7 },
-                "совет": { "действие_совет": 0.85, "общение": 0.6 },
-                "посоветуй": { "действие_совет": 0.95, "общение": 0.7, "вопрос_рекомендация": 0.9 },
-                "смысл жизни": { "действие_поиска_kb": 0.9, "общение": 0.8 },
-                "счастье": { "действие_поиска_kb": 0.8, "общение": 0.6 },
-                "друг": { "действие_поиска_kb": 0.5, "общение": 0.6 },
-                "отношения": { "действие_поиска_kb": 0.7, "действие_совет": 0.6, "общение": 0.5 },
-                "конфликт": { "действие_поиска_kb": 0.7, "действие_совет": 0.75, "общение": 0.5 },
-                "поссорился": { "действие_поиска_kb": 0.8, "действие_совет": 0.8 },
-                "расставание": { "действие_поиска_kb": 0.9, "действие_эмпатия": 0.8 },
-                "одиночество": { "действие_поиска_kb": 0.85, "действие_эмпатия": 0.7 },
-                "любовь": { "действие_поиска_kb": 0.7, "общение": 0.6 },
-                "семья": { "действие_поиска_kb": 0.5, "действие_совет": 0.5, "общение": 0.5 },
-                "работа": { "действие_поиска_kb": 0.4, "действие_совет": 0.5, "общение": 0.5 },
-                "деньги": { "действие_поиска_kb": 0.6, "действие_совет": 0.5 },
-                "бюджет": { "действие_поиска_kb": 0.85, "действие_совет": 0.7 },
-                "долг": { "действие_поиска_kb": 0.7, "действие_совет": 0.6 },
-                "мотивация": { "действие_поиска_kb": 0.85, "общение": 0.6 },
-                "цель": { "действие_совет": 0.7, "общение": 0.5 },
-                "привычка": { "действие_поиска_kb": 0.8, "действие_совет": 0.6 },
-                "дисциплина": { "действие_поиска_kb": 0.8, "действие_совет": 0.6 },
-                "прокрастинация": { "действие_поиска_kb": 0.95 },
-                "продуктивность": { "действие_поиска_kb": 0.85, "действие_совет": 0.6 },
-                "развитие": { "действие_поиска_kb": 0.6, "действие_совет": 0.6 },
-                "обучение": { "действие_поиска_kb": 0.7 },
-                "если": { "общение": 0.5, "действие_вычисление": 0.3 },
-                "значит": { "общение": 0.5, "действие_вычисление": 0.3 },
-                "поэтому": { "общение": 0.4 },
-                "потому что": { "общение": 0.5 },
-                "таким образом": { "общение": 0.5 },
-                "следовательно": { "общение": 0.5, "действие_вычисление": 0.3 },
-                "допустим": { "общение": 0.6 },
-                "предположим": { "общение": 0.6 },
-                "получается": { "общение": 0.5 },
-                "то есть": { "общение": 0.5 },
-                "например": { "общение": 0.4 },
-                "смотри": { "общение": 0.5 },
-                "слушай": { "общение": 0.6 },
-                "кстати о": { "общение": 0.5 },
-                "говоря о": { "общение": 0.5 },
-                "в общем": { "общение": 0.5 },
-                "короче": { "общение": 0.5 },
-                "типа того": { "общение": 0.6 },
-                "что-то вроде": { "общение": 0.5 },
-                "не уверен": { "общение": 0.7 },
-                "не знаю": { "общение": 0.7, "выражение_незнания_запрос_информации": 0.8 },
-                "может быть": { "общение": 0.5 },
-                "наверное": { "общение": 0.4 },
-                "возможно": { "общение": 0.4 },
-                "точно": { "общение": 0.4 },
-                "вроде": { "общение": 0.4 },
-                "видимо": { "общение": 0.4 },
-                "кажется": { "общение": 0.5 },
-                "интересно расскажи": { "действие_поиска_kb": 0.9, "общение": 0.7 },
-                "а что если": { "общение": 0.85 },
-                "как ты думаешь": { "общение": 0.95 },
-                "твоё мнение": { "общение": 0.9 },
-                "что посоветуешь": { "действие_совет": 1, "запрос_совет_выбор": 0.9 },
-                "как лучше": { "действие_совет": 0.9 },
-                "что важнее": { "общение": 0.85, "вопрос_приоритет": 0.8 },
-                "в чём разница": { "действие_поиска_kb": 0.85, "общение": 0.6 },
-                "чем отличается": { "действие_поиска_kb": 0.9 },
-                "приведи пример": { "общение": 0.85, "действие_поиска_kb": 0.6 },
-                "дай пример": { "общение": 0.85, "действие_поиска_kb": 0.6 },
-                "расскажи про": { "вопрос_развернутый_ответ": 0.9 },
-                "объясни": { "вопрос_объяснение": 0.9 },
-                "где": { "вопрос_место": 0.8 },
-                "сколько": { "в_количество": 0.8 },
-                "какой": { "вопрос_выбор": 0.75 },
-                "можно ли": { "вопрос_возможность": 0.8 },
-                "правильно ли": { "вопрос_корректность": 0.75 },
-                "что делать если": { "вопрос_решение_проблемы": 0.9 },
-                "как быть": { "вопрос_совет": 0.9 },
-                "помоги": { "вопрос_помощь": 0.95 },
-                "подскажи": { "вопрос_подсказка": 0.85 },
-                "в чем смысл": { "вопрос_смысл": 0.85 },
-                "какова цель": { "вопрос_цель": 0.8 },
-                "в чем разница": { "вопрос_различие": 0.85 },
-                "как называется": { "вопрос_термин": 0.8 },
-                "кто такой": { "вопрос_личность": 0.8 },
-                "что случилось": { "вопрос_событие": 0.85 },
-                "как понять": { "вопрос_интерпретация": 0.85 },
-                "что означает": { "вопрос_значение": 0.85 },
-                "как использовать": { "вопрос_применение": 0.8 },
-                "как сделать": { "вопрос_инструкция": 0.85 },
-                "как создать": { "вопрос_создание": 0.8 },
-                "как улучшить": { "вопрос_оптимизация": 0.8 },
-                "как начать": { "вопрос_старт": 0.8 },
-                "как закончить": { "вопрос_завершение": 0.75 },
-                "что дальше": { "вопрос_следующий_шаг": 0.8 },
-                "что теперь": { "вопрос_действие_после": 0.75 },
-                "а если": { "вопрос_гипотетический": 0.7 },
-                "а что насчет": { "вопрос_уточнение": 0.7 },
-                "а как же": { "вопрос_контраргумент": 0.7 },
-                "правда ли что": { "вопрос_подтверждение": 0.75 },
-                "ли": { "вопрос_точность": 0.7 },
-                "серьезно": { "вопрос_удивление": 0.6, "выражение_серьезности_или_вопрос": 0.75 },
-                "неужели": { "вопрос_недоверие": 0.6 },
-                "зачем это нужно": { "вопрос_практическая_ценность": 0.8 },
-                "кому это нужно": { "вопрос_аудитория": 0.7 },
-                "когда это появилось": { "вопрос_история": 0.75 },
-                "где это применяется": { "вопрос_применение_практика": 0.8 },
-                "сколько это стоит": { "вопрос_стоимость": 0.7 },
-                "как долго": { "вопрос_длительность": 0.75 },
-                "как часто": { "вопрос_частота": 0.75 },
-                "насколько": { "опрос_степень": 0.7 },
-                "почему так важно": { "вопрос_важность": 0.8 },
-                "что будет если": { "вопрос_последствия": 0.85 },
-                "что если не": { "вопрос_альтернатива": 0.8 },
-                "как избежать": { "вопрос_предотвращение": 0.8 },
-                "как пережить": { "вопрос_выживание": 0.85 },
-                "как научиться": { "вопрос_обучение": 0.85 },
-                "как запомнить": { "вопрос_память": 0.8 },
-                "как вспомнить": { "вопрос_вспоминание": 0.8 },
-                "как найти": { "вопрос_иск": 0.85 },
-                "как выбрать": { "вопрос_выбор_решение": 0.8 },
-                "как оценить": { "вопрос_оценка": 0.75 },
-                "как проверить": { "вопрос_проверка": 0.8 },
-                "как измерить": { "вопрос_измерение": 0.75 },
-                "как рассчитать": { "вопрос_расчет": 0.8 },
-                "как интерпретировать": { "вопрос_интерпретация_данных": 0.75 },
-                "что показало": { "вопрос_результат": 0.8 },
-                "что выяснилось": { "вопрос_обнаружение": 0.8 },
-                "что известно": { "вопрос_известные_факты": 0.75 },
-                "что думают": { "вопрос_мнение": 0.7 },
-                "что считают": { "вопрос_общественное_мнение": 0.7 },
-                "что говорят": { "вопрос_слухи": 0.6 },
-                "что пишут": { "вопрос_источники": 0.7 },
-                "что доказано": { "вопрос_доказательства": 0.75 },
-                "что предполагают": { "вопрос_гипотезы": 0.7 },
-                "что планируют": { "вопрос_планы": 0.7 },
-                "что произойдет": { "вопрос_прогноз": 0.8 },
-                "что изменится": { "вопрос_изменения": 0.8 },
-                "что останется": { "вопрос_постоянство": 0.7 },
-                "что зависит": { "вопрос_зависимость": 0.75 },
-                "что связывает": { "вопрос_связь": 0.75 },
-                "что отличает": { "вопрос_различия_существенные": 0.8 },
-                "что общего": { "вопрос_сходства": 0.75 },
-                "что первично": { "вопрос_первичность": 0.7 },
-                "что вторично": { "вопрос_вторичность": 0.7 },
-                "что главное": { "вопрос_главное": 0.85, "запрос_главная_мысль": 0.85 },
-                "что обязательно": { "вопрос_язательное": 0.75 },
-                "что желательно": { "вопрос_желательное": 0.7 },
-                "что возможно": { "вопрос_возможное": 0.7 },
-                "что невозможно": { "вопрос_невозможное": 0.7 },
-                "что разрешено": { "вопрос_разрешенное": 0.7 },
-                "что запрещено": { "вопрос_запрещенное": 0.7 },
-                "что опасно": { "вопрос_опасность": 0.8 },
-                "что безопасно": { "вопрос_безопасность": 0.75 },
-                "что полезно": { "вопрос_польза": 0.8 },
-                "что вредно": { "вопрос_вред": 0.8 },
-                "что эффективно": { "вопрос_эффективность": 0.8 },
-                "что просто": { "вопрос_простота": 0.7 },
-                "что сложно": { "вопрос_сложность": 0.75 },
-                "что быстро": { "вопрос_скорость": 0.7 },
-                "что медленно": { "вопрос_медленность": 0.7 },
-                "что дорого": { "вопрос_дороговизна": 0.7 },
-                "что дешево": { "вопрос_дешевизна": 0.7 },
-                "что популярно": { "вопрос_популярность": 0.7 },
-                "что непопулярно": { "вопрос_непопулярность": 0.6 },
-                "что модно": { "вопрос_мода": 0.6 },
-                "что немодно": { "вопрос_одное": 0.6 },
-                "что традиционно": { "вопрос_традиции": 0.7 },
-                "что современно": { "вопрос_современность": 0.7 },
-                "что устарело": { "вопрос_устаревание": 0.7 },
-                "что актуально": { "вопрос_актуальность": 0.75 },
-                "что перспективно": { "вопрос_перспективы": 0.75 },
-                "что бесперспективно": { "вопрос_бесперспективность": 0.7 },
-                "что проверено": { "вопрос_проверенное": 0.75 },
-                "что экспериментально": { "вопрос_экспериментальное": 0.7 },
-                "что теоретически": { "вопрос_теоретическое": 0.7 },
-                "что духовно": { "вопрос_духовное": 0.6 },
-                "что материально": { "вопрос_материальное": 0.6 },
-                "что эмоционально": { "вопрос_эмоциональное": 0.7 },
-                "что рационально": { "вопрос_рациональное": 0.7 },
-                "что интуитивно": { "вопрос_интуитивное": 0.6 },
-                "что логично": { "вопрос_логическое": 0.75 },
-                "что нелогично": { "вопрос_нелогичное": 0.7 },
-                "что законно": { "вопрос_законность": 0.75 },
-                "что незаконно": { "вопрос_незаконность": 0.75 },
-                "что морально": { "вопрос_мораль": 0.7 },
-                "что этично": { "вопрос_этика": 0.7 },
-                "что неэтично": { "вопрос_неэтичное": 0.7 },
-                "что честно": { "вопрос_честность": 0.7 },
-                "что нечестно": { "вопрос_нечестность": 0.7 },
-                "что справедливо": { "вопрос_справедливость": 0.75 },
-                "что несправедливо": { "вопрос_несправедливость": 0.75 },
-                "что правильно": { "вопрос_правильность": 0.8 },
-                "что неправильно": { "вопрос_неправильность": 0.8 },
-                "что хорошо": { "вопрос_положительное": 0.8 },
-                "что нейтрально": { "вопрос_нейтральное": 0.6 },
-                "что смешно": { "вопрос_юмор": 0.6 },
-                "что грустно": { "вопрос_грусть": 0.6 },
-                "что страшно": { "вопрос_страх": 0.7 },
-                "что интересно": { "вопрос_интерес": 0.75 },
-                "что скучно": { "вопрос_скука": 0.6 },
-                "что удивительно": { "вопрос_удивление": 0.6 },
-                "что обыденно": { "вопрос_обыденность": 0.6 },
-                "что уникально": { "вопрос_уникальность": 0.7 },
-                "что типично": { "вопрос_тичность": 0.7 },
-                "что редко": { "вопрос_редкость": 0.7 },
-                "что часто": { "вопрос_частота_явления": 0.7 },
-                "что всегда": { "вопрос_постоянство_явления": 0.7 },
-                "что никогда": { "вопрос_отсутствие_явления": 0.7 },
-                "что иногда": { "вопрос_периодичность": 0.7 },
-                "что временно": { "вопрос_временность": 0.7 },
-                "что постоянно": { "вопрос_постоянство": 0.7 },
-                "что изменимо": { "вопрос_изменчивость": 0.7 },
-                "что неизменно": { "вопрос_неизменность": 0.7 },
-                "что зависит от": { "вопрос_условность": 0.75 },
-                "что требует": { "вопрос_требования": 0.75 },
-                "что не требует": { "вопрос_отсутствие_требований": 0.7 },
-                "что включает": { "вопрос_состав": 0.75 },
-                "что исключает": { "вопрос_исключение": 0.7 },
-                "что предполагает": { "вопрос_предположение": 0.7 },
-                "что гарантирует": { "вопрос_гарантия": 0.7 },
-                "что рискованно": { "вопрос_риск": 0.75 },
-                "что надежно": { "вопрос_надежность": 0.75 },
-                "что сомнительно": { "вопрос_сомнение": 0.7 },
-                "что очевидно": { "вопрос_чевидность": 0.7 },
-                "что скрыто": { "вопрос_скрытое": 0.7 },
-                "что явно": { "вопрос_явное": 0.7 },
-                "что подразумевается": { "вопрос_подтекст": 0.7 },
-                "что сказано прямо": { "вопрос_прямое_высказывание": 0.7 },
-                "что намекает": { "вопрос_намек": 0.6 },
-                "знаешь": { "вопрос_доверительный": 0.7 },
-                "типа": { "вопрос_неформальный": 0.6 },
-                "объясни как": { "вопрос_инструкция_дружеская": 0.85 },
-                "будь другом": { "запрос_поддержка_друга": 0.95 },
-                "будь учителем": { "запрос_обучение_наставник": 0.9 },
-                "поясни": { "запрос_разъяснение_простое": 0.85, "вопрос_определение_науки": 0.85 },
-                "проанализируй": { "запрос_анализ": 0.95 },
-                "сделай аудит": { "запрос_аудит_оценка": 0.9 },
-                "сделай вывод": { "запрос_вывод": 0.9 },
-                "вывод": { "запрос_резюме_заключение": 0.85 },
-                "анализ": { "запрос_анализ_краткий": 0.9 },
-                "аудит": { "запрос_проверка_системная": 0.85 },
-                "разбери": { "запрос_разбор_по_частям": 0.85 },
-                "помоги разобраться": { "запрос_помощь_в_понимании": 0.9 },
-                "помоги понять": { "запрос_помощь_осмысление": 0.9 },
-                "раскрой тему": { "запрос_раскрытие_темы": 0.85 },
-                "освети вопрос": { "запрос_освещение_вопроса": 0.8 },
-                "дай оценку": { "запрос_оценка_мнение": 0.85 },
-                "оцени": { "запрос_оценка_краткая": 0.85 },
-                "прокомментируй": { "запрос_комментарий": 0.8 },
-                "поделись мыслями": { "запрос_личные_мысли": 0.85 },
-                "к бы ты поступил": { "запрос_совет_личный_опыт": 0.9 },
-                "что бы ты сделал": { "запрос_рекомендация_действие": 0.9 },
-                "посмотри со стороны": { "запрос_взгляд_со_стороны": 0.8 },
-                "взгляни свежим взглядом": { "запрос_новая_перспектива": 0.8 },
-                "наведи порядок в мыслях": { "запрос_структурирование_мыслей": 0.85 },
-                "проясни": { "запрос_прояснение_неясности": 0.8 },
-                "упрости": { "запрос_упрощение": 0.8 },
-                "углуби": { "запрос_углубление_детали": 0.8 },
-                "сравни": { "вопрос_сравнение_детальное": 0.85 },
-                "обобщи": { "запрос_обобщение": 0.85 },
-                "резюмируй": { "запрос_резюме": 0.85 },
-                "подведи итог": { "запрос_итог": 0.85 },
-                "что в сухом остатке": { "запрос_суть_без_воды": 0.8 },
-                "в чем суть": { "запрос_суть_явления": 0.85 },
-                "что на самом деле": { "запрос_истинная_причина_суть": 0.8 },
-                "раскрой секрет": { "запрос_секрет_инсайт": 0.7 },
-                "дай рекомендацию": { "запрос_рекомендация_формальная": 0.85 },
-                "направь": { "запрос_направление_действий": 0.8 },
-                "подскажи направление": { "запрос_подсказка_направления": 0.8 },
-                "какой твой вердикт": { "запрос_вердикт_решение": 0.8 },
-                "что скажешь": { "запрос_мнение_краткое": 0.85 },
-                "как тебе": { "вопрос_мнение_неформальное": 0.8 },
-                "нормально": { "вопрос_оценка_нормальности": 0.7 },
-                "ок": { "подтверждение_или_вопрос": 0.6 },
-                "ясно": { "подтверждение_понимания_или_вопрос": 0.6, "выражение_ясности_понимания": 0.7 },
-                "логично": { "подтверждение_логики_или_вопрос": 0.7 },
-                "справедливо": { "подтверждение_справедливости_или_вопрос": 0.7 },
-                "честно": { "подтверждение_честности_или_вопрос": 0.7 },
-                "разумно": { "подтверждение_разумности_или_вопрос": 0.7 },
-                "правильно": { "подтверждение_правильности_или_вопрос": 0.8 },
-                "так ли это": { "вопрос_сомнение_в_утверждении": 0.75 },
-                "ты уверен": { "вопрос_уверенность_в_ответе": 0.7 },
-                "можешь ли ты": { "вопрос_возможность_действия": 0.8 },
-                "способен ли ты": { "вопрос_способность": 0.75 },
-                "умеешь ли ты": { "вопрос_умение": 0.75 },
-                "знаешь ли ты": { "вопрос_знание_факта": 0.8 },
-                "помнишь ли ты": { "вопрос_память_о_чем-то": 0.7 },
-                "понимаешь ли ты": { "вопрос_понимание_контекста": 0.75 },
-                "чувствуешь ли ты": { "вопрос_эмпатия_понимание": 0.5 },
-                "веришь ли ты": { "вопрос_вера_убеждение": 0.6 },
-                "согласен ли ты": { "вопрос_согласие": 0.75 },
-                "поддерживаешь ли": { "вопрос_поддержка_идеи": 0.7 },
-                "осуждаешь ли": { "вопрос_осуждение": 0.6 },
-                "одобряешь ли": { "вопрос_одобрение": 0.7 },
-                "что на это ответишь": { "вопрос_реакция_на_вызов": 0.8 },
-                "что ты на это скажешь": { "вопрос_ответ_на_ситуацию": 0.85 },
-                "как ты к этому относишься": { "вопрос_отношение": 0.8 },
-                "что ты об этом думаешь": { "вопрос_вернутое_мнение": 0.9 },
-                "есть ли у тебя идеи": { "запрос_идеи": 0.85 },
-                "есть ли решение": { "запрос_решение_проблемы": 0.9 },
-                "есть ли выход": { "запрос_выход_из_ситуации": 0.9 },
-                "есть ли надежда": { "запрос_надежда": 0.8 },
-                "есть ли смысл": { "запрос_смысл_действий": 0.85 },
-                "стоит ли": { "вопрос_целесообразность": 0.85 },
-                "имеет ли смысл": { "вопрос_осмысленность": 0.85 },
-                "нужно ли": { "вопрос_необходимость": 0.85 },
-                "должен ли я": { "вопрос_обязанность": 0.8 },
-                "могу ли я": { "вопрос_разрешение_себе": 0.8 },
-                "следует ли": { "вопрос_рекомендация_действия": 0.85 },
-                "разумно ли": { "вопрос_разумность_действия": 0.8 },
-                "этично ли": { "вопрос_этичность": 0.75 },
-                "законно ли": { "вопрос_законность_действия": 0.75 },
-                "нормально ли": { "вопрос_нормальность_чувств_действий": 0.7 },
-                "здорово ли": { "вопрос_оценка_крутости": 0.6 },
-                "круто": { "восклицание_или_вопрос": 0.5 },
-                "интересно": { "выражение_интереса_или_вопрос": 0.7 },
-                "любопытно": { "выражение_любопытства_или_вопрос": 0.7 },
-                "странно": { "выражение_непонимания_или_вопрос": 0.7 },
-                "жутко": { "выражение_страха_или_вопрос": 0.6 },
-                "смешно": { "выражение_юмора_или_вопрос": 0.6 },
-                "грустно": { "выражение_грусти_или_вопрос": 0.7 },
-                "больно": { "выражение_боли_эмоциональнойфизической": 0.8 },
-                "тревожно": { "выражение_тревоги_или_вопрос": 0.8 },
-                "устал": { "выражение_усталости_или_контекст": 0.8 },
-                "вымотан": { "выражение_истощения": 0.8 },
-                "запутался": { "выражение_запутанности_запрос_помощи": 0.85 },
-                "сомневаюсь": { "выражение_сомнения_зап_уверенности": 0.8 },
-                "волнуюсь": { "выражение_волнения_запрос_успокоения": 0.8 },
-                "надеюсь": { "выражение_надежды_или_контекст": 0.7 },
-                "верю": { "выражение_веры_или_контекст": 0.7 },
-                "люблю": { "выражение_любви_или_контекст": 0.6 },
-                "ненавижу": { "выражение_ненависти_или_контекст": 0.6 },
-                "рад": { "выражение_радости_иликонтекст": 0.6 },
-                "счастлив": { "выражение_счастья_или_контекст": 0.6 },
-                "спокоен": { "выражение_спокойствия_или_контекст": 0.6 },
-                "взволнован": { "выражение_взволнованности_или_контекст": 0.7 },
-                "вдохновлен": { "выражение_вдохновения_или_контекст": 0.7 },
-                "разочарован": { "выражение_разочарования_или_контекст": 0.75 },
-                "обнадёжен": { "выражение_надежды_после_сомнений": 0.7 },
-                "опустошен": { "выражение_опустошенности_запрос_помощи": 0.8 },
-                "найден": { "выражение_нахождения_решения_или_себя": 0.7 },
-                "неясно": { "выражение_неясности_запрос_прояснения": 0.8 },
-                "запутанно": { "выражение_запутанности_ситуации": 0.8 },
-                "просто": { "выражение_простоты_или_контекст": 0.6, "общение": 0.8, "выражение_мысли_вх": 0.75 },
-                "сложно": { "выражение_сложности_запрос_упрощения": 0.8 },
-                "легко": { "выражение_легкости_или_контекст": 0.6 },
-                "важно": { "выражение_важности_или_контекст": 0.8 },
-                "неважно": { "выражение_неважности_или_контекст": 0.7 },
-                "срочно": { "выражение_срочности_запрос_быстрого_ответа": 0.85 },
-                "не срочно": { "выражение_отсутствия_срочности": 0.6 },
-                "не серьезно": { "выражение_несерьезности": 0.6 },
-                "шучу": { "указание_на_шутку": 0.5 },
-                "не шучу": { "уние_на_серьезность": 0.7 },
-                "правда": { "утверждение_истины_или_вопрос": 0.75 },
-                "неправда": { "отрицание_истины": 0.7 },
-                "факт": { "утверждение_факта": 0.75 },
-                "не факт": { "отрицание_факта": 0.7 },
-                "гипотеза": { "указание_на_предположение": 0.7 },
-                "хочу": { "общение": 0.95, "действие_совет": 0.7 },
-                "да": { "общение": 0.85 },
-                "расскажи": { "общение": 0.95, "действие_поиска_kb": 0.6 },
-                "как думаешь": { "общение": 0.97, "вопрос_личное_мнение": 0.95 },
-                "слова": { "общение": 0.7, "запрос_интерпретации": 0.8 },
-                "мембрана": { "клетка": 0.9 },
-                "ядро": { "клетка": 0.9, "биология": 0.8, "хромосома": 0.8 },
-                "нейросеть": { "технология": 0.9 },
-                "определение": { "вопрос_определение_науки": 0.8 },
-                "основа": { "вопрос_определение_науки": 0.7 },
-                "форматирование": { "стиль_без_жирного": 0.9, "стиль_с_эмодзи_без_жирного": 0.95, "запрет_жирного_текста": 1 },
-                "геология": { "вопрос_определение_науки": 0.9 },
-                "экономика": { "вопрос_определение_науки": 0.9 },
-                "социология": { "вопрос_определение_науки": 0.9 },
-                "🧬 биология": { "вопрос_определение_науки": 0.9 },
-                "🔬 физика": { "вопрос_определение_науки": 0.9 },
-                "⚗️ химия": { "вопрос_определение_науки": 0.9 },
-                "📐 математика": { "вопрос_определение_науки": 0.9 },
-                "🪐 астрономия": { "вопрос_определение_науки": 0.9 },
-                "MOSC": { "система классификации запросов": 0.7 },
-                "DeepSeek AI": { "искусственный интеллект для обработки разговорных вопросов": 0.7 },
-                "хромосома": { "биология": 0.9, "ДНК": 0.9 },
-                "ген": { "белок": 0.7 },
-                "закон ома": { "электричество": 0.9 },
-                "электричество": { "напряжение": 0.8 },
-                "напряжение": { "ток": 0.8 },
-                "ток": { "сопротивление": 0.8 },
-                "сопротивление": { "закон ома": 0.9 },
-                "эпиктет": { "дихотомия контроля": 0.9 },
-                "дихотомия контроля": { "стоицизм": 0.8 },
-                "вопрос_гипотезы": { "общение": 0.5 },
-                "технология": { "общение": 0.5 },
-                "вопрос_осмысленность": { "общение": 0.5 },
-                "выражение_непонимания_запрос_объяснения": { "общение": 0.5 },
-                "запрос_прояснение_неясности": { "общение": 0.5 },
-                "вопрос_отсутствие_явления": { "общение": 0.5 },
-                "искусственный интеллект для обработки разговорных вопросов": { "общение": 0.5 },
-                "вопрос_различия_существенные": { "общение": 0.5 },
-                "запрос_интерпретации": { "общение": 0.5 },
-                "вопрос_главное": { "общение": 0.5 },
-                "запрос_суть_без_воды": { "общение": 0.5 },
-                "подтверждение_понимания_или_вопрос": { "общение": 0.5 },
-                "вопрос_предотвращение": { "общение": 0.5 },
-                "выражение_страха_запрос_поддержки": { "общение": 0.5 },
-                "запрос_упрощение": { "общение": 0.5 },
-                "вопрос_неэтичное": { "общение": 0.5 },
-                "выражение_легкости_или_контекст": { "общение": 0.5 },
-                "вопрос_безопасность": { "общение": 0.5 },
-                "запрос_оценка_мнение": { "общение": 0.5 },
-                "запрос_структурирование_мыслей": { "общение": 0.5 },
-                "вопрос_уточнение": { "общение": 0.5 },
-                "вопрос_развернутый_ответ": { "общение": 0.5 },
-                "вопрос_старт": { "общение": 0.5 },
-                "вопрос_медленность": { "общение": 0.5 },
-                "запрос_проверка_системная": { "общение": 0.5 },
-                "ДНК": { "общение": 0.5 },
-                "вопрос_источники": { "общение": 0.5 },
-                "вопрос_решение_проблемы": { "общение": 0.5 },
-                "выражение_счастья_или_контекст": { "общение": 0.5 },
-                "вопрос_помощь": { "общение": 0.5 },
-                "вопрос_различие": { "общение": 0.5 },
-                "действие_напоминание": { "общение": 0.5 },
-                "вопрос_бесперспективность": { "общение": 0.5 },
-                "вопрос_общественное_мнение": { "общение": 0.5 },
-                "вопрос_оптимизация": { "общение": 0.5 },
-                "вопрос_правильность": { "общение": 0.5 },
-                "вопрос_приоритет": { "общение": 0.5 },
-                "указание_на_шутку": { "общение": 0.5 },
-                "вопрос_подсказка": { "общение": 0.5 },
-                "вопрос_ситуация": { "общение": 0.5 },
-                "вопрос_интуитивное": { "общение": 0.5 },
-                "выражение_запутанности_запрос_помощи": { "общение": 0.5 },
-                "вопрос_доверительный": { "общение": 0.5 },
-                "вопрос_нормальность_чувств_действий": { "общение": 0.5 },
-                "вопрос_экспериментальное": { "общение": 0.5 },
-                "вопрос_желательное": { "общение": 0.5 },
-                "вопрос_скука": { "общение": 0.5 },
-                "запрос_рекомендация_формальная": { "общение": 0.5 },
-                "выражение_юмора_или_вопрос": { "общение": 0.5 },
-                "выражение_мысли_вх": { "общение": 0.5 },
-                "вопрос_сомнение_в_утверждении": { "общение": 0.5 },
-                "вопрос_необходимость": { "общение": 0.5 },
-                "вопрос_материальное": { "общение": 0.5 },
-                "запрос_выход_из_ситуации": { "общение": 0.5 },
-                "вопрос_преодоление": { "общение": 0.5 },
-                "вопрос_аудитория": { "общение": 0.5 },
-                "вопрос_простота": { "общение": 0.5 },
-                "вопрос_разумность_действия": { "общение": 0.5 },
-                "вопрос_расчет": { "общение": 0.5 },
-                "вопрос_механизм": { "общение": 0.5 },
-                "вопрос_неправильность": { "общение": 0.5 },
-                "выражение_ненависти_или_контекст": { "общение": 0.5 },
-                "вопрос_частота_явления": { "общение": 0.5 },
-                "вопрос_риск": { "общение": 0.5 },
-                "вопрос_определение_науки": { "общение": 0.5 },
-                "утверждение_факта": { "общение": 0.5 },
-                "вопрос_длительность": { "общение": 0.5 },
-                "запрос_совет_выбор": { "общение": 0.5 },
-                "вопрос_вера_убеждение": { "общение": 0.5 },
-                "вопрос_периодичность": { "общение": 0.5 },
-                "вопрос_смысл": { "общение": 0.5 },
-                "вопрос_первичность": { "общение": 0.5 },
-                "вопрос_память_о_чем-то": { "общение": 0.5 },
-                "вопрос_поддержка_идеи": { "общение": 0.5 },
-                "вопрос_неизменность": { "общение": 0.5 },
-                "вопрос_ответ_на_ситуацию": { "общение": 0.5 },
-                "вопрос_изменения": { "общение": 0.5 },
-                "вопрос_перспективы": { "общение": 0.5 },
-                "запрет_жирного_текста": { "общение": 0.5 },
-                "запрос_раскрытие_темы": { "общение": 0.5 },
-                "вопрос_вернутое_мнение": { "общение": 0.5 },
-                "вопрос_разрешенное": { "общение": 0.5 },
-                "запрос_новая_перспектива": { "общение": 0.5 },
-                "вопрос_термин": { "общение": 0.5 },
-                "вопрос_постоянство_явления": { "общение": 0.5 },
-                "вопрос_проверка": { "общение": 0.5 },
-                "вопрос_опасность": { "общение": 0.5 },
-                "вопрос_обязанность": { "общение": 0.5 },
-                "запрос_вывод": { "общение": 0.5 },
-                "вопрос_условность": { "общение": 0.5 },
-                "выражение_взволнованности_или_контекст": { "общение": 0.5 },
-                "вопрос_реакция_на_вызов": { "общение": 0.5 },
-                "вопрос_эффективность": { "общение": 0.5 },
-                "вопрос_уверенность_в_ответе": { "общение": 0.5 },
-                "вопрос_устаревание": { "общение": 0.5 },
-                "запрос_разъяснение_простое": { "общение": 0.5 },
-                "вопрос_несправедливость": { "общение": 0.5 },
-                "вопрос_способность": { "общение": 0.5 },
-                "вопрос_состав": { "общение": 0.5 },
-                "запрос_главная_мысль": { "общение": 0.5 },
-                "запрос_суть_явления": { "общение": 0.5 },
-                "вопрос_согласие": { "общение": 0.5 },
-                "подтверждение_правильности_или_вопрос": { "общение": 0.5 },
-                "вопрос_вторичность": { "общение": 0.5 },
-                "выражение_тяжести_эмоциональной_физической": { "общение": 0.5 },
-                "выражение_обиды_или_вопрос": { "общение": 0.5 },
-                "запрос_решение_проблемы": { "общение": 0.5 },
-                "выражение_страха_или_вопрос": { "общение": 0.5 },
-                "выражение_разочарования_или_контекст": { "общение": 0.5 },
-                "вопрос_проверенное": { "общение": 0.5 },
-                "вопрос_планы": { "общение": 0.5 },
-                "выражение_любопытства_или_вопрос": { "общение": 0.5 },
-                "вопрос_сложность": { "общение": 0.5 },
-                "подтверждение_честности_или_вопрос": { "общение": 0.5 },
-                "выражение_сложности_запрос_упрощения": { "общение": 0.5 },
-                "симптом": { "общение": 0.5 },
-                "вопрос_объяснение": { "общение": 0.5 },
-                "вопрос_требования": { "общение": 0.5 },
-                "вопрос_значение": { "общение": 0.5 },
-                "выражение_надежды_после_сомнений": { "общение": 0.5 },
-                "вопрос_осуждение": { "общение": 0.5 },
-                "вопрос_страх": { "общение": 0.5 },
-                "вопрос_невозможное": { "общение": 0.5 },
-                "запрос_взгляд_со_стороны": { "общение": 0.5 },
-                "вопрос_обучение": { "общение": 0.5 },
-                "запрос_секрет_инсайт": { "общение": 0.5 },
-                "вопрос_важность": { "общение": 0.5 },
-                "вопрос_явное": { "общение": 0.5 },
-                "выражение_боли_эмоциональнойфизической": { "общение": 0.5 },
-                "вопрос_альтернатива": { "общение": 0.5 },
-                "вопрос_эмпатия_понимание": { "общение": 0.5 },
-                "вопрос_подтверждение_факта": { "общение": 0.5 },
-                "вопрос_точность": { "общение": 0.5 },
-                "действие_совет": { "общение": 0.5 },
-                "стиль_с_эмодзи_без_жирного": { "общение": 0.5 },
-                "вопрос_положительное": { "общение": 0.5 },
-                "выражение_веры_или_контекст": { "общение": 0.5 },
-                "вопрос_слухи": { "общение": 0.5 },
-                "вопрос_недоверие": { "общение": 0.5 },
-                "выражение_ясности_понимания": { "общение": 0.5 },
-                "действие_вычисление": { "общение": 0.5 },
-                "вопрос_личность": { "общение": 0.5 },
-                "вопрос_отсутствие_требований": { "общение": 0.5 },
-                "вопрос_неформальный": { "общение": 0.5 },
-                "вопрос_сравнение_детальное": { "общение": 0.5 },
-                "вопрос_оценка_нормальности": { "общение": 0.5 },
-                "выражение_нахождения_решения_или_себя": { "общение": 0.5 },
-                "вопрос_предположение": { "общение": 0.5 },
-                "вопрос_нейтральное": { "общение": 0.5 },
-                "запрос_помощь_осмысление": { "общение": 0.5 },
-                "вопрос_популярность": { "общение": 0.5 },
-
-                // ── v12.1 ENRICHMENT: код и программирование ──────────────────
-                "программирование": { "действие_поиска_kb": 0.9, "действие_совет": 0.7, "код": 0.95 },
-                "код": { "действие_поиска_kb": 0.9, "действие_совет": 0.8 },
-                "javascript": { "действие_поиска_kb": 0.95, "код": 0.95, "программирование": 0.9 },
-                "python": { "действие_поиска_kb": 0.95, "код": 0.95, "программирование": 0.9 },
-                "html": { "действие_поиска_kb": 0.9, "код": 0.9 },
-                "css": { "действие_поиска_kb": 0.9, "код": 0.9 },
-                "функция": { "код": 0.85, "действие_поиска_kb": 0.8 },
-                "переменная": { "код": 0.85, "действие_поиска_kb": 0.75 },
-                "алгоритм": { "код": 0.8, "действие_поиска_kb": 0.9, "математика": 0.6 },
-                "ошибка": { "код": 0.75, "действие_совет": 0.85, "действие_поиска_kb": 0.7 },
-                "баг": { "код": 0.9, "действие_совет": 0.9, "действие_поиска_kb": 0.7 },
-                "отладка": { "код": 0.9, "действие_совет": 0.85 },
-                "рефакторинг": { "код": 0.95, "действие_совет": 0.9 },
-                "база данных": { "код": 0.75, "действие_поиска_kb": 0.9 },
-                "api": { "код": 0.8, "действие_поиска_kb": 0.9 },
-                "сервер": { "код": 0.7, "действие_поиска_kb": 0.85 },
-                "браузер": { "технология": 0.75, "действие_поиска_kb": 0.8 },
-                "регулярное выражение": { "код": 0.9, "действие_поиска_kb": 0.9 },
-                "синтаксис": { "код": 0.85, "действие_поиска_kb": 0.8 },
-                "компилятор": { "код": 0.85, "действие_поиска_kb": 0.85 },
-                "отладчик": { "код": 0.9, "действие_совет": 0.85 },
-                "скрипт": { "код": 0.85, "действие_поиска_kb": 0.75 },
-                "класс": { "код": 0.8, "действие_поиска_kb": 0.75 },
-                "объект": { "код": 0.75, "действие_поиска_kb": 0.7 },
-                "массив": { "код": 0.85, "действие_поиска_kb": 0.8 },
-                "цикл": { "код": 0.85, "действие_поиска_kb": 0.8 },
-
-                // ── v12.1 ENRICHMENT: математика ───────────────────────────────
-                "вычисление": { "действие_вычисление": 0.95, "действие_поиска_kb": 0.6 },
-                "процент": { "действие_вычисление": 0.9, "действие_поиска_kb": 0.6 },
-                "площадь": { "действие_вычисление": 0.85, "действие_поиска_kb": 0.7 },
-                "объём": { "действие_вычисление": 0.85, "действие_поиска_kb": 0.7 },
-                "вероятность": { "действие_вычисление": 0.8, "действие_поиска_kb": 0.85 },
-                "статистика": { "действие_вычисление": 0.75, "действие_поиска_kb": 0.9 },
-                "логарифм": { "действие_вычисление": 0.9, "действие_поиска_kb": 0.85 },
-                "интеграл": { "действие_вычисление": 0.9, "действие_поиска_kb": 0.9 },
-                "производная": { "действие_вычисление": 0.9, "действие_поиска_kb": 0.9 },
-
-                // ── v12.1 ENRICHMENT: творчество ──────────────────────────────
-                "творчество": { "действие_совет": 0.7, "общение": 0.8 },
-                "стих": { "действие_совет": 0.85, "общение": 0.7 },
-                "рассказ": { "действие_совет": 0.85, "действие_поиска_kb": 0.5 },
-                "сценарий": { "действие_совет": 0.85, "общение": 0.7 },
-                "резюме": { "действие_совет": 0.9, "общение": 0.6 },
-                "краткое изложение": { "действие_совет": 0.9, "действие_поиска_kb": 0.6 },
-                "мозговой штурм": { "действие_совет": 0.95, "общение": 0.7 },
-                "идеи": { "действие_совет": 0.85, "общение": 0.7 },
-                "письмо": { "действие_совет": 0.8, "общение": 0.6 },
-                "эссе": { "действие_совет": 0.85, "действие_поиска_kb": 0.5 },
-                "перевод": { "действие_поиска_kb": 0.85, "действие_совет": 0.7 },
-                "язык": { "действие_поиска_kb": 0.8, "общение": 0.5 },
-
-                // ── v12.1 ENRICHMENT: фитнес и еда ────────────────────────────
-                "тренировка": { "здоровье": 0.85, "действие_совет": 0.9, "действие_поиска_kb": 0.8 },
-                "упражнение": { "здоровье": 0.85, "действие_совет": 0.85, "действие_поиска_kb": 0.75 },
-                "фитнес": { "здоровье": 0.9, "действие_совет": 0.85, "действие_поиска_kb": 0.8 },
-                "спорт": { "здоровье": 0.8, "действие_поиска_kb": 0.75, "действие_совет": 0.7 },
-                "калории": { "здоровье": 0.85, "действие_вычисление": 0.7, "действие_поиска_kb": 0.8 },
-                "рецепт": { "действие_поиска_kb": 0.9, "действие_совет": 0.8 },
-                "еда": { "действие_поиска_kb": 0.75, "действие_совет": 0.65 },
-                "питание": { "здоровье": 0.8, "действие_поиска_kb": 0.85, "действие_совет": 0.7 },
-                "медитация": { "здоровье": 0.75, "действие_совет": 0.8, "действие_эмпатия": 0.6 },
-
-                // ── v12.1 ENRICHMENT: путешествия и развлечения ───────────────
-                "путешествие": { "действие_совет": 0.85, "действие_поиска_kb": 0.8 },
-                "туризм": { "действие_совет": 0.8, "действие_поиска_kb": 0.8 },
-                "фильм": { "действие_совет": 0.85, "действие_поиска_kb": 0.7 },
-                "сериал": { "действие_совет": 0.85, "действие_поиска_kb": 0.7 },
-                "книга": { "действие_совет": 0.85, "действие_поиска_kb": 0.75 },
-                "игра": { "действие_совет": 0.7, "действие_поиска_kb": 0.65, "общение": 0.6 },
-                "музыка": { "действие_совет": 0.75, "действие_поиска_kb": 0.7, "плеер": 0.8 },
-                "плейлист": { "плеер": 0.95, "действие_совет": 0.7 },
-
-                // ── v12.1 ENRICHMENT: EITI-системные команды ─────────────────
-                "велантрим": { "действие_поиска_kb": 0.9, "общение": 0.6, "системный_запрос": 0.8 },
-                "velantrim": { "действие_поиска_kb": 0.9, "общение": 0.6, "системный_запрос": 0.8 },
-                "плеер": { "системный_запрос": 0.95, "действие_поиска_kb": 0.5 },
-                "заметки": { "системный_запрос": 0.9, "действие_поиска_kb": 0.6 },
-                "настройки": { "системный_запрос": 0.9, "действие_поиска_kb": 0.4 },
-                "история чатов": { "системный_запрос": 0.95, "действие_поиска_kb": 0.5 },
-                "файлы": { "системный_запрос": 0.85, "действие_поиска_kb": 0.5 },
-                "экспорт": { "системный_запрос": 0.9, "действие_поиска_kb": 0.4 },
-                "импорт": { "системный_запрос": 0.9, "действие_поиска_kb": 0.4 },
-                "бэкап": { "системный_запрос": 0.9, "действие_поиска_kb": 0.4 },
-                "тема": { "системный_запрос": 0.7, "действие_поиска_kb": 0.3 },
-                "иконки": { "системный_запрос": 0.85, "действие_поиска_kb": 0.3 },
-                "дизайн": { "системный_запрос": 0.7, "общение": 0.4 },
-                "системный_запрос": { "общение": 0.5 },
-                "запрос_итог": { "общение": 0.5 },
-                "выражение_неясности_запрос_прояснения": { "общение": 0.5 },
-                "вопрос_удивление": { "общение": 0.5 },
-                "подтверждение_логики_или_вопрос": { "общение": 0.5 },
-                "вопрос_интерес": { "общение": 0.5 },
-                "вопрос_совет": { "общение": 0.5 },
-                "вопрос_законность_действия": { "общение": 0.5 },
-                "вопрос_справедливость": { "общение": 0.5 },
-                "выражение_потери_ориентации_запрос_направления": { "общение": 0.5 },
-                "выражение_незнания_запрос_информации": { "общение": 0.5 },
-                "вопрос_обыденность": { "общение": 0.5 },
-                "вопрос_честность": { "общение": 0.5 },
-                "вопрос_скорость": { "общение": 0.5 },
-                "выражение_несерьезности": { "общение": 0.5 },
-                "вопрос_знание_факта": { "общение": 0.5 },
-                "выражение_надежды_или_контекст": { "общение": 0.5 },
-                "выражение_усталости_или_контекст": { "общение": 0.5 },
-                "вопрос_редкость": { "общение": 0.5 },
-                "вопрос_дороговизна": { "общение": 0.5 },
-                "вопрос_возможное": { "общение": 0.5 },
-                "вопрос_рекомендация_действия": { "общение": 0.5 },
-                "вопрос_выживание": { "общение": 0.5 },
-                "выражение_тревоги_или_вопрос": { "общение": 0.5 },
-                "вопрос_незаконность": { "общение": 0.5 },
-                "запрос_аудит_оценка": { "общение": 0.5 },
-                "запрос_помощь_в_понимании": { "общение": 0.5 },
-                "вопрос_цель": { "общение": 0.5 },
-                "вопрос_прямое_высказывание": { "общение": 0.5 },
-                "запрос_надежда": { "общение": 0.5 },
-                "вопрос_рациональное": { "общение": 0.5 },
-                "вопрос_целесообразность": { "общение": 0.5 },
-                "вопрос_причина": { "общение": 0.5 },
-                "вопрос_теоретическое": { "общение": 0.5 },
-                "указание_на_предположение": { "общение": 0.5 },
-                "действие_поиска_kb": { "общение": 0.5 },
-                "вопрос_грусть": { "общение": 0.5 },
-                "вопрос_намек": { "общение": 0.5 },
-                "вопрос_мода": { "общение": 0.5 },
-                "вопрос_эмоциональное": { "общение": 0.5 },
-                "вопрос_корректность": { "общение": 0.5 },
-                "выражение_грусти_или_вопрос": { "общение": 0.5 },
-                "отрицание_истины": { "общение": 0.5 },
-                "вопрос_нечестность": { "общение": 0.5 },
-                "запрос_обобщение": { "общение": 0.5 },
-                "подтверждение_разумности_или_вопрос": { "общение": 0.5 },
-                "вопрос_польза": { "общение": 0.5 },
-                "выражение_важности_или_контекст": { "общение": 0.5 },
-                "вопрос_связь": { "общение": 0.5 },
-                "выражение_непонимания_или_вопрос": { "общение": 0.5 },
-                "вопрос_мораль": { "общение": 0.5 },
-                "вопрос_разрешение_себе": { "общение": 0.5 },
-                "вопрос_оценка_крутости": { "общение": 0.5 },
-                "вопрос_известные_факты": { "общение": 0.5 },
-                "вопрос_интерпретация_данных": { "общение": 0.5 },
-                "вопрос_временность": { "общение": 0.5 },
-                "запрос_идеи": { "общение": 0.5 },
-                "вопрос_контраргумент": { "общение": 0.5 },
-                "вопрос_последствия": { "общение": 0.5 },
-                "вопрос_неэффективность": { "общение": 0.5 },
-                "вопрос_нелогичное": { "общение": 0.5 },
-                "вопрос_история": { "общение": 0.5 },
-                "выражение_злости_или_контекст": { "общение": 0.5 },
-                "запрос_разбор_по_частям": { "общение": 0.5 },
-                "вопрос_традиции": { "общение": 0.5 },
-                "вопрос_изменчивость": { "общение": 0.5 },
-                "вопрос_мнение_неформальное": { "общение": 0.5 },
-                "здоровье": { "общение": 0.5 },
-                "выражение_опустошенности_запрос_помощи": { "общение": 0.5 },
-                "вопрос_событие": { "общение": 0.5 },
-                "вопрос_обнаружение": { "общение": 0.5 },
-                "выражение_волнения_запрос_успокоения": { "общение": 0.5 },
-                "вопрос_уникальность": { "общение": 0.5 },
-                "действие_эмпатия": { "общение": 0.5 },
-                "вопрос_прогноз": { "общение": 0.5 },
-                "вопрос_личное_мнение": { "общение": 0.5 },
-                "подтверждение_или_вопрос": { "общение": 0.5 },
-                "запрос_направление_действий": { "общение": 0.5 },
-                "вопрос_доказательства": { "общение": 0.5 },
-                "выражение_интереса_или_вопрос": { "общение": 0.5 },
-                "вопрос_практическая_ценность": { "общение": 0.5 },
-                "вопрос_юмор": { "общение": 0.5 },
-                "вопрос_исключение": { "общение": 0.5 },
-                "выражение_простоты_или_контекст": { "общение": 0.5 },
-                "выражение_любви_или_контекст": { "общение": 0.5 },
-                "вопрос_духовное": { "общение": 0.5 },
-                "запрос_вердикт_решение": { "общение": 0.5 },
-                "вопрос_этичность": { "общение": 0.5 },
-                "запрос_личные_мысли": { "общение": 0.5 },
-                "утверждение_истины_или_вопрос": { "общение": 0.5 },
-                "выражение_радости_иликонтекст": { "общение": 0.5 },
-                "система классификации запросов": { "общение": 0.5 },
-                "вопрос_запрещенное": { "общение": 0.5 },
-                "вопрос_применение_практика": { "общение": 0.5 },
-                "стиль_без_жирного": { "общение": 0.5 },
-                "вопрос_сходства": { "общение": 0.5 },
-                "белок": { "общение": 0.5 },
-                "вопрос_второстепенное": { "общение": 0.5 },
-                "запрос_анализ_краткий": { "общение": 0.5 },
-                "запрос_мнение_краткое": { "общение": 0.5 },
-                "вопрос_гарантия": { "общение": 0.5 },
-                "выражение_неважности_или_контекст": { "общение": 0.5 },
-                "вопрос_логическое": { "общение": 0.5 },
-                "вопрос_этика": { "общение": 0.5 },
-                "вопрос_понимание_контекста": { "общение": 0.5 },
-                "вопрос_зависимость": { "общение": 0.5 },
-                "выражение_сомнения_зап_уверенности": { "общение": 0.5 },
-                "вопрос_следующий_шаг": { "общение": 0.5 },
-                "вопрос_создание": { "общение": 0.5 },
-                "запрос_оценка_краткая": { "общение": 0.5 },
-                "вопрос_действие_после": { "общение": 0.5 },
-                "вопрос_возможность_действия": { "общение": 0.5 },
-                "запрос_углубление_детали": { "общение": 0.5 },
-                "запрос_комментарий": { "общение": 0.5 },
-                "вопрос_надежность": { "общение": 0.5 },
-                "запрос_поддержка_друга": { "общение": 0.5 },
-                "запрос_резюме_заключение": { "общение": 0.5 },
-                "вопрос_умение": { "общение": 0.5 },
-                "вопрос_современность": { "общение": 0.5 },
-                "выражение_серьезности_или_вопрос": { "общение": 0.5 },
-                "вопрос_одобрение": { "общение": 0.5 },
-                "запрос_рекомендация_действие": { "общение": 0.5 },
-                "запрос_смысл_действий": { "общение": 0.5 },
-                "вопрос_подтекст": { "общение": 0.5 },
-                "вопрос_место": { "общение": 0.5 },
-                "вопрос_выбор_решение": { "общение": 0.5 },
-                "выражение_срочности_запрос_быстрого_ответа": { "общение": 0.5 },
-                "запрос_истинная_причина_суть": { "общение": 0.5 },
-                "подтверждение_справедливости_или_вопрос": { "общение": 0.5 },
-                "восклицание_или_вопрос": { "общение": 0.5 },
-                "вопрос_гипотетический": { "общение": 0.5 },
-                "выражение_истощения": { "общение": 0.5 },
-                "вопрос_скрытое": { "общение": 0.5 },
-                "отрицание_факта": { "общение": 0.5 },
-                "вопрос_актуальность": { "общение": 0.5 },
-                "вопрос_непопулярность": { "общение": 0.5 },
-                "вопрос_время": { "общение": 0.5 },
-                "выражение_отсутствия_срочности": { "общение": 0.5 },
-                "запрос_совет_личный_опыт": { "общение": 0.5 },
-                "вопрос_измерение": { "общение": 0.5 },
-                "вопрос_вред": { "общение": 0.5 },
-                "вопрос_дешевизна": { "общение": 0.5 },
-                "запрос_совет_прямой": { "общение": 0.5 },
-                "вопрос_инструкция_дружеская": { "общение": 0.5 },
-                "вопрос_завершение": { "общение": 0.5 },
-                "выражение_запутанности_ситуации": { "общение": 0.5 },
-                "вопрос_результат": { "общение": 0.5 },
-                "вопрос_отношение": { "общение": 0.5 },
-                "запрос_освещение_вопроса": { "общение": 0.5 },
-                "вопрос_стоимость": { "общение": 0.5 },
-                "запрос_обучение_наставник": { "общение": 0.5 },
-                "запрос_подсказка_направления": { "общение": 0.5 },
-                "выражение_спокойствия_или_контекст": { "общение": 0.5 },
-                "выражение_вдохновения_или_контекст": { "общение": 0.5 },
-                "вопрос_вспоминание": { "общение": 0.5 },
-                "astronomy": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "auto": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "biology": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "chemistry": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "closing": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "communication": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "cooking": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "diseases": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "earth_science": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "ecology": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "economics": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "emotions": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "engineering": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "ethics": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "everyday": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "finance": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "first_aid": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "general": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "geology": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "gratitude": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "greeting": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "growth": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "health": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "heuristic": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "history_of_science": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "inspiration": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "knowledge": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "lang": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "law": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "learning": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "lifestyle": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "mathematics": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "medical": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "minerals": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "neuroscience": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "nutrition": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "other": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "philosophy": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "physics": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "psychology": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "quotes": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "relationships": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "religion": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "roles": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "security": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "sociology": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "sport": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "support": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "symptoms": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "tech": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "vitamins": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "wisdom": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "work": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "категория": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                // v12.2: +33 узла из mosc_graph.json
-                "расстроен": { "действие_эмпатия": 0.85 },
-                "кстати": { "общение": 0.5 },
-                "потен": { "выражение_потери_ориентации_запрос_направления": 0.85 },
-                "вопрос_инструкция": { "общение": 0.5 },
-                "вопрос_рекомендация": { "общение": 0.5 },
-                "вопрос_законность": { "общение": 0.5 },
-                "вопрос_оценка": { "общение": 0.5 },
-                "действие_поиска": { "общение": 0.5 },
-                "вопрос_постоянство": { "общение": 0.5 },
-                "запрос_резюме": { "общение": 0.5 },
-                "вопрос_возможность": { "общение": 0.5 },
-                "запрос_анализ": { "общение": 0.5 },
-                "в_обязанность": { "общение": 0.5 },
-                "вопрос_память": { "общение": 0.5 },
-                "вопрос_мнение": { "общение": 0.5 },
-                "вопрос_подтверждение": { "общение": 0.5 },
-                "вопрос_частота": { "общение": 0.5 },
-                "прос_сравнение_детальное": { "общение": 0.5 },
-                "вопрос_оценка_номальности": { "общение": 0.5 },
-                "вопрос_определение": { "общение": 0.5 },
-                "вопрос_выбор": { "общение": 0.5 },
-                "вопрос_чевидность": { "общение": 0.5 },
-                "вопрос_интерпретация": { "общение": 0.5 },
-                "вопрос_сомнение": { "общение": 0.5 },
-                "вопрос_применение": { "общение": 0.5 },
-                "вопрос_иск": { "общение": 0.5 },
-                "общение": { "общение": 0.5 },
-                "art": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "econ": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "geo": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "history": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "math": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "psych": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                // ── 50 KB Категорий (v12.5 — новые расширенные концепты) ────────────────────
-                "personal_development": { "действие_поиска_kb": 0.9, "общение": 0.4 },
-                "motivation": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "mindfulness": { "действие_эмпатия": 0.8, "действие_поиска_kb": 0.7 },
-                "mental_health": { "здоровье": 0.95, "действие_поиска_kb": 0.9 },
-                "resilience": { "действие_эмпатия": 0.9, "действие_поиска_kb": 0.7 },
-                "self_improvement": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "science_general": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "research": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "technology_basics": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "problem_solving": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "creativity": { "действие_поиска_kb": 0.8, "общение": 0.5 },
-                "critical_thinking": { "действие_поиска_kb": 0.9, "общение": 0.5 },
-                "business": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "management": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "productivity": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "career_advice": { "действие_поиска_kb": 0.8, "общение": 0.6 },
-                "professional_skills": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "fitness": { "здоровье": 0.95, "действие_поиска_kb": 0.8 },
-                "sleep_rest": { "здоровье": 0.9, "действие_поиска_kb": 0.8 },
-                "vitamins_supplements": { "здоровье": 0.9, "действие_поиска_kb": 0.8 },
-                "investment": { "действие_поиска_kb": 0.85, "действие_вычисление": 0.6 },
-                "personal_finance": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "business_finance": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "ethics": { "действие_поиска_kb": 0.85, "общение": 0.6 },
-                "rights": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "rules_regulations": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "climate": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "nature": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "quantum_physics": { "действие_поиска_kb": 0.9, "общение": 0.2 },
-                "programming": { "действие_поиска_kb": 0.95, "общение": 0.2 },
-                "artificial_intelligence": { "действие_поиска_kb": 0.9, "общение": 0.3 },
-                "robotics": { "действие_поиска_kb": 0.9, "общение": 0.2 },
-                "energy": { "действие_поиска_kb": 0.9, "общение": 0.2 },
-                "culture": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "art_history": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "literature": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "language": { "действие_поиска_kb": 0.9, "общение": 0.5 },
-                "music": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "performing_arts": { "действие_поиска_kb": 0.8, "общение": 0.4 },
-                "design": { "действие_поиска_kb": 0.85, "общение": 0.3 },
-                "crafts": { "действие_поиска_kb": 0.8, "общение": 0.3 },
-                "photography": { "действие_поиска_kb": 0.8, "общение": 0.3 },
-                "gaming": { "действие_поиска_kb": 0.8, "общение": 0.5 },
-                "sports": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "hobbies": { "действие_поиска_kb": 0.8, "общение": 0.4 },
-                "travel": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "inspiration": { "действие_поиска_kb": 0.8, "общение": 0.6 },
-                "wisdom": { "действие_поиска_kb": 0.85, "общение": 0.5 },
-                "spirituality": { "действие_поиска_kb": 0.8, "действие_эмпатия": 0.5 },
-                "social_etiquette": { "действие_поиска_kb": 0.8, "общение": 0.6 },
-                "mental_illness": { "здоровье": 0.95, "действие_поиска_kb": 0.85 },
-                "сон": { "действие_поиска_kb": 0.9, "биология": 0.8, "здоровье": 0.85 },
-                "экология": { "действие_поиска_kb": 0.9, "природа": 0.85 },
-                "климат": { "действие_поиска_kb": 0.9, "природа": 0.85, "экология": 0.9 },
-                "биоразнообразие": { "действие_поиска_kb": 0.9, "природа": 0.85, "экология": 0.9 },
-                "эволюция": { "действие_поиска_kb": 0.9, "биология": 0.9 },
-                "гормоны": { "действие_поиска_kb": 0.9, "биология": 0.85, "здоровье": 0.8 },
-                "иммунитет": { "действие_поиска_kb": 0.9, "биология": 0.85, "здоровье": 0.9 },
-                "нейроны": { "действие_поиска_kb": 0.9, "биология": 0.9 },
-                "география": { "действие_поиска_kb": 0.85, "общение": 0.4 },
-                "вулкан": { "действие_поиска_kb": 0.85, "природа": 0.6 },
-                "энтропия": { "действие_поиска_kb": 0.9, "физика": 0.9 },
-
-                // v12.7: новые MOSC-узлы для расширенных KB-категорий
-                "социология": { "действие_поиска_kb": 0.9, "общение": 0.7, "psychology": 0.5 },
-                "общество": { "действие_поиска_kb": 0.85, "социология": 0.9, "общение": 0.6 },
-                "социализация": { "действие_поиска_kb": 0.9, "социология": 0.9, "psychology": 0.6 },
-                "неравенство": { "действие_поиска_kb": 0.85, "социология": 0.9, "экономика": 0.5 },
-                "бюрократия": { "действие_поиска_kb": 0.85, "социология": 0.8 },
-                "обучение": { "действие_поиска_kb": 0.9, "learning": 0.95, "psychology": 0.5 },
-                "учёба": { "действие_поиска_kb": 0.9, "learning": 0.95, "обучение": 0.9 },
-                "память обучение": { "действие_поиска_kb": 0.9, "learning": 0.9, "psychology": 0.7 },
-                "забывание": { "действие_поиска_kb": 0.9, "learning": 0.9, "psychology": 0.6 },
-                "мотивация учёба": { "действие_поиска_kb": 0.9, "learning": 0.9, "psychology": 0.7 },
-                "благодарность": { "действие_поиска_kb": 0.9, "gratitude": 0.95, "psychology": 0.6 },
-                "счастье": { "действие_поиска_kb": 0.9, "gratitude": 0.8, "psychology": 0.8, "philosophy": 0.5 },
-                "оптимизм": { "действие_поиска_kb": 0.9, "gratitude": 0.8, "psychology": 0.8 },
-                "прощение": { "действие_поиска_kb": 0.9, "gratitude": 0.8, "psychology": 0.7 },
-                "геология": { "действие_поиска_kb": 0.9, "geology": 0.95, "природа": 0.6 },
-                "тектоника": { "действие_поиска_kb": 0.9, "geology": 0.95, "физика": 0.4 },
-                "землетрясение": { "действие_поиска_kb": 0.9, "geology": 0.9, "природа": 0.6 },
-                "горные породы": { "действие_поиска_kb": 0.9, "geology": 0.9, "химия": 0.4 },
-                "экономика": { "действие_поиска_kb": 0.9, "economics": 0.95, "общение": 0.4 },
-                "инфляция": { "действие_поиска_kb": 0.9, "economics": 0.9, "финансы": 0.7 },
-                "ввп": { "действие_поиска_kb": 0.9, "economics": 0.9 },
-                "рынок": { "действие_поиска_kb": 0.85, "economics": 0.9, "финансы": 0.6 },
-                "безработица": { "действие_поиска_kb": 0.9, "economics": 0.9 },
-
-                // ── ENRICH PACK v1: связи к недавно добавленным KB-фактам ──
-                // История науки
-                "история науки": { "действие_поиска_kb": 0.9, "history_of_science": 0.95 },
-                "научная революция": { "действие_поиска_kb": 0.9, "history_of_science": 0.9 },
-                "архимед": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "физика": 0.6, "математика": 0.6 },
-                "коперник": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "астрономия": 0.7 },
-                "галилей": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "астрономия": 0.7, "физика": 0.6 },
-                "менделеев": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "химия": 0.9 },
-                "дарвин": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "биология": 0.8, "эволюция": 0.9 },
-                "тьюринг": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "технологии": 0.7 },
-                "гёдель": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "математика": 0.85 },
-                "хаббл": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "астрономия": 0.9 },
-                "флеминг": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "здоровье": 0.6 },
-                "дженнер": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "здоровье": 0.6 },
-                "пенициллин": { "действие_поиска_kb": 0.95, "history_of_science": 0.7 },
-                "вакцина": { "действие_поиска_kb": 0.9, "здоровье": 0.85, "history_of_science": 0.6 },
-                "principia": { "действие_поиска_kb": 0.95, "history_of_science": 0.9, "физика": 0.7 },
-                "annus mirabilis": { "действие_поиска_kb": 0.9, "history_of_science": 0.9 },
-                "год чудес": { "действие_поиска_kb": 0.9, "history_of_science": 0.9 },
-                "шумеры": { "действие_поиска_kb": 0.9, "история": 0.9, "history_of_science": 0.7 },
-                "аль хорезми": { "действие_поиска_kb": 0.95, "history_of_science": 0.85, "математика": 0.7 },
-                "алгоритм": { "действие_поиска_kb": 0.8, "технологии": 0.7 },
-
-                // Земля, геология, минералогия
-                "тектонические плиты": { "действие_поиска_kb": 0.95, "earth_science": 0.95, "природа": 0.5 },
-                "литосфера": { "действие_поиска_kb": 0.9, "earth_science": 0.95 },
-                "мантия земли": { "действие_поиска_kb": 0.95, "earth_science": 0.9 },
-                "ядро земли": { "действие_поиска_kb": 0.95, "earth_science": 0.9 },
-                "магнитное поле земли": { "действие_поиска_kb": 0.95, "earth_science": 0.9, "физика": 0.5 },
-                "кольцо огня": { "действие_поиска_kb": 0.9, "earth_science": 0.9 },
-                "шкала рихтера": { "действие_поиска_kb": 0.95, "earth_science": 0.9 },
-                "магнитуда": { "действие_поиска_kb": 0.9, "earth_science": 0.85 },
-                "возраст земли": { "действие_поиска_kb": 0.95, "earth_science": 0.85 },
-                "кольская сверхглубокая": { "действие_поиска_kb": 0.95, "earth_science": 0.8 },
-                "марианская впадина": { "действие_поиска_kb": 0.95, "earth_science": 0.85, "природа": 0.5 },
-                "марианский желоб": { "действие_поиска_kb": 0.95, "earth_science": 0.85 },
-                "цирконы": { "действие_поиска_kb": 0.9, "earth_science": 0.8, "minerals": 0.8 },
-                "горные породы виды": { "действие_поиска_kb": 0.9, "geology": 0.95 },
-                "магматические породы": { "действие_поиска_kb": 0.9, "geology": 0.9 },
-                "осадочные породы": { "действие_поиска_kb": 0.9, "geology": 0.9 },
-                "метаморфические породы": { "действие_поиска_kb": 0.9, "geology": 0.9 },
-                "минерал": { "действие_поиска_kb": 0.85, "minerals": 0.95 },
-                "минералы": { "действие_поиска_kb": 0.85, "minerals": 0.95, "geology": 0.7 },
-                "шкала мооса": { "действие_поиска_kb": 0.95, "minerals": 0.9 },
-                "кварц": { "действие_поиска_kb": 0.95, "minerals": 0.9, "химия": 0.5 },
-                "полевой шпат": { "действие_поиска_kb": 0.9, "minerals": 0.9 },
-                "магнетит": { "действие_поиска_kb": 0.9, "minerals": 0.85 },
-                "опал": { "действие_поиска_kb": 0.9, "minerals": 0.85 },
-                "изумруд": { "действие_поиска_kb": 0.9, "minerals": 0.85 },
-                "алмаз": { "действие_поиска_kb": 0.9, "minerals": 0.85, "химия": 0.5 },
-
-                // Нейронауки
-                "нейронаука": { "действие_поиска_kb": 0.9, "neuroscience": 0.95 },
-                "нейропластичность": { "действие_поиска_kb": 0.95, "neuroscience": 0.95 },
-                "гиппокамп": { "действие_поиска_kb": 0.95, "neuroscience": 0.95, "мозг": 0.8 },
-                "префронтальная кора": { "действие_поиска_kb": 0.95, "neuroscience": 0.95, "мозг": 0.8 },
-                "зеркальные нейроны": { "действие_поиска_kb": 0.95, "neuroscience": 0.95 },
-                "дофамин": { "действие_поиска_kb": 0.95, "neuroscience": 0.9, "здоровье": 0.4 },
-                "серотонин": { "действие_поиска_kb": 0.95, "neuroscience": 0.9, "здоровье": 0.5 },
-                "нейромедиатор": { "действие_поиска_kb": 0.9, "neuroscience": 0.9 },
-                "фазы сна": { "действие_поиска_kb": 0.9, "neuroscience": 0.7, "здоровье": 0.7 },
-                "rem сон": { "действие_поиска_kb": 0.9, "neuroscience": 0.8 },
-                "глимфатическая система": { "действие_поиска_kb": 0.9, "neuroscience": 0.85 },
-                "синапс": { "действие_поиска_kb": 0.9, "neuroscience": 0.9, "биология": 0.7 },
-
-                // Астрономия
-                "солнце": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "юпитер": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "сатурн": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "большое красное пятно": { "действие_поиска_kb": 0.95, "астрономия": 0.9 },
-                "луна": { "действие_поиска_kb": 0.9, "астрономия": 0.9 },
-                "нейтронная звезда": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "реликтовое излучение": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "космический микроволновый фон": { "действие_поиска_kb": 0.95, "астрономия": 0.95 },
-                "красный гигант": { "действие_поиска_kb": 0.9, "астрономия": 0.9 },
-                "белый карлик": { "действие_поиска_kb": 0.9, "астрономия": 0.9 },
-                "james webb": { "действие_поиска_kb": 0.9, "астрономия": 0.9 },
-                "телескоп": { "действие_поиска_kb": 0.85, "астрономия": 0.85 },
-                "световой год": { "действие_поиска_kb": 0.9, "астрономия": 0.9 },
-
-                // Химия
-                "число авогадро": { "действие_поиска_kb": 0.95, "химия": 0.95 },
-                "моль": { "действие_поиска_kb": 0.85, "химия": 0.85 },
-                "ph": { "действие_поиска_kb": 0.9, "химия": 0.9 },
-                "катализатор": { "действие_поиска_kb": 0.9, "химия": 0.9 },
-                "электролиз": { "действие_поиска_kb": 0.9, "химия": 0.9 },
-                "аллотропия": { "действие_поиска_kb": 0.9, "химия": 0.85 },
-                "благородные газы": { "действие_поиска_kb": 0.9, "химия": 0.95 },
-                "инертные газы": { "действие_поиска_kb": 0.9, "химия": 0.95 },
-                "графен": { "действие_поиска_kb": 0.9, "химия": 0.7, "технологии": 0.5 },
-                "фуллерен": { "действие_поиска_kb": 0.9, "химия": 0.85 },
-                "водород": { "действие_поиска_kb": 0.85, "химия": 0.85 },
-                "кислород": { "действие_поиска_kb": 0.85, "химия": 0.85, "биология": 0.4 },
-
-                // Математика
-                "теорема ферма": { "действие_поиска_kb": 0.95, "математика": 0.95 },
-                "теорема гёделя о неполноте": { "действие_поиска_kb": 0.95, "математика": 0.9 },
-                "гипотеза римана": { "действие_поиска_kb": 0.9, "математика": 0.95 },
-                "золотое сечение": { "действие_поиска_kb": 0.9, "математика": 0.9, "искусство": 0.5 },
-                "фибоначчи": { "действие_поиска_kb": 0.9, "математика": 0.95 },
-                "число пи": { "действие_поиска_kb": 0.9, "математика": 0.9 },
-                "кантор множества": { "действие_поиска_kb": 0.9, "математика": 0.9 },
-                "графы": { "действие_поиска_kb": 0.85, "математика": 0.8 },
-                "эйлер мосты": { "действие_поиска_kb": 0.9, "математика": 0.85, "history_of_science": 0.6 },
-
-                // Кулинария
-                "реакция майяра": { "действие_поиска_kb": 0.95, "cooking": 0.95, "химия": 0.5 },
-                "карамелизация": { "действие_поиска_kb": 0.9, "cooking": 0.9 },
-                "су вид": { "действие_поиска_kb": 0.9, "cooking": 0.9 },
-                "рассол для мяса": { "действие_поиска_kb": 0.9, "cooking": 0.95 },
-                "севиче": { "действие_поиска_kb": 0.9, "cooking": 0.9 },
-                "приготовление": { "действие_поиска_kb": 0.7, "cooking": 0.85 },
-
-                // Инженерия / технологии
-                "закон мура": { "действие_поиска_kb": 0.95, "engineering": 0.9, "технологии": 0.7 },
-                "кпд двигателя": { "действие_поиска_kb": 0.95, "engineering": 0.9, "физика": 0.6 },
-                "предел прочности": { "действие_поиска_kb": 0.9, "engineering": 0.9 },
-                "кевлар": { "действие_поиска_kb": 0.9, "engineering": 0.85 },
-                "преднапряжённый бетон": { "действие_поиска_kb": 0.9, "engineering": 0.9 },
-                "арка строение": { "действие_поиска_kb": 0.9, "engineering": 0.9 },
-                "турбонаддув": { "действие_поиска_kb": 0.9, "engineering": 0.8, "авто": 0.9 },
-                "гибридный автомобиль": { "действие_поиска_kb": 0.9, "авто": 0.95, "engineering": 0.5 },
-                "электромобиль": { "действие_поиска_kb": 0.9, "авто": 0.95, "engineering": 0.5 },
-
-                // Первая помощь / симптомы / болезни
-                "слр": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "first_aid": 0.95 },
-                "приём геймлиха": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "first_aid": 0.95 },
-                "геймлих": { "действие_поиска_kb": 0.9, "здоровье": 0.9, "first_aid": 0.95 },
-                "кровотечение": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "first_aid": 0.95, "симптом": 0.7 },
-                "перелом": { "действие_поиска_kb": 0.9, "здоровье": 0.9, "first_aid": 0.9 },
-                "утопающий": { "действие_поиска_kb": 0.95, "first_aid": 0.95, "здоровье": 0.85 },
-                "инфаркт": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "симптом": 0.9 },
-                "инсульт": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "симптом": 0.9 },
-                "fast тест": { "действие_поиска_kb": 0.9, "здоровье": 0.85, "симптом": 0.85 },
-                "менингит": { "действие_поиска_kb": 0.95, "здоровье": 0.95, "симптом": 0.9 },
-                "гипогликемия": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "симптом": 0.9 },
-                "диабет": { "действие_поиска_kb": 0.95, "здоровье": 0.95 },
-                "альцгеймер": { "действие_поиска_kb": 0.95, "здоровье": 0.9 },
-                "деменция": { "действие_поиска_kb": 0.95, "здоровье": 0.9 },
-                "гипертония": { "действие_поиска_kb": 0.95, "здоровье": 0.95 },
-
-                // Витамины и питание
-                "витамин d": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "витамины": 0.95 },
-                "витамин б12": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "витамины": 0.95 },
-                "витамин b12": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "витамины": 0.95 },
-                "витамин c": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "витамины": 0.95 },
-                "витамин а": { "действие_поиска_kb": 0.95, "здоровье": 0.9, "витамины": 0.95 },
-                "цинга": { "действие_поиска_kb": 0.95, "здоровье": 0.85, "витамины": 0.85 },
-                "железо в крови": { "действие_поиска_kb": 0.95, "здоровье": 0.9 },
-
-                // Экономика / финансы
-                "сложный процент": { "действие_поиска_kb": 0.95, "economics": 0.95, "финансы": 0.95 },
-                "правило 72": { "действие_поиска_kb": 0.95, "финансы": 0.95 },
-                "диверсификация": { "действие_поиска_kb": 0.9, "финансы": 0.95 },
-                "финансовая подушка": { "действие_поиска_kb": 0.95, "финансы": 0.95, "действие_совет": 0.7 },
-                "невидимая рука": { "действие_поиска_kb": 0.9, "economics": 0.95 },
-                "трагедия общин": { "действие_поиска_kb": 0.9, "economics": 0.9 },
-                "парадокс бережливости": { "действие_поиска_kb": 0.9, "economics": 0.9 },
-                "адам смит": { "действие_поиска_kb": 0.9, "economics": 0.9, "history_of_science": 0.5 },
-                "кейнс": { "действие_поиска_kb": 0.9, "economics": 0.9 },
-
-                // Право
-                "право": { "действие_поиска_kb": 0.85, "law": 0.95 },
-                "закон": { "действие_поиска_kb": 0.6, "law": 0.7 },
-                "презумпция невиновности": { "действие_поиска_kb": 0.95, "law": 0.95 },
-                "статья 51": { "действие_поиска_kb": 0.95, "law": 0.9 },
-                "авторское право": { "действие_поиска_kb": 0.95, "law": 0.95 },
-                "копирайт": { "действие_поиска_kb": 0.9, "law": 0.9 },
-                "исковая давность": { "действие_поиска_kb": 0.95, "law": 0.95 },
-                "оферта": { "действие_поиска_kb": 0.95, "law": 0.95 },
-                "акцепт": { "действие_поиска_kb": 0.9, "law": 0.9 },
-
-                // Безопасность / IT
-                "двухфакторная аутентификация": { "действие_поиска_kb": 0.95, "security": 0.95, "технологии": 0.6 },
-                "2fa": { "действие_поиска_kb": 0.95, "security": 0.95 },
-                "менеджер паролей": { "действие_поиска_kb": 0.95, "security": 0.95 },
-                "фишинг": { "действие_поиска_kb": 0.95, "security": 0.95 },
-                "https": { "действие_поиска_kb": 0.9, "security": 0.9, "технологии": 0.6 },
-                "пароль": { "действие_поиска_kb": 0.7, "security": 0.9 },
-
-                // Этика / философия
-                "этика добродетели": { "действие_поиска_kb": 0.95, "философия": 0.9 },
-                "деонтология": { "действие_поиска_kb": 0.95, "философия": 0.9 },
-                "утилитаризм": { "действие_поиска_kb": 0.95, "философия": 0.9 },
-                "проблема вагонетки": { "действие_поиска_kb": 0.95, "философия": 0.85, "общение": 0.4 },
-                "категорический императив": { "действие_поиска_kb": 0.95, "философия": 0.95 },
-
-                // Коммуникация / отношения / поддержка
-                "ненасильственное общение": { "действие_поиска_kb": 0.95, "общение": 0.5, "действие_совет": 0.6 },
-                "я высказывание": { "действие_поиска_kb": 0.9, "общение": 0.5, "действие_совет": 0.6 },
-                "активное слушание": { "действие_поиска_kb": 0.9, "общение": 0.5, "действие_совет": 0.6 },
-                "обратная связь sbi": { "действие_поиска_kb": 0.9, "действие_совет": 0.7 },
-                "правило мехрабиана": { "действие_поиска_kb": 0.9 },
-                "готтман": { "действие_поиска_kb": 0.9, "действие_совет": 0.5 },
-                "языки любви": { "действие_поиска_kb": 0.9, "действие_совет": 0.5 },
-                "треугольник любви": { "действие_поиска_kb": 0.9 },
-
-                // Производительность / привычки / рост
-                "помодоро": { "действие_поиска_kb": 0.95, "действие_совет": 0.7 },
-                "pomodoro": { "действие_поиска_kb": 0.95, "действие_совет": 0.7 },
-                "закон паркинсона": { "действие_поиска_kb": 0.95 },
-                "eat the frog": { "действие_поиска_kb": 0.9, "действие_совет": 0.7 },
-                "атомные привычки": { "действие_поиска_kb": 0.9, "действие_совет": 0.6 },
-                "икигай": { "действие_поиска_kb": 0.95 },
-                "ikigai": { "действие_поиска_kb": 0.95 },
-                "выготский": { "действие_поиска_kb": 0.9, "психология": 0.85 },
-                "зона ближайшего развития": { "действие_поиска_kb": 0.95, "психология": 0.85 },
-                "кэрол дуэк": { "действие_поиска_kb": 0.9, "психология": 0.85 },
-                "growth mindset": { "действие_поиска_kb": 0.9, "психология": 0.85 },
-                "брене браун": { "действие_поиска_kb": 0.9, "психология": 0.8 },
-                "кривая забывания": { "действие_поиска_kb": 0.95, "психология": 0.7 },
-                "эббингауз": { "действие_поиска_kb": 0.95, "психология": 0.8 },
-                "техника фейнмана": { "действие_поиска_kb": 0.95, "действие_совет": 0.5 },
-                "метакогниция": { "действие_поиска_kb": 0.95, "психология": 0.7 },
-
-                // Религия / мудрость
-                "пять столпов ислама": { "действие_поиска_kb": 0.95 },
-                "четыре благородные истины": { "действие_поиска_kb": 0.95, "буддизм": 0.95 },
-                "восьмеричный путь": { "действие_поиска_kb": 0.95, "буддизм": 0.95 },
-                "тора": { "действие_поиска_kb": 0.9 },
-                "танах": { "действие_поиска_kb": 0.9 },
-
-                // Искусство
-                "линейная перспектива": { "действие_поиска_kb": 0.95, "искусство": 0.95 },
-                "брунеллески": { "действие_поиска_kb": 0.95, "искусство": 0.9, "history_of_science": 0.4 },
-                "моне": { "действие_поиска_kb": 0.9, "искусство": 0.95, "импрессионизм": 0.9 },
-                "пикассо": { "действие_поиска_kb": 0.9, "искусство": 0.95, "кубизм": 0.9 },
-
-                // Спорт / общее
-                "марафон дистанция": { "действие_поиска_kb": 0.9 },
-                "олимпийские игры": { "действие_поиска_kb": 0.9, "история": 0.5 },
-                "часовые пояса": { "действие_поиска_kb": 0.9 },
-                "григорианский календарь": { "действие_поиска_kb": 0.9 },
-                "равноденствие": { "действие_поиска_kb": 0.9, "астрономия": 0.7 }
+            // v13.4.0 P2 FIX #8: MOSC_DEFAULT_GRAPH вынесен в data/mosc_default_v1.json
+            // (115 КБ, 1225 узлов). Inline fallback покрывает работу без сети.
+            var MOSC_INLINE_FALLBACK = {
+                "помоги":        { "действие_совет":1, "общение":0.8 },
+                "запомни":       { "действие_память":1, "действие_поиска_kb":0.5 },
+                "найди":         { "действие_поиска":0.9, "действие_поиска_kb":0.8 },
+                "что такое":     { "действие_поиска_kb":0.95, "общение":0.7 },
+                "когда":         { "действие_напоминание":0.8 },
+                "напомни":       { "действие_напоминание":1 },
+                "создай заметку":{ "действие_память":1 },
+                "болит":         { "здоровье":0.9, "действие_поиска_kb":0.8 },
+                "мне грустно":   { "действие_эмпатия":0.95 },
+                "помоги решить": { "действие_совет":1 },
+                "как":           { "общение":0.7, "действие_поиска_kb":0.6 },
+                "почему":        { "общение":0.9 },
+                "что делать":    { "действие_совет":0.9 },
+                "спасибо":       { "общение":0.9 },
+                "привет":        { "общение":1 }
             };
+            var MOSC_DEFAULT_GRAPH = MOSC_INLINE_FALLBACK;
+            window._moscDefaultPromise = fetch('data/mosc_default_v1.json')
+                .then(function(r) {
+                    if (!r.ok) throw new Error('mosc_default: ' + r.status);
+                    return r.json();
+                })
+                .then(function(g) {
+                    MOSC_DEFAULT_GRAPH = g;
+                    window._moscDefaultNodeCount = Object.keys(g).length;
+                    window._moscDefaultEdgeCount = Object.values(g).reduce(function(a,e){ return a+Object.keys(e).length; }, 0);
+                    if (!window._moscGraph || Object.keys(window._moscGraph).length < 10) {
+                        window._moscGraph = g;
+                    }
+                    return g;
+                })
+                .catch(function(e) {
+                    console.warn('[EITI] mosc_default.json fallback:', e.message);
+                    return MOSC_INLINE_FALLBACK;
+                });
             // Экспортируем baseline для delta-статистики
             window._moscDefaultNodeCount = Object.keys(MOSC_DEFAULT_GRAPH).length;
             window._moscDefaultEdgeCount = Object.values(MOSC_DEFAULT_GRAPH).reduce(function(a,e){ return a+Object.keys(e).length; }, 0);
@@ -21660,17 +21181,26 @@ window.eitiLLMClearAll = async function() {
             var _moscPending = null; // { intent, query, score } или null
 
             // ── Загрузка/сохранение графа из IDB ──────────────────────
+            // v13.4.0 P2 FIX #8: ждём полный граф из data/mosc_default_v1.json
+            // (или fallback) перед resolve, чтобы default не был обрезан inline-версией.
+            function _moscResolveDefault() {
+                return window._moscDefaultPromise || Promise.resolve(MOSC_DEFAULT_GRAPH);
+            }
             function moscLoadGraph() {
                 return new Promise(function(resolve) {
-                    if (!eitiDb) { resolve(MOSC_DEFAULT_GRAPH); return; }
+                    if (!eitiDb) { _moscResolveDefault().then(resolve); return; }
                     try {
                         var tx = eitiDb.transaction('reasoning', 'readonly');
                         var req = tx.objectStore('reasoning').get('graph');
                         req.onsuccess = function() {
-                            resolve(req.result ? req.result.data : MOSC_DEFAULT_GRAPH);
+                            if (req.result && req.result.data) {
+                                resolve(req.result.data);
+                            } else {
+                                _moscResolveDefault().then(resolve);
+                            }
                         };
-                        req.onerror = function() { resolve(MOSC_DEFAULT_GRAPH); };
-                    } catch(e) { resolve(MOSC_DEFAULT_GRAPH); }
+                        req.onerror = function() { _moscResolveDefault().then(resolve); };
+                    } catch(e) { _moscResolveDefault().then(resolve); }
                 });
             }
 
@@ -21870,6 +21400,16 @@ window.eitiLLMClearAll = async function() {
             }
 
             function doSend() {
+                // v13.4.0 P1 FIX #15: если был paste-chip — инжектим полный текст в начало.
+                if (window._eitiPastedTextBuffer) {
+                    var _pastedContent = window._eitiPastedTextBuffer;
+                    var _currentVal = (input.value || '').trim();
+                    input.value = (_currentVal ? _currentVal + '\n\n' : 'Вот текст для анализа:\n\n') + _pastedContent;
+                    window._eitiPastedTextBuffer = null;
+                    var _chip0 = document.getElementById('eiti-paste-chip');
+                    if (_chip0) _chip0.remove();
+                    window._eitiPasteExpanded = false;
+                }
                 var txt = input.value.trim();
                 // v12.9.50: если прикреплён файл — инжектируем его в текст
                 txt = eitiInjectAttachedFile(txt);
@@ -22132,6 +21672,24 @@ window.eitiLLMClearAll = async function() {
             }
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
+
+            // v13.4.0 P1 FIX #16: Smart Suggestions — параллельный AI после рендера ответа.
+            if (typeof eitiSuggIsEnabled === 'function' && eitiSuggIsEnabled()) {
+                try {
+                    var _suggLastUser = '';
+                    for (var _si = (chatLog || []).length - 1; _si >= 0; _si--) {
+                        if (chatLog[_si] && chatLog[_si].role === 'user') {
+                            _suggLastUser = chatLog[_si].text || chatLog[_si].content || '';
+                            break;
+                        }
+                    }
+                    var _suggMsgId = ai.id;
+                    setTimeout(function() {
+                        try { eitiGenerateSuggestions(_suggMsgId, _suggLastUser, processed); } catch(_) {}
+                    }, 0);
+                } catch(_) {}
+            }
+
             // v12.9.47: Grok Voice live history sync — обновляем контекст открытой WS сессии
             try {
                 if (window._grokWS && window._grokWS.readyState === 1 &&
@@ -23235,6 +22793,8 @@ window.eitiLLMClearAll = async function() {
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
+        // v13.4.0 P0 #2: _eitiInlineReply принимает dev-controlled HTML.
+        // Санитизация выполняется при рендере AI-текста через eitiRenderMarkdown.
         function _eitiInlineReply(html, sender) {
             var msgs = document.getElementById('messages');
             if (!msgs) return;
@@ -27558,13 +27118,25 @@ window.eitiLLMClearAll = async function() {
                                     _db.run("INSERT OR REPLACE INTO notes_idx(id, title, content, tags, created, updated) VALUES (?,?,?,?,?,?)",
                                         [n.id, title, content, tags, created, updated]);
                                 } catch(e) {}
-                                if (_fts5Available) {
-                                    try {
-                                        // FIX: notes_fts is content-backed → trigger rebuild via rowid match, not direct INSERT
-                                        _db.run("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')");
-                                    } catch(e) {}
-                                }
+                                // v13.4.0 P0 FIX #1: incremental FTS5 sync via rowid (O(1) per note).
+                                // Full 'rebuild' lives only in _syncFromIDB.
+                                try {
+                                    var rowRows = _db.exec("SELECT rowid FROM notes_idx WHERE id=?", [n.id]);
+                                    if (rowRows && rowRows[0] && rowRows[0].values && rowRows[0].values[0]) {
+                                        var rid = rowRows[0].values[0][0];
+                                        try { _db.run("DELETE FROM notes_fts WHERE rowid=?", [rid]); } catch(e) {}
+                                        if (_fts5Available) {
+                                            try {
+                                                _db.run("INSERT INTO notes_fts(rowid,title,content,tags) VALUES(?,?,?,?)",
+                                                    [rid, title, content, tags]);
+                                            } catch(e) {}
+                                        }
+                                    }
+                                } catch(e) {}
                             });
+                            if (typeof _persistSQLDebounced === 'function') {
+                                try { _persistSQLDebounced(); } catch(e) {}
+                            }
                         } catch(e) {}
                     }
                 };
@@ -37223,6 +36795,128 @@ window.eitiAskDeepSeek = function(userText) {
 };
 
 console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
+
+// v13.4.0 P0 FIX #3: PIN-модал для шифрования API-ключей
+(function eitiCryptoBootstrap() {
+    function _hasLegacyKey() {
+        var keys = ['deepseek_api_key','eiti_gemini_key','eiti_or_key',
+            'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'];
+        for (var i = 0; i < keys.length; i++) {
+            var v = localStorage.getItem(keys[i]);
+            if (v && v.indexOf('enc2_') !== 0) return true;
+        }
+        return false;
+    }
+    function _hasEncKey() {
+        var keys = ['deepseek_api_key','eiti_gemini_key','eiti_or_key',
+            'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'];
+        for (var i = 0; i < keys.length; i++) {
+            var v = localStorage.getItem(keys[i]);
+            if (v && v.indexOf('enc2_') === 0) return true;
+        }
+        return false;
+    }
+    function _isPinDismissed() {
+        return localStorage.getItem('eiti_pin_dismissed') === '1';
+    }
+    function _showPinModal(mode) {
+        // mode: 'set' (первичная установка) | 'unlock' (есть enc2_ ключи)
+        if (document.getElementById('eiti-pin-modal')) return;
+        var overlay = document.createElement('div');
+        overlay.id = 'eiti-pin-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+        var card = document.createElement('div');
+        card.style.cssText = 'background:#1c1410;color:#fff;padding:22px 24px;border-radius:14px;max-width:340px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,0.6);border:1px solid rgba(255,215,0,0.25);';
+        var title = document.createElement('div');
+        title.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;color:#ffd700;';
+        title.textContent = mode === 'unlock' ? '🔐 Введите PIN' : '🔐 Установите PIN';
+        var hint = document.createElement('div');
+        hint.style.cssText = 'font-size:12px;opacity:0.7;margin-bottom:14px;line-height:1.5;';
+        hint.textContent = mode === 'unlock'
+            ? 'PIN нужен для расшифровки API-ключей. 4–8 цифр.'
+            : 'PIN защитит API-ключи AES-GCM шифрованием. 4–8 цифр. Без PIN ключи останутся в legacy-формате.';
+        var input = document.createElement('input');
+        input.type = 'password';
+        input.inputMode = 'numeric';
+        input.maxLength = 8;
+        input.placeholder = '••••';
+        input.style.cssText = 'width:100%;padding:10px 12px;font-size:18px;letter-spacing:6px;text-align:center;border-radius:9px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.35);color:#fff;margin-bottom:12px;box-sizing:border-box;';
+        var status = document.createElement('div');
+        status.style.cssText = 'font-size:11px;min-height:16px;margin-bottom:10px;text-align:center;';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;';
+        var btnOk = document.createElement('button');
+        btnOk.textContent = mode === 'unlock' ? '🔓 Разблокировать' : '✓ Установить';
+        btnOk.style.cssText = 'flex:2;padding:10px;border-radius:9px;border:none;background:#ffd700;color:#000;font-weight:700;font-size:13px;cursor:pointer;';
+        var btnSkip = document.createElement('button');
+        btnSkip.textContent = 'Пропустить';
+        btnSkip.style.cssText = 'flex:1;padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#fff;font-size:12px;cursor:pointer;';
+        row.appendChild(btnOk); row.appendChild(btnSkip);
+        card.appendChild(title); card.appendChild(hint); card.appendChild(input); card.appendChild(status); card.appendChild(row);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        setTimeout(function(){ try { input.focus(); } catch(e){} }, 50);
+        async function _onOk() {
+            var pin = (input.value || '').trim();
+            if (!/^\d{4,8}$/.test(pin)) {
+                status.style.color = '#ff7676';
+                status.textContent = 'PIN — 4–8 цифр';
+                return;
+            }
+            btnOk.disabled = true; status.style.color = '#ffd700';
+            status.textContent = mode === 'unlock' ? 'Расшифровка…' : 'Шифрование…';
+            try {
+                await eitiCryptoUnlock(pin);
+                if (mode === 'set') {
+                    await eitiCryptoMigrateLegacy();
+                }
+                if (mode === 'unlock' && !window._eitiKeysCache) {
+                    throw new Error('decrypt failed');
+                }
+                if (mode === 'unlock') {
+                    // Если ни одного ключа не расшифровалось — неверный PIN
+                    var any = false;
+                    for (var k in window._eitiKeysCache) { if (window._eitiKeysCache.hasOwnProperty(k)) { any = true; break; } }
+                    if (!any) {
+                        status.style.color = '#ff7676';
+                        status.textContent = 'Неверный PIN';
+                        btnOk.disabled = false;
+                        try { eitiCrypto.lock(); } catch(e){}
+                        return;
+                    }
+                }
+                overlay.remove();
+            } catch (e) {
+                status.style.color = '#ff7676';
+                status.textContent = 'Ошибка: ' + (e.message || 'unknown');
+                btnOk.disabled = false;
+            }
+        }
+        btnOk.addEventListener('click', _onOk);
+        input.addEventListener('keydown', function(e){ if (e.key === 'Enter') _onOk(); });
+        btnSkip.addEventListener('click', function() {
+            if (mode === 'set') {
+                localStorage.setItem('eiti_pin_dismissed', '1');
+            }
+            overlay.remove();
+        });
+    }
+    function _decide() {
+        try {
+            if (typeof crypto === 'undefined' || !crypto.subtle) return;
+            if (_hasEncKey()) {
+                _showPinModal('unlock');
+            } else if (_hasLegacyKey() && !_isPinDismissed()) {
+                _showPinModal('set');
+            }
+        } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(_decide, 600); });
+    } else {
+        setTimeout(_decide, 600);
+    }
+})();
 </script>
 </body>
 </html>

@@ -1,7 +1,7 @@
-// VELANTRIM EITI — Service Worker v13.3.5
+// VELANTRIM EITI — Service Worker v13.4.0
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
 
-var CACHE = 'eiti-v13.3.5'; // v13.3.5: Google+Tavily search, TTS cache+player fix, memory context (L3+PKG+L1+RNE), profile key fix, FTS cleanup
+var CACHE = 'eiti-v13.4.0'; // v13.4.0: FTS5 incremental, DOMPurify offline, AES keys, TTS atomic, settings preserve, feedback loop, EQ pause, TTS manager, paste chip, smart suggestions, MOSC JSON, LRU, blob revoke
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится
@@ -12,7 +12,9 @@ var CORE = [
     BASE + 'icon-192.png',
     BASE + 'icon-192-maskable.png',
     BASE + 'icon-512.png',
-    BASE + 'icon-512-maskable.png'
+    BASE + 'icon-512-maskable.png',
+    // v13.4.0 P0 #2: DOMPurify в CORE — XSS-защита должна работать офлайн
+    'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js'
 ];
 
 // Тяжёлые файлы — кешируем в той же install цепочке, но не блокируем
@@ -59,7 +61,7 @@ self.addEventListener('activate', function(e) {
                     if (!isUpdate) return; // v12.9.79: не отправляем при первой установке
                     return self.clients.matchAll().then(function(clients) {
                         clients.forEach(function(c) {
-                            c.postMessage({ type: 'SW_UPDATED', version: '13.3.5' });
+                            c.postMessage({ type: 'SW_UPDATED', version: '13.4.0' });
                         });
                     });
                 });
@@ -86,6 +88,23 @@ self.addEventListener('fetch', function(e) {
 
     var url = new URL(e.request.url);
     var sameOrigin = url.origin === self.location.origin;
+
+    // v13.4.0 P0 #2: DOMPurify — cache-first (offline-first XSS protection)
+    if (!sameOrigin && /cdnjs\.cloudflare\.com\/ajax\/libs\/dompurify\//.test(url.href)) {
+        e.respondWith(
+            caches.match(e.request).then(function(cached) {
+                if (cached) return cached;
+                return fetch(e.request).then(function(resp) {
+                    if (resp && (resp.status === 200 || resp.type === 'opaque')) {
+                        var clone = resp.clone();
+                        caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                    }
+                    return resp;
+                });
+            })
+        );
+        return;
+    }
 
     // Пропускаем API-запросы (DeepSeek, Gemini, OpenRouter, xAI и т.д.)
     if (!sameOrigin) return;

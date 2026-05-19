@@ -2,7 +2,7 @@
   "id": "velantrim-eiti",
   "name": "VELANTRIM EITI",
   "short_name": "EITI",
-  "description": "Персональная система знаний и AI-ассистент v13.3.5 · SmartMemory · MediaAttach · ProjectContext · Google+Tavily Search",
+  "description": "Персональная система знаний и AI-ассистент v13.4.0 · SafeHTML · AES-Keys · FastFTS5 · TTSAtomic · FeedbackLoop · TTSManager · PasteChip · SmartSugg",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
