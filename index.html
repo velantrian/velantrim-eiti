@@ -6133,16 +6133,156 @@
         const CHAT_STORAGE_KEY = 'velantrim_messenger_chat_v73';
         const AITEXT_STORAGE_KEY = 'velantrim_messenger_aitext_v1';
         var APP_VERSION = 'v' + EITI_VERSION;
+        // v13.4.0 P0 FIX #3: AES-GCM шифрование ключей с синхронным RAM-кешем.
+        // 129+ call sites вызывают _deobfKey синхронно — async тут нельзя.
+        // Архитектура: PIN → async расшифровка → plaintext в window._eitiKeysCache.
+        // _deobfKey синхронно читает из RAM-кеша для enc2_-префикса.
+        window._eitiKeysCache = window._eitiKeysCache || {};
         function _obfKey(s) {
-            // Простая XOR-обфускация — не шифрование, но защита от случайного чтения
+            // Legacy XOR — оставлен для обратной совместимости и работы без PIN.
             return btoa(s.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join(''));
         }
         function _deobfKey(s) {
+            if (!s) return '';
+            // Новый формат — AES-GCM, читаем синхронно из RAM-кеша.
+            if (typeof s === 'string' && s.indexOf('enc2_') === 0) {
+                var cache = window._eitiKeysCache || {};
+                for (var k in cache) {
+                    if (cache.hasOwnProperty(k) && localStorage.getItem(k) === s) return cache[k];
+                }
+                return '';
+            }
+            // Legacy XOR — существующее поведение без изменений.
             try {
                 var dec = atob(s);
                 return dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
             } catch(e) { return s; }
         }
+
+        // ── eitiCrypto: AES-GCM модуль (PIN → derived key → encrypt/decrypt) ──
+        var eitiCrypto = (function() {
+            'use strict';
+            var _key = null;
+
+            function _hasSubtle() {
+                return typeof crypto !== 'undefined' && crypto.subtle;
+            }
+
+            async function _deriveKey(pin, salt) {
+                var enc = new TextEncoder();
+                var km = await crypto.subtle.importKey(
+                    'raw', enc.encode(pin), { name: 'PBKDF2' }, false, ['deriveKey']
+                );
+                return crypto.subtle.deriveKey(
+                    { name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' },
+                    km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+                );
+            }
+
+            async function init(pin) {
+                if (!_hasSubtle()) throw new Error('eitiCrypto: SubtleCrypto недоступен');
+                var saltB64 = localStorage.getItem('eiti_crypto_salt');
+                var salt;
+                if (!saltB64) {
+                    salt = crypto.getRandomValues(new Uint8Array(16));
+                    var saltArr = [];
+                    for (var i = 0; i < salt.length; i++) saltArr.push(String.fromCharCode(salt[i]));
+                    localStorage.setItem('eiti_crypto_salt', btoa(saltArr.join('')));
+                } else {
+                    salt = Uint8Array.from(atob(saltB64), function(c){ return c.charCodeAt(0); });
+                }
+                _key = await _deriveKey(pin, salt);
+                return true;
+            }
+
+            async function encrypt(plaintext) {
+                if (!_key) throw new Error('eitiCrypto: не инициализирован');
+                var iv = crypto.getRandomValues(new Uint8Array(12));
+                var enc = new TextEncoder();
+                var ct = await crypto.subtle.encrypt(
+                    { name:'AES-GCM', iv:iv }, _key, enc.encode(plaintext)
+                );
+                var result = new Uint8Array(iv.byteLength + ct.byteLength);
+                result.set(iv, 0);
+                result.set(new Uint8Array(ct), iv.byteLength);
+                var b64arr = [];
+                for (var i = 0; i < result.length; i++) b64arr.push(String.fromCharCode(result[i]));
+                return 'enc2_' + btoa(b64arr.join(''));
+            }
+
+            async function decrypt(ciphertext) {
+                if (!_key) return null;
+                if (!ciphertext || ciphertext.indexOf('enc2_') !== 0) return null;
+                try {
+                    var bytes = Uint8Array.from(
+                        atob(ciphertext.slice(5)), function(c){ return c.charCodeAt(0); }
+                    );
+                    var plain = await crypto.subtle.decrypt(
+                        { name:'AES-GCM', iv:bytes.slice(0,12) },
+                        _key, bytes.slice(12)
+                    );
+                    return new TextDecoder().decode(plain);
+                } catch(e) { return null; }
+            }
+
+            function isReady() { return _key !== null; }
+            function lock() { _key = null; window._eitiKeysCache = {}; }
+            return { init: init, encrypt: encrypt, decrypt: decrypt, isReady: isReady, lock: lock };
+        })();
+        window.eitiCrypto = eitiCrypto;
+
+        // ── eitiCryptoUnlock(pin): инициализация + разогрев RAM-кеша ──
+        async function eitiCryptoUnlock(pin) {
+            await eitiCrypto.init(pin);
+            var keyNames = [
+                'deepseek_api_key','eiti_gemini_key','eiti_or_key',
+                'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'
+            ];
+            for (var i = 0; i < keyNames.length; i++) {
+                var raw = localStorage.getItem(keyNames[i]);
+                if (raw && raw.indexOf('enc2_') === 0) {
+                    var plain = await eitiCrypto.decrypt(raw);
+                    if (plain) window._eitiKeysCache[keyNames[i]] = plain;
+                }
+            }
+            try {
+                if (typeof showToast === 'function') showToast('🔓 Ключи разблокированы', 1500);
+            } catch(e) {}
+        }
+        window.eitiCryptoUnlock = eitiCryptoUnlock;
+
+        // ── Миграция legacy XOR → enc2_ (после успешного unlock) ──
+        async function eitiCryptoMigrateLegacy() {
+            if (localStorage.getItem('eiti_keys_migrated_v1') === '1') return;
+            if (!eitiCrypto.isReady()) return;
+            var keyNames = [
+                'deepseek_api_key','eiti_gemini_key','eiti_or_key',
+                'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'
+            ];
+            var migrated = 0;
+            for (var i = 0; i < keyNames.length; i++) {
+                var raw = localStorage.getItem(keyNames[i]);
+                if (!raw || raw.indexOf('enc2_') === 0) continue;
+                // Legacy XOR → plain via старый алгоритм (inline, чтобы не зависеть от текущей логики _deobfKey)
+                var plain = '';
+                try {
+                    var dec = atob(raw);
+                    plain = dec.split('').map(function(c,i){ return String.fromCharCode(c.charCodeAt(0)^(42+i%7)); }).join('');
+                } catch(e) { continue; }
+                if (!plain) continue;
+                try {
+                    var enc = await eitiCrypto.encrypt(plain);
+                    localStorage.setItem(keyNames[i], enc);
+                    window._eitiKeysCache[keyNames[i]] = plain;
+                    migrated++;
+                } catch(e) {}
+            }
+            if (migrated > 0) {
+                localStorage.setItem('eiti_keys_migrated_v1', '1');
+                try { if (typeof showToast === 'function') showToast('🔐 Ключи зашифрованы (' + migrated + ')', 2000); } catch(e) {}
+            }
+        }
+        window.eitiCryptoMigrateLegacy = eitiCryptoMigrateLegacy;
 
         // ── API Key utilities ─────────────────────────────────────────────────
         // Universal clear key function (input field + localStorage)
@@ -37267,6 +37407,128 @@ window.eitiAskDeepSeek = function(userText) {
 };
 
 console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
+
+// v13.4.0 P0 FIX #3: PIN-модал для шифрования API-ключей
+(function eitiCryptoBootstrap() {
+    function _hasLegacyKey() {
+        var keys = ['deepseek_api_key','eiti_gemini_key','eiti_or_key',
+            'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'];
+        for (var i = 0; i < keys.length; i++) {
+            var v = localStorage.getItem(keys[i]);
+            if (v && v.indexOf('enc2_') !== 0) return true;
+        }
+        return false;
+    }
+    function _hasEncKey() {
+        var keys = ['deepseek_api_key','eiti_gemini_key','eiti_or_key',
+            'eiti_grok_key','eiti_tts_openai_key','eiti_tts_google_key'];
+        for (var i = 0; i < keys.length; i++) {
+            var v = localStorage.getItem(keys[i]);
+            if (v && v.indexOf('enc2_') === 0) return true;
+        }
+        return false;
+    }
+    function _isPinDismissed() {
+        return localStorage.getItem('eiti_pin_dismissed') === '1';
+    }
+    function _showPinModal(mode) {
+        // mode: 'set' (первичная установка) | 'unlock' (есть enc2_ ключи)
+        if (document.getElementById('eiti-pin-modal')) return;
+        var overlay = document.createElement('div');
+        overlay.id = 'eiti-pin-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;';
+        var card = document.createElement('div');
+        card.style.cssText = 'background:#1c1410;color:#fff;padding:22px 24px;border-radius:14px;max-width:340px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,0.6);border:1px solid rgba(255,215,0,0.25);';
+        var title = document.createElement('div');
+        title.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;color:#ffd700;';
+        title.textContent = mode === 'unlock' ? '🔐 Введите PIN' : '🔐 Установите PIN';
+        var hint = document.createElement('div');
+        hint.style.cssText = 'font-size:12px;opacity:0.7;margin-bottom:14px;line-height:1.5;';
+        hint.textContent = mode === 'unlock'
+            ? 'PIN нужен для расшифровки API-ключей. 4–8 цифр.'
+            : 'PIN защитит API-ключи AES-GCM шифрованием. 4–8 цифр. Без PIN ключи останутся в legacy-формате.';
+        var input = document.createElement('input');
+        input.type = 'password';
+        input.inputMode = 'numeric';
+        input.maxLength = 8;
+        input.placeholder = '••••';
+        input.style.cssText = 'width:100%;padding:10px 12px;font-size:18px;letter-spacing:6px;text-align:center;border-radius:9px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.35);color:#fff;margin-bottom:12px;box-sizing:border-box;';
+        var status = document.createElement('div');
+        status.style.cssText = 'font-size:11px;min-height:16px;margin-bottom:10px;text-align:center;';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;';
+        var btnOk = document.createElement('button');
+        btnOk.textContent = mode === 'unlock' ? '🔓 Разблокировать' : '✓ Установить';
+        btnOk.style.cssText = 'flex:2;padding:10px;border-radius:9px;border:none;background:#ffd700;color:#000;font-weight:700;font-size:13px;cursor:pointer;';
+        var btnSkip = document.createElement('button');
+        btnSkip.textContent = 'Пропустить';
+        btnSkip.style.cssText = 'flex:1;padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#fff;font-size:12px;cursor:pointer;';
+        row.appendChild(btnOk); row.appendChild(btnSkip);
+        card.appendChild(title); card.appendChild(hint); card.appendChild(input); card.appendChild(status); card.appendChild(row);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        setTimeout(function(){ try { input.focus(); } catch(e){} }, 50);
+        async function _onOk() {
+            var pin = (input.value || '').trim();
+            if (!/^\d{4,8}$/.test(pin)) {
+                status.style.color = '#ff7676';
+                status.textContent = 'PIN — 4–8 цифр';
+                return;
+            }
+            btnOk.disabled = true; status.style.color = '#ffd700';
+            status.textContent = mode === 'unlock' ? 'Расшифровка…' : 'Шифрование…';
+            try {
+                await eitiCryptoUnlock(pin);
+                if (mode === 'set') {
+                    await eitiCryptoMigrateLegacy();
+                }
+                if (mode === 'unlock' && !window._eitiKeysCache) {
+                    throw new Error('decrypt failed');
+                }
+                if (mode === 'unlock') {
+                    // Если ни одного ключа не расшифровалось — неверный PIN
+                    var any = false;
+                    for (var k in window._eitiKeysCache) { if (window._eitiKeysCache.hasOwnProperty(k)) { any = true; break; } }
+                    if (!any) {
+                        status.style.color = '#ff7676';
+                        status.textContent = 'Неверный PIN';
+                        btnOk.disabled = false;
+                        try { eitiCrypto.lock(); } catch(e){}
+                        return;
+                    }
+                }
+                overlay.remove();
+            } catch (e) {
+                status.style.color = '#ff7676';
+                status.textContent = 'Ошибка: ' + (e.message || 'unknown');
+                btnOk.disabled = false;
+            }
+        }
+        btnOk.addEventListener('click', _onOk);
+        input.addEventListener('keydown', function(e){ if (e.key === 'Enter') _onOk(); });
+        btnSkip.addEventListener('click', function() {
+            if (mode === 'set') {
+                localStorage.setItem('eiti_pin_dismissed', '1');
+            }
+            overlay.remove();
+        });
+    }
+    function _decide() {
+        try {
+            if (typeof crypto === 'undefined' || !crypto.subtle) return;
+            if (_hasEncKey()) {
+                _showPinModal('unlock');
+            } else if (_hasLegacyKey() && !_isPinDismissed()) {
+                _showPinModal('set');
+            }
+        } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(_decide, 600); });
+    } else {
+        setTimeout(_decide, 600);
+    }
+})();
 </script>
 </body>
 </html>
