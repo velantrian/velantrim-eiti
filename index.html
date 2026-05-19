@@ -21,7 +21,25 @@
     <link rel="shortcut icon" href="icon-192.png">
     <title>𓆩 VELANTRIM EITI 𓆪</title>
     <script>
-        var EITI_VERSION = "13.3.5"; // v13.3.5: DDG fix for all AI, WEB badge, more results, _ddgQuery in proxies
+        /* v13.4.0:
+         * [P0] FTS5 incremental sync O(N²)→O(1)
+         * [P0] DOMPurify XSS protection (offline-first)
+         * [P0] AES-GCM key encryption (sync RAM-cache)
+         * [P1] Atomic TTS stop (web↔api)
+         * [P1] Settings preserved across updates
+         * [P1] Feedback Loop 👍/👎
+         * [P1] Canvas EQ paused in background
+         * [P1] TTS Cache Manager UI
+         * [P1] Paste text chip (>800 chars)
+         * [P1] Smart Suggestions (parallel AI)
+         * [P2] _eitiState marked for v14 PersonaCard
+         * [P2] IDB onblocked toast + retry
+         * [P2] MOSC graph → data/mosc_default_v1.json
+         * [P2] TTS cache LRU (openCursor, TTL-based)
+         * [P2] Blob URL auto-revoke 5 min
+         * [P2] SW cache → eiti-v13.4.0
+         */
+        var EITI_VERSION = "13.4.0"; // v13.4.0: SafeHTML · AES-Keys · FastFTS5 · TTSAtomic · FeedbackLoop · TTSManager · PasteChip · SmartSugg
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -117,7 +135,7 @@
                 } catch(e) {}
             }
         });
-        var EITI_BUILD_DATE = "2026-05-17T12:00"; // v13.3.5 — Google+Tavily search, TTS cache fix, memory context fix: index.html / sw.js / manifest.json / README.md
+        var EITI_BUILD_DATE = "2026-05-19T12:00"; // v13.4.0 — Layer 1: 16 surgical fixes (FTS5, DOMPurify, AES, TTS, MOSC JSON, etc.)
     </script>
     <!-- sql.js — SQLite WASM для FTS5 поиска, Attention Graph, эпистемических статусов -->
     <!-- v12.9.1 FIX: возвращён defer вместо async. async не гарантирует порядок выполнения
