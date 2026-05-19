@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.0"; // v13.4.0: SafeHTML · AES-Keys · FastFTS5 · TTSAtomic · FeedbackLoop · TTSManager · PasteChip · SmartSugg
+        var EITI_VERSION = "13.4.1"; // v13.4.1: PasteChip threshold 500ch + silent emb-init toast
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -9501,7 +9501,7 @@
                     try {
                         pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
                     } catch(_) { return; }
-                    if (!pasted || pasted.length < 800) return;
+                    if (!pasted || pasted.length < 500) return;
                     e.preventDefault();
                     e.stopPropagation();
                     window._eitiPastedTextBuffer = pasted;
@@ -29161,7 +29161,7 @@ window.eitiLLMClearAll = async function() {
             openai:   'https://openrouter.ai/api/v1/models'
         };
 
-        window.eitiEmbModelChange = function(val) {
+        window.eitiEmbModelChange = function(val, silent) {
             localStorage.setItem('eiti_emb_model', val);
             var m = EMB_MODELS[val] || EMB_MODELS['offline-minilm'];
 
@@ -29206,7 +29206,7 @@ window.eitiLLMClearAll = async function() {
             else if (m.provider === 'deepseek') localStorage.setItem('eiti_rag_mode', 'deepseek');
             else if (m.provider === 'offline') localStorage.setItem('eiti_rag_mode', 'offline');
 
-            if (typeof showToast === 'function') showToast('🧬 ' + m.label, 2000);
+            if (!silent && typeof showToast === 'function') showToast('🧬 ' + m.label, 2000);
         };
 
         window.eitiEmbKeySave = function(val) {
@@ -29356,7 +29356,7 @@ window.eitiLLMClearAll = async function() {
             var cur = localStorage.getItem('eiti_emb_model') || 'offline-minilm';
             var radio = document.querySelector('input[name="emb-model"][value="' + cur + '"]');
             if (radio) radio.checked = true;
-            eitiEmbModelChange(cur);
+            eitiEmbModelChange(cur, true);
 
             // Слайдеры
             var chunkBytes = parseInt(localStorage.getItem('eiti_chunk_size') || '2048', 10);
@@ -37066,7 +37066,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     if (window._eitiPasteHookInstalled) return;
     window._eitiPasteHookInstalled = true;
 
-    var PASTE_THRESHOLD = 800;
+    var PASTE_THRESHOLD = 500;
 
     function _info(buf) {
         return {
