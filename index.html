@@ -4520,6 +4520,36 @@
                             <button onclick="eitiTTSClearCache()" style="padding:8px;border-radius:10px;border:1px solid rgba(255,80,80,0.3);background:rgba(255,80,80,0.06);color:#ff8888;font-size:12px;cursor:pointer;">
                                 🗑 Очистить кэш аудио TTS (освобождает память браузера)
                             </button>
+                            <!-- v13.4.0 P1 FIX #14: TTS Cache Manager (stats + TTL slider) -->
+                            <div id="tts-cache-manager" style="margin-top:14px;padding:12px 14px;background:rgba(0,0,0,0.18);border-radius:12px;border:1px solid var(--border-color);">
+                                <div style="font-size:13px;font-weight:700;margin-bottom:10px;">🗄 TTS Кеш</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;">
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-count" style="font-size:18px;font-weight:700;color:var(--accent-color);">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">записей</div>
+                                    </div>
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-size" style="font-size:18px;font-weight:700;color:#4a9eff;">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">МБ</div>
+                                    </div>
+                                    <div style="text-align:center;padding:8px 6px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                        <div id="tts-cache-oldest" style="font-size:13px;font-weight:700;color:#4ad700;">—</div>
+                                        <div style="font-size:10px;opacity:0.55;">старейшая</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                                    <button id="tts-cache-clear-all" style="flex:1;padding:8px;border-radius:9px;border:none;background:rgba(255,80,80,0.18);color:#ff6b6b;font-size:12px;font-weight:700;cursor:pointer;">🗑 Очистить всё</button>
+                                    <button id="tts-cache-clear-old" style="flex:1;padding:8px;border-radius:9px;border:none;background:rgba(0,0,0,0.2);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">🧹 Старше <span id="tts-cache-ttl-label">30</span> дней</button>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:10px;font-size:12px;opacity:0.75;">
+                                    <span>Хранить:</span>
+                                    <input id="tts-cache-ttl-input" type="range" min="7" max="365" step="7" value="30" style="flex:1;accent-color:var(--accent-color);">
+                                    <span id="tts-cache-ttl-val" style="min-width:60px;text-align:right;font-weight:700;color:var(--accent-color);">30 дней</span>
+                                </div>
+                                <button id="tts-cache-refresh" style="margin-top:10px;width:100%;padding:7px;border-radius:8px;border:1px solid var(--border-color);background:none;color:var(--text-color);font-size:12px;opacity:0.6;cursor:pointer;">
+                                    🔄 Обновить статистику
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="settings-group">
@@ -7570,6 +7600,132 @@
         window._eitiTTSCacheCleanup = _eitiTTSCacheCleanup;
         setTimeout(_eitiTTSCacheCleanup, 15000);
 
+        // v13.4.0 P1 FIX #14: TTS Cache Manager UI (settings)
+        var TTS_CACHE_TTL_KEY = 'eiti_tts_cache_ttl_days';
+        function _ttsCacheTTLDays() {
+            return parseInt(localStorage.getItem(TTS_CACHE_TTL_KEY) || '30', 10) || 30;
+        }
+        window._ttsCacheTTLDays = _ttsCacheTTLDays;
+
+        function eitiTTSCacheStats(callback) {
+            if (!window.eitiDb) { callback({ count: 0, sizeMB: '0', oldest: null }); return; }
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readonly');
+                var store = tx.objectStore('tts_cache');
+                var count = 0, totalBytes = 0, oldestTs = null;
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        callback({
+                            count: count,
+                            sizeMB: (totalBytes / 1024 / 1024).toFixed(1),
+                            oldest: oldestTs ? new Date(oldestTs).toLocaleDateString('ru', { day:'2-digit', month:'short', year:'numeric' }) : null
+                        });
+                        return;
+                    }
+                    count++;
+                    var rec = cursor.value || {};
+                    if (rec.audio) totalBytes += Math.round(rec.audio.length * 0.75);
+                    if (!oldestTs || (rec.ts && rec.ts < oldestTs)) oldestTs = rec.ts;
+                    cursor.continue();
+                };
+                req.onerror = function() { callback({ count: 0, sizeMB: '0', oldest: null }); };
+            } catch(e) { callback({ count: 0, sizeMB: '0', oldest: null }); }
+        }
+        window.eitiTTSCacheStats = eitiTTSCacheStats;
+
+        function eitiTTSCacheRenderStats() {
+            var countEl = document.getElementById('tts-cache-count');
+            var sizeEl = document.getElementById('tts-cache-size');
+            var oldestEl = document.getElementById('tts-cache-oldest');
+            if (!countEl) return;
+            countEl.textContent = '…'; sizeEl.textContent = '…';
+            eitiTTSCacheStats(function(s) {
+                countEl.textContent = s.count;
+                sizeEl.textContent = s.sizeMB;
+                oldestEl.textContent = s.oldest || '—';
+                var mb = parseFloat(s.sizeMB);
+                sizeEl.style.color = mb > 500 ? '#ff6b6b' : (mb > 200 ? '#ffaa44' : '#4a9eff');
+            });
+        }
+        window.eitiTTSCacheRenderStats = eitiTTSCacheRenderStats;
+
+        function eitiTTSCacheClearAll() {
+            if (!window.eitiDb) return;
+            var _doClear = function() {
+                try {
+                    var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                    tx.objectStore('tts_cache').clear();
+                    tx.oncomplete = function() {
+                        if (typeof showToast === 'function') showToast('🗑 TTS кеш очищен', 2000);
+                        eitiTTSCacheRenderStats();
+                    };
+                } catch(e) {
+                    if (typeof showToast === 'function') showToast('❌ ' + e.message, 3000);
+                }
+            };
+            if (typeof eitiConfirm === 'function') {
+                eitiConfirm('🗑 Удалить весь TTS кеш?', _doClear);
+            } else if (confirm('Удалить весь TTS кеш?')) {
+                _doClear();
+            }
+        }
+        window.eitiTTSCacheClearAll = eitiTTSCacheClearAll;
+
+        function eitiTTSCacheClearOld(days) {
+            if (!window.eitiDb) return;
+            var cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+            var deleted = 0;
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                var store = tx.objectStore('tts_cache');
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        if (typeof showToast === 'function') showToast('🧹 Удалено ' + deleted + ' записей', 2000);
+                        eitiTTSCacheRenderStats();
+                        return;
+                    }
+                    if ((cursor.value.ts || 0) < cutoff) { cursor.delete(); deleted++; }
+                    cursor.continue();
+                };
+            } catch(e) {
+                if (typeof showToast === 'function') showToast('❌ ' + e.message, 3000);
+            }
+        }
+        window.eitiTTSCacheClearOld = eitiTTSCacheClearOld;
+
+        function eitiTTSCacheManagerInit() {
+            var slider = document.getElementById('tts-cache-ttl-input');
+            var valLbl = document.getElementById('tts-cache-ttl-val');
+            var oldLbl = document.getElementById('tts-cache-ttl-label');
+            if (slider) {
+                var saved = _ttsCacheTTLDays();
+                slider.value = saved;
+                if (valLbl) valLbl.textContent = saved + ' дней';
+                if (oldLbl) oldLbl.textContent = saved;
+                slider.addEventListener('input', function() {
+                    var v = parseInt(slider.value, 10);
+                    if (valLbl) valLbl.textContent = v + ' дней';
+                    if (oldLbl) oldLbl.textContent = v;
+                    localStorage.setItem(TTS_CACHE_TTL_KEY, v);
+                });
+            }
+            var btnAll = document.getElementById('tts-cache-clear-all');
+            if (btnAll && !btnAll._eitiBound) { btnAll.addEventListener('click', eitiTTSCacheClearAll); btnAll._eitiBound = true; }
+            var btnOld = document.getElementById('tts-cache-clear-old');
+            if (btnOld && !btnOld._eitiBound) {
+                btnOld.addEventListener('click', function() { eitiTTSCacheClearOld(_ttsCacheTTLDays()); });
+                btnOld._eitiBound = true;
+            }
+            var btnRef = document.getElementById('tts-cache-refresh');
+            if (btnRef && !btnRef._eitiBound) { btnRef.addEventListener('click', eitiTTSCacheRenderStats); btnRef._eitiBound = true; }
+            eitiTTSCacheRenderStats();
+        }
+        window.eitiTTSCacheManagerInit = eitiTTSCacheManagerInit;
+
         // Очистить TTS кэш: memory + IDB
         window.eitiTTSClearCache = function() {
             Object.values(_ttsBlobCache).forEach(function(url) { try { URL.revokeObjectURL(url); } catch(e) {} });
@@ -9118,6 +9274,9 @@
                         if (typeof _eitiRenderTokenStats === 'function') _eitiRenderTokenStats();
                         if (typeof _eitiUpdateDDGCard === 'function') _eitiUpdateDDGCard();
                         if (typeof _eitiUpdateSysCards === 'function') _eitiUpdateSysCards();
+                        // v13.4.0 P1 FIX #14 + #16: init TTS Cache Manager и Smart Suggestions UI
+                        if (typeof eitiTTSCacheManagerInit === 'function') setTimeout(eitiTTSCacheManagerInit, 100);
+                        if (typeof _eitiSuggRenderSettingsUI === 'function') setTimeout(_eitiSuggRenderSettingsUI, 100);
                     });
                 }
             };
