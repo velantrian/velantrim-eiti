@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.2"; // v13.4.2: collapse long user msgs (Gemini-style) + PasteChip 300ch + silent emb-init
+        var EITI_VERSION = "13.4.3"; // v13.4.3: collapse line-clamp fix + SW update on visibilitychange
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -9803,23 +9803,25 @@
                 messages.scrollTop = messages.scrollHeight;
             }
 
-            // v13.4.2: Сворачивает длинный текст под маску + кнопка-шеврон.
+            // v13.4.3: Сворачивает длинный текст через line-clamp + кнопка-шеврон.
             function eitiAttachCollapse(textDiv) {
                 if (!textDiv || textDiv.dataset.eitiCollapseAttached === '1') return;
                 textDiv.dataset.eitiCollapseAttached = '1';
-                var COLLAPSED_MASK = 'linear-gradient(to bottom,#000 62%,transparent 100%)';
                 function applyCollapsed() {
-                    textDiv.style.maxHeight = '5.4em';
+                    textDiv.style.display = '-webkit-box';
+                    textDiv.style.webkitLineClamp = '3';
+                    textDiv.style.webkitBoxOrient = 'vertical';
                     textDiv.style.overflow = 'hidden';
-                    textDiv.style.webkitMaskImage = COLLAPSED_MASK;
-                    textDiv.style.maskImage = COLLAPSED_MASK;
+                    textDiv.style.maxHeight = '';
+                    textDiv.style.webkitMaskImage = '';
+                    textDiv.style.maskImage = '';
                     textDiv.dataset.eitiCollapsed = '1';
                 }
                 function applyExpanded() {
-                    textDiv.style.maxHeight = '';
+                    textDiv.style.display = '';
+                    textDiv.style.webkitLineClamp = '';
+                    textDiv.style.webkitBoxOrient = '';
                     textDiv.style.overflow = '';
-                    textDiv.style.webkitMaskImage = '';
-                    textDiv.style.maskImage = '';
                     textDiv.dataset.eitiCollapsed = '0';
                 }
                 applyCollapsed();
@@ -9851,6 +9853,15 @@
                     }
                 });
                 if (textDiv.parentNode) textDiv.parentNode.insertBefore(chev, textDiv.nextSibling);
+                // Если реальная высота не превышает 3 строки — свёртка не нужна, скрываем chevron.
+                requestAnimationFrame(function() {
+                    if (textDiv.scrollHeight <= textDiv.clientHeight + 2) {
+                        applyExpanded();
+                        chev.remove();
+                        delete textDiv.dataset.eitiCollapseAttached;
+                        delete textDiv.dataset.eitiCollapsed;
+                    }
+                });
             }
             window.eitiAttachCollapse = eitiAttachCollapse;
 
@@ -27058,6 +27069,13 @@ window.eitiLLMClearAll = async function() {
                     });
                     // v13: авто-проверка обновлений раз в час
                     setInterval(function() { try { reg.update(); } catch(e) {} }, 3600000);
+                    // v13.4.3: при возвращении в foreground — сразу проверяем обновления (для PWA).
+                    document.addEventListener('visibilitychange', function() {
+                        if (document.visibilityState === 'visible') {
+                            try { reg.update(); } catch(e) {}
+                        }
+                    });
+                    window.addEventListener('focus', function() { try { reg.update(); } catch(e) {} });
                 }).catch(function(){});
 
                 // v12.9.13: уведомление об обновлении SW без принудительной перезагрузки
