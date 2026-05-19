@@ -8086,11 +8086,33 @@
             localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(next));
         }
 
+        // v13.4.0 P2 FIX #12: трекаем время создания blob URL и периодически revoke-аем
+        // те, что не использовались > 5 мин. Активный _ttsAudioUrl пропускаем.
+        var _eitiBlobURLTimestamps = new Map();
         function eitiCreateBlobURL(blob) {
             const url = URL.createObjectURL(blob);
             if (!window._eitiBlobURLs.includes(url)) window._eitiBlobURLs.push(url);
+            _eitiBlobURLTimestamps.set(url, Date.now());
             return url;
         }
+        function _eitiRevokeStaleBlobURLs() {
+            if (document.hidden) {
+                setTimeout(_eitiRevokeStaleBlobURLs, 60 * 1000);
+                return;
+            }
+            var cutoff = Date.now() - 5 * 60 * 1000;
+            _eitiBlobURLTimestamps.forEach(function(ts, url) {
+                if (ts < cutoff) {
+                    if (typeof _ttsAudioUrl !== 'undefined' && url === _ttsAudioUrl) return;
+                    try { URL.revokeObjectURL(url); } catch(e) {}
+                    _eitiBlobURLTimestamps.delete(url);
+                    var idx = window._eitiBlobURLs.indexOf(url);
+                    if (idx !== -1) window._eitiBlobURLs.splice(idx, 1);
+                }
+            });
+            setTimeout(_eitiRevokeStaleBlobURLs, 5 * 60 * 1000);
+        }
+        setTimeout(_eitiRevokeStaleBlobURLs, 5 * 60 * 1000);
 
         // v12.9.79: TTS-специфичный createBlobURL — НЕ добавляем в _eitiBlobURLs
         // чтобы visibilitychange:hidden не отзывал аудио-блобы TTS
