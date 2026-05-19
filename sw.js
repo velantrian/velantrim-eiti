@@ -1,0 +1,151 @@
+// VELANTRIM EITI — Service Worker v13.3.5
+// Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
+
+var CACHE = 'eiti-v13.3.5'; // v13.3.5: Google+Tavily search, TTS cache+player fix, memory context (L3+PKG+L1+RNE), profile key fix, FTS cleanup
+var BASE = self.location.pathname.replace(/sw\.js$/, '');
+
+// Критическое ядро — без них app не запустится
+var CORE = [
+    BASE,
+    BASE + 'index.html',
+    BASE + 'manifest.json',
+    BASE + 'icon-192.png',
+    BASE + 'icon-192-maskable.png',
+    BASE + 'icon-512.png',
+    BASE + 'icon-512-maskable.png'
+];
+
+// Тяжёлые файлы — кешируем в той же install цепочке, но не блокируем
+var HEAVY = [
+    BASE + 'sql-wasm.js',
+    BASE + 'sql-wasm.wasm'
+];
+
+// Данные KB — будут кешироваться по stale-while-revalidate при первом обращении
+// (загружаются fetch()-ом, не script-тегом, поэтому не нужны в CORE)
+
+// ── INSTALL ─────────────────────────────────────────────────────────────────
+self.addEventListener('install', function(e) {
+    self.skipWaiting();
+    e.waitUntil(
+        caches.open(CACHE).then(function(cache) {
+            return cache.addAll(CORE).then(function() {
+                // FIX v13: ВОЗВРАЩАЕМ промис — дожидаемся HEAVY, не fire-and-forget
+                return cache.addAll(HEAVY).catch(function(err) {
+                    // Non-fatal: slow connection / wasm ещё не загружен
+                    console.warn('[SW] heavy cache skip (non-fatal):', err);
+                });
+            }).catch(function(err) {
+                console.warn('[SW] critical cache error:', err);
+                self.clients.matchAll().then(function(clients) {
+                    clients.forEach(function(c) {
+                        c.postMessage({ type: 'SW_CACHE_ERROR', error: String(err) });
+                    });
+                });
+            });
+        })
+    );
+});
+
+// ── ACTIVATE ─────────────────────────────────────────────────────────────────
+self.addEventListener('activate', function(e) {
+    e.waitUntil(
+        caches.keys().then(function(keys) {
+            var old = keys.filter(function(k) { return k !== CACHE; });
+            var isUpdate = old.length > 0;
+            return Promise.all(old.map(function(k) { return caches.delete(k); }))
+                .then(function() { return self.clients.claim(); })
+                .then(function() {
+                    if (!isUpdate) return; // v12.9.79: не отправляем при первой установке
+                    return self.clients.matchAll().then(function(clients) {
+                        clients.forEach(function(c) {
+                            c.postMessage({ type: 'SW_UPDATED', version: '13.3.5' });
+                        });
+                    });
+                });
+        })
+    );
+});
+
+// ── Stale-While-Revalidate helper ─────────────────────────────────────────────
+function swr(req) {
+    return caches.open(CACHE).then(function(cache) {
+        return cache.match(req).then(function(cached) {
+            var fresh = fetch(req).then(function(r) {
+                if (r && r.ok) cache.put(req, r.clone());
+                return r;
+            }).catch(function() { return cached; });
+            return cached || fresh;
+        });
+    });
+}
+
+// ── FETCH ─────────────────────────────────────────────────────────────────────
+self.addEventListener('fetch', function(e) {
+    if (e.request.method !== 'GET') return;
+
+    var url = new URL(e.request.url);
+    var sameOrigin = url.origin === self.location.origin;
+
+    // Пропускаем API-запросы (DeepSeek, Gemini, OpenRouter, xAI и т.д.)
+    if (!sameOrigin) return;
+    if (!url.pathname.startsWith(BASE)) return;
+
+    // HTML — network-first (чтобы всегда получать свежий index.html)
+    var accept = e.request.headers.get('accept') || '';
+    if (accept.indexOf('text/html') !== -1) {
+        e.respondWith(
+            fetch(e.request).then(function(resp) {
+                var clone = resp.clone();
+                caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                return resp;
+            }).catch(function() {
+                return caches.match(e.request).then(function(m) {
+                    return m || caches.match(BASE + 'index.html');
+                });
+            })
+        );
+        return;
+    }
+
+    // data/*.json — stale-while-revalidate (KB, lemma, mosc — обновляются автономно)
+    if (/\/(data|kb)\/[^/]+\.json$/i.test(url.pathname)
+        || url.pathname.endsWith('_kb_v3.json')
+        || url.pathname.endsWith('lemma.json')
+        || url.pathname.endsWith('mosc_graph_v3.json')) {
+        e.respondWith(swr(e.request));
+        return;
+    }
+
+    // Остальные same-origin ресурсы — cache-first
+    e.respondWith(
+        caches.match(e.request).then(function(cached) {
+            if (cached) return cached;
+            return fetch(e.request).then(function(resp) {
+                if (resp && resp.status === 200) {
+                    var clone = resp.clone();
+                    caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                }
+                return resp;
+            });
+        })
+    );
+});
+
+// ── MESSAGE ───────────────────────────────────────────────────────────────────
+self.addEventListener('message', function(e) {
+    if (!e.data) return;
+    if (e.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+    if (e.data.type === 'SHOW_NOTIFICATION') {
+        self.registration.showNotification(
+            e.data.title || '🔔 VELANTRIM EITI',
+            {
+                body: e.data.body || '',
+                icon: BASE + 'icon-192.png',
+                badge: BASE + 'icon-192-maskable.png'
+            }
+        );
+    }
+});
