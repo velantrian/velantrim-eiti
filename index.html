@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.1"; // v13.4.1: PasteChip threshold 500ch + silent emb-init toast
+        var EITI_VERSION = "13.4.2"; // v13.4.2: collapse long user msgs (Gemini-style) + PasteChip 300ch + silent emb-init
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -9501,7 +9501,7 @@
                     try {
                         pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
                     } catch(_) { return; }
-                    if (!pasted || pasted.length < 500) return;
+                    if (!pasted || pasted.length < 300) return;
                     e.preventDefault();
                     e.stopPropagation();
                     window._eitiPastedTextBuffer = pasted;
@@ -9791,9 +9791,68 @@
                     (bodyEl || msg).appendChild(fbDiv);
                 }
 
+                // v13.4.2: Gemini-style свёртка длинных сообщений (user-only).
+                if (m.role === 'user' && displayText) {
+                    var _txtDiv = msg.querySelector('.msg-text-display');
+                    if (_txtDiv && (displayText.length > 280 || displayText.split('\n').length > 5)) {
+                        eitiAttachCollapse(_txtDiv);
+                    }
+                }
+
                 messages.appendChild(msg);
                 messages.scrollTop = messages.scrollHeight;
             }
+
+            // v13.4.2: Сворачивает длинный текст под маску + кнопка-шеврон.
+            function eitiAttachCollapse(textDiv) {
+                if (!textDiv || textDiv.dataset.eitiCollapseAttached === '1') return;
+                textDiv.dataset.eitiCollapseAttached = '1';
+                var COLLAPSED_MASK = 'linear-gradient(to bottom,#000 62%,transparent 100%)';
+                function applyCollapsed() {
+                    textDiv.style.maxHeight = '5.4em';
+                    textDiv.style.overflow = 'hidden';
+                    textDiv.style.webkitMaskImage = COLLAPSED_MASK;
+                    textDiv.style.maskImage = COLLAPSED_MASK;
+                    textDiv.dataset.eitiCollapsed = '1';
+                }
+                function applyExpanded() {
+                    textDiv.style.maxHeight = '';
+                    textDiv.style.overflow = '';
+                    textDiv.style.webkitMaskImage = '';
+                    textDiv.style.maskImage = '';
+                    textDiv.dataset.eitiCollapsed = '0';
+                }
+                applyCollapsed();
+                var chev = document.createElement('button');
+                chev.type = 'button';
+                chev.className = 'eiti-collapse-toggle';
+                chev.textContent = '▼';
+                chev.title = 'Развернуть';
+                chev.setAttribute('aria-label', 'Развернуть');
+                chev.style.cssText =
+                    'display:flex;align-items:center;justify-content:center;' +
+                    'width:26px;height:26px;border-radius:50%;border:none;' +
+                    'background:rgba(255,255,255,0.85);color:#333;' +
+                    'font-size:10px;line-height:1;cursor:pointer;padding:0;' +
+                    'margin:6px 0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,0.22);' +
+                    'transition:transform 0.2s ease;';
+                chev.addEventListener('click', function(ev) {
+                    ev.stopPropagation();
+                    if (textDiv.dataset.eitiCollapsed === '1') {
+                        applyExpanded();
+                        chev.textContent = '▲';
+                        chev.title = 'Свернуть';
+                        chev.setAttribute('aria-label', 'Свернуть');
+                    } else {
+                        applyCollapsed();
+                        chev.textContent = '▼';
+                        chev.title = 'Развернуть';
+                        chev.setAttribute('aria-label', 'Развернуть');
+                    }
+                });
+                if (textDiv.parentNode) textDiv.parentNode.insertBefore(chev, textDiv.nextSibling);
+            }
+            window.eitiAttachCollapse = eitiAttachCollapse;
 
             // v13.4.0 P1 FIX #9: learning loop — bumps PKG node weights и MOSC-веса.
             function eitiMsgFeedback(msgId, positive) {
@@ -21126,6 +21185,16 @@ window.eitiLLMClearAll = async function() {
             if (!displayDiv) return;
             if (bubbleEl.querySelector('.msg-edit-area')) return; // already editing
 
+            // v13.4.2: сбросить свёртку, чтобы редактировать полный текст
+            var _oldChev = body.querySelector('.eiti-collapse-toggle');
+            if (_oldChev) _oldChev.remove();
+            displayDiv.style.maxHeight = '';
+            displayDiv.style.overflow = '';
+            displayDiv.style.webkitMaskImage = '';
+            displayDiv.style.maskImage = '';
+            delete displayDiv.dataset.eitiCollapsed;
+            delete displayDiv.dataset.eitiCollapseAttached;
+
             // Replace display div with textarea
             var ta = document.createElement('textarea');
             ta.className = 'msg-edit-area';
@@ -21145,6 +21214,11 @@ window.eitiLLMClearAll = async function() {
                 displayDiv.style.display = '';
                 ta.remove();
                 actRow.remove();
+                // v13.4.2: восстановить свёртку для исходного длинного текста
+                if (typeof eitiAttachCollapse === 'function' &&
+                    (originalTxt.length > 280 || originalTxt.split('\n').length > 5)) {
+                    eitiAttachCollapse(displayDiv);
+                }
             };
 
             var sendBtn = document.createElement('button');
@@ -21159,6 +21233,11 @@ window.eitiLLMClearAll = async function() {
                 displayDiv.style.display = '';
                 ta.remove();
                 actRow.remove();
+                // v13.4.2: пересчитать свёртку под новый текст
+                if (typeof eitiAttachCollapse === 'function' &&
+                    (newTxt.length > 280 || newTxt.split('\n').length > 5)) {
+                    eitiAttachCollapse(displayDiv);
+                }
                 // Update dataset
                 bubbleEl.dataset.msgtxt = newTxt;
                 // Update chatLog
@@ -37066,7 +37145,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     if (window._eitiPasteHookInstalled) return;
     window._eitiPasteHookInstalled = true;
 
-    var PASTE_THRESHOLD = 500;
+    var PASTE_THRESHOLD = 300;
 
     function _info(buf) {
         return {
