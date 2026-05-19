@@ -11267,10 +11267,27 @@
                     if (typeof _vbLoadAndMigrate === 'function') _vbLoadAndMigrate();
                     resolve(); };
                 req.onblocked = function() {
-                    console.warn('[EITI] IDB upgrade blocked — fallback open');
-                    var fb = indexedDB.open('eiti_v4', 16); // v12.9.79 FIX: match current schema version
-                    fb.onsuccess = function() { eitiDb = fb.result; if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; } resolve(); };
-                    fb.onerror = function() { if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; } resolve(); };
+                    // v13.4.0 P2 FIX #7: toast пользователю + единичный retry через 2 сек.
+                    console.warn('[EITI] IDB blocked — другая вкладка держит БД');
+                    if (typeof showToast === 'function') {
+                        try { showToast('⚠️ База занята другой вкладкой EITI. Закройте её и обновите страницу.', 8000); } catch(e) {}
+                    }
+                    var _resolved = false;
+                    setTimeout(function() {
+                        if (_resolved) return;
+                        var fb = indexedDB.open('eiti_v4', 16);
+                        fb.onsuccess = function() {
+                            if (_resolved) return; _resolved = true;
+                            eitiDb = fb.result; window.eitiDb = eitiDb;
+                            if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; }
+                            resolve();
+                        };
+                        fb.onerror = function() {
+                            if (_resolved) return; _resolved = true;
+                            if (_eitiDbReadyResolve) { _eitiDbReadyResolve(); _eitiDbReadyResolve = null; }
+                            resolve();
+                        };
+                    }, 2000);
                 };
                 req.onupgradeneeded = function(e) {
                     try {
