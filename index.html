@@ -7545,6 +7545,31 @@
             });
         }
 
+        // v13.4.0 P2 FIX #11: LRU-чистка tts_cache по TTL (openCursor — без getAll).
+        function _eitiTTSCacheCleanup() {
+            if (!window.eitiDb) return;
+            var ttlDays = (typeof _ttsCacheTTLDays === 'function') ? _ttsCacheTTLDays() : 30;
+            var cutoff = Date.now() - (ttlDays * 24 * 60 * 60 * 1000);
+            var toDelete = [];
+            try {
+                var tx = window.eitiDb.transaction(['tts_cache'], 'readwrite');
+                var store = tx.objectStore('tts_cache');
+                var req = store.openCursor();
+                req.onsuccess = function(e) {
+                    var cursor = e.target.result;
+                    if (!cursor) {
+                        toDelete.forEach(function(id) { try { store.delete(id); } catch(err) {} });
+                        return;
+                    }
+                    var v = cursor.value || {};
+                    if ((v.ts || 0) < cutoff && v.id != null) toDelete.push(v.id);
+                    cursor.continue();
+                };
+            } catch(e) {}
+        }
+        window._eitiTTSCacheCleanup = _eitiTTSCacheCleanup;
+        setTimeout(_eitiTTSCacheCleanup, 15000);
+
         // Очистить TTS кэш: memory + IDB
         window.eitiTTSClearCache = function() {
             Object.values(_ttsBlobCache).forEach(function(url) { try { URL.revokeObjectURL(url); } catch(e) {} });
