@@ -9834,6 +9834,24 @@
                     // Глобальная drawEq — всегда берёт актуальный canvas по id
                     window._eitiDrawEq = function _drawEqFrame() {
                         window._eitiEqAnimId = requestAnimationFrame(window._eitiDrawEq);
+                        // v13.4.0 P1 FIX #10: в фоне или на паузе — плоская линия, без FFT-рендера.
+                        var _audioEl = document.querySelector('#playerAudio') || window._eitiCurrentAudio;
+                        if (document.hidden || (_audioEl && _audioEl.paused)) {
+                            var _cIdle = _getCanvas();
+                            if (_cIdle) {
+                                var _ctxIdle = _cIdle._eitiCtx || (_cIdle._eitiCtx = _cIdle.getContext('2d'));
+                                if (_ctxIdle) {
+                                    _ctxIdle.clearRect(0, 0, _cIdle.width, _cIdle.height);
+                                    _ctxIdle.beginPath();
+                                    _ctxIdle.moveTo(0, _cIdle.height / 2);
+                                    _ctxIdle.lineTo(_cIdle.width, _cIdle.height / 2);
+                                    _ctxIdle.strokeStyle = 'rgba(255,215,0,0.15)';
+                                    _ctxIdle.lineWidth = 1;
+                                    _ctxIdle.stroke();
+                                }
+                            }
+                            return;
+                        }
                         var canvas = _getCanvas();
                         if (!canvas) return; // canvas ещё не в DOM
                         var ctx2d = canvas._eitiCtx || (canvas._eitiCtx = canvas.getContext('2d'));
@@ -9929,6 +9947,11 @@
 
                         function draw() {
                             _vizAnimId = requestAnimationFrame(draw);
+                            // v13.4.0 P1 FIX #10: пропускаем кадр в фоне или на паузе.
+                            var _drawAudio = document.getElementById('audio') || window._eitiCurrentAudio;
+                            if (document.hidden || (_drawAudio && _drawAudio.paused)) {
+                                return;
+                            }
                             var W = cv.offsetWidth * (window.devicePixelRatio || 1);
                             var H = cv.offsetHeight * (window.devicePixelRatio || 1);
                             if (W < 2 || H < 2) return;
