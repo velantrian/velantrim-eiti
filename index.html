@@ -9621,6 +9621,9 @@
             // v13.4.0 P1 FIX #15 (redesign): чип в стиле Claude + модальное окно превью.
             // Привязка через capture-phase на document — работает даже если #input
             // пересоздаётся другим кодом.
+            // Paste-чип устанавливается в backup IIFE eitiPasteChipBackup
+            // в конце файла (IIFE парсится синхронно и побеждает race за
+            // _eitiPasteHookInstalled). Этот блок остаётся как защитный no-op.
             if (!window._eitiPasteHookInstalled) {
                 window._eitiPasteHookInstalled = true;
                 document.addEventListener('paste', function(e) {
@@ -9636,36 +9639,6 @@
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
                 }, true);
-
-                // Android fallback #1: beforeinput с inputType=insertFromPaste —
-                // ловит вставку даже когда clipboardData недоступен (Chrome Android).
-                document.addEventListener('beforeinput', function(e) {
-                    if (!e.target || e.target.id !== 'input') return;
-                    if (e.inputType !== 'insertFromPaste') return;
-                    var pasted = e.data || '';
-                    if (!pasted || pasted.length < 300) return;
-                    e.preventDefault();
-                    window._eitiPastedTextBuffer = pasted;
-                    _eitiShowPastedChip(pasted);
-                }, true);
-
-                // Android fallback #2: input-монитор — детектирует резкий прирост
-                // длины (gesture-вставка, голосовой ввод-сразу-блок).
-                var _prevInputLen = 0;
-                var _inputMonEl = document.getElementById('input');
-                if (_inputMonEl) {
-                    _inputMonEl.addEventListener('input', function() {
-                        var val = _inputMonEl.value || '';
-                        var delta = val.length - _prevInputLen;
-                        if (delta > 300 && !window._eitiPastedTextBuffer) {
-                            var pasted = val.slice(_prevInputLen);
-                            _inputMonEl.value = val.slice(0, _prevInputLen);
-                            window._eitiPastedTextBuffer = pasted;
-                            _eitiShowPastedChip(pasted);
-                        }
-                        _prevInputLen = _inputMonEl.value.length;
-                    });
-                }
             }
 
             function _eitiShowPastedChip(text) {
@@ -18496,6 +18469,14 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 btns[1].onclick = function(){ copyText(txt).then(function(){ showToast('Скопировано'); }); };
                 msgs.appendChild(d);
                 msgs.scrollTop = msgs.scrollHeight;
+
+                // v13.4.5: свернуть длинный текст уже при первой отправке
+                // (раньше срабатывало только после редактирования / при загрузке из истории).
+                if (typeof eitiAttachCollapse === 'function' && displayText &&
+                    (displayText.length > 280 || displayText.split('\n').length > 5)) {
+                    var _td = d.querySelector('.msg-text-display');
+                    if (_td) eitiAttachCollapse(_td);
+                }
             }
 
             // ── Вспомогательные операции ─────────────────────────────
@@ -37548,6 +37529,42 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         e.stopPropagation();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
+    }, true);
+
+    // Android fallback #1: beforeinput с inputType=insertFromPaste —
+    // ловит вставку даже когда clipboardData недоступен (Chrome Android).
+    document.addEventListener('beforeinput', function(e) {
+        if (!e.target || e.target.id !== 'input') return;
+        if (e.inputType !== 'insertFromPaste') return;
+        var pasted = e.data || '';
+        if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        e.preventDefault();
+        window._eitiPastedTextBuffer = pasted;
+        _showChip(pasted);
+    }, true);
+
+    // Android fallback #2: input-монитор на #input — детектирует резкий
+    // прирост длины (gesture-вставка / голосовой ввод-сразу-блок).
+    // Привязываемся через document delegation, т.к. #input может ещё
+    // не существовать в момент запуска IIFE.
+    var _prevInputLen = 0;
+    document.addEventListener('focus', function(e) {
+        if (e.target && e.target.id === 'input') {
+            _prevInputLen = (e.target.value || '').length;
+        }
+    }, true);
+    document.addEventListener('input', function(e) {
+        var el = e.target;
+        if (!el || el.id !== 'input') return;
+        var val = el.value || '';
+        var delta = val.length - _prevInputLen;
+        if (delta > PASTE_THRESHOLD && !window._eitiPastedTextBuffer) {
+            var pasted = val.slice(_prevInputLen);
+            el.value = val.slice(0, _prevInputLen);
+            window._eitiPastedTextBuffer = pasted;
+            _showChip(pasted);
+        }
+        _prevInputLen = el.value.length;
     }, true);
 })();
 </script>
