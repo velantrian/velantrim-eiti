@@ -111,7 +111,7 @@
                 localStorage.setItem('eiti_offline_mode', '0');
                 localStorage.setItem('eiti_only_ai', '1');
                 localStorage.setItem('eiti_ai_provider', 'openrouter');
-                localStorage.setItem('eiti_token_budget', '8000');
+                localStorage.setItem('eiti_token_budget', '16000');
                 localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
                 localStorage.setItem('eiti_icon_mode', 'emoji_classic');
                 localStorage.setItem('eiti_header_hidden', '0');
@@ -3694,10 +3694,27 @@
                                 <span>⏱ Token Budget</span>
                                 <span id="token-budget-val" style="font-weight:700;color:var(--accent-color);">8000</span>
                             </div>
-                            <input type="range" id="token-budget" min="500" max="8000" step="500" value="8000"
+                            <input type="range" id="token-budget" min="500" max="40000" step="500" value="8000"
                                 oninput="document.getElementById('token-budget-val').textContent=this.value;localStorage.setItem('eiti_token_budget',this.value);"
                                 style="width:100%;accent-color:var(--accent-color);">
-                            <div style="font-size:11px;opacity:0.5;">Максимум токенов на запрос. Меньше = дешевле, быстрее. Больше = умнее для длинных диалогов.</div>
+                            <div style="font-size:11px;opacity:0.5;">Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.</div>
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:10px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;">
+                                    <div>
+                                        <div style="font-size:13px;font-weight:700;">🗂 Полный контекст (1M)</div>
+                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;">Все заметки + KB + MEM в каждый запрос</div>
+                                    </div>
+                                    <div id="fullctx-toggle-slider"
+                                        style="width:42px;height:24px;border-radius:12px;background:#444;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
+                                        <div id="fullctx-toggle-knob"
+                                            style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;"></div>
+                                    </div>
+                                </div>
+                                <div id="fullctx-warn"
+                                    style="display:none;font-size:10px;opacity:0.45;margin-top:6px;">
+                                    ⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.
+                                </div>
+                            </div>
                             <!-- ═══ FILE CHUNK SIZE (v12.9.47) ═══ -->
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                                 <span>📄 File Chunk Size</span>
@@ -7766,6 +7783,109 @@
         }
         window.eitiTTSCacheManagerInit = eitiTTSCacheManagerInit;
 
+        // ── Full Context Mode v13.4.0 ────────────────────────
+        var FULLCTX_KEY = 'eiti_full_context_mode';
+
+        function eitiFullCtxIsEnabled() {
+            return localStorage.getItem(FULLCTX_KEY) === '1';
+        }
+        window.eitiFullCtxIsEnabled = eitiFullCtxIsEnabled;
+
+        function eitiFullCtxToggle() {
+            var enabled = !eitiFullCtxIsEnabled();
+            localStorage.setItem(FULLCTX_KEY, enabled ? '1' : '0');
+            _eitiFullCtxRenderUI();
+            if (typeof showToast === 'function') {
+                showToast(enabled ? '🗂 Полный контекст включён' : '🗂 Полный контекст выключен', 1800);
+            }
+        }
+        window.eitiFullCtxToggle = eitiFullCtxToggle;
+
+        function _eitiFullCtxRenderUI() {
+            var enabled = eitiFullCtxIsEnabled();
+            var knob   = document.getElementById('fullctx-toggle-knob');
+            var slider = document.getElementById('fullctx-toggle-slider');
+            var warn   = document.getElementById('fullctx-warn');
+            if (knob)   knob.style.transform    = enabled ? 'translateX(18px)' : '';
+            if (slider) slider.style.background = enabled ? 'var(--accent-color)' : '#444';
+            if (warn)   warn.style.display      = enabled ? 'block' : 'none';
+        }
+        window._eitiFullCtxRenderUI = _eitiFullCtxRenderUI;
+
+        async function eitiFullCtxBuild() {
+            if (!eitiFullCtxIsEnabled()) return '';
+            var parts = [];
+            var MAX_NOTES = 200;
+            var MAX_KB    = 300;
+            var MAX_MEM   = 100;
+
+            try {
+                if (window.eitiDb) {
+                    var allNotes = await new Promise(function(res) {
+                        try {
+                            var tx  = window.eitiDb.transaction(['notes'], 'readonly');
+                            var req = tx.objectStore('notes').getAll();
+                            req.onsuccess = function() { res(req.result || []); };
+                            req.onerror   = function() { res([]); };
+                        } catch(e) { res([]); }
+                    });
+                    var notes = allNotes
+                        .filter(function(n) { return n.status !== 'deleted' && (n.content || n.title); })
+                        .slice(0, MAX_NOTES);
+                    if (notes.length > 0) {
+                        parts.push('📝 ЗАМЕТКИ (' + notes.length + '):');
+                        notes.forEach(function(n, i) {
+                            var t = (n.title   || '').trim();
+                            var b = (n.content || '').slice(0, 500).trim();
+                            parts.push('[' + (i+1) + '] ' + (t ? t + ' — ' : '') + b);
+                        });
+                    }
+                }
+            } catch(e) {}
+
+            try {
+                if (typeof eitiKBLoad === 'function') {
+                    var kbArr = eitiKBLoad() || [];
+                    if (!Array.isArray(kbArr)) kbArr = [];
+                    var kbItems = kbArr.slice(0, MAX_KB);
+                    if (kbItems.length > 0) {
+                        parts.push('\n📚 БАЗА ЗНАНИЙ (' + kbItems.length + '):');
+                        kbItems.forEach(function(item, i) {
+                            var q = (item.question || item.q || '').trim();
+                            var a = (item.answer   || item.a || item.text || '').slice(0,300).trim();
+                            if (q || a) {
+                                parts.push('[' + (i+1) + '] ' + (q ? q + ': ' : '') + a);
+                            }
+                        });
+                    }
+                }
+            } catch(e) {}
+
+            try {
+                if (typeof memLoadAsync === 'function') {
+                    var memRaw  = await memLoadAsync();
+                    var memArr  = Array.isArray(memRaw)
+                        ? memRaw
+                        : (memRaw && Array.isArray(memRaw.entries) ? memRaw.entries : []);
+                    var memItems = memArr.slice(0, MAX_MEM);
+                    if (memItems.length > 0) {
+                        parts.push('\n🧠 ЛИЧНАЯ ПАМЯТЬ (' + memItems.length + '):');
+                        memItems.forEach(function(m, i) {
+                            var txt = (m.text || m.content || m.body || '').slice(0, 200).trim();
+                            if (txt) parts.push('[' + (i+1) + '] ' + txt);
+                        });
+                    }
+                }
+            } catch(e) {}
+
+            if (parts.length === 0) return '';
+            return '\n\n══ ПОЛНЫЙ КОНТЕКСТ ДАННЫХ ══\n' +
+                parts.join('\n') +
+                '\n════════════════════════════\n';
+        }
+        window.eitiFullCtxBuild = eitiFullCtxBuild;
+        // ── /Full Context Mode ───────────────────────────────
+
         // v13.4.0 P1 FIX #16: Smart Suggestions — параллельный AI с 3 чипами после ответа.
         var SUGG_ENABLED_KEY  = 'eiti_suggestions_enabled';
         var SUGG_PROVIDER_KEY = 'eiti_suggestions_provider';
@@ -9469,6 +9589,15 @@
                         // v13.4.0 P1 FIX #14 + #16: init TTS Cache Manager и Smart Suggestions UI
                         if (typeof eitiTTSCacheManagerInit === 'function') setTimeout(eitiTTSCacheManagerInit, 100);
                         if (typeof _eitiSuggRenderSettingsUI === 'function') setTimeout(_eitiSuggRenderSettingsUI, 100);
+                        // Full Context Mode toggle init
+                        setTimeout(function() {
+                            var _fcS = document.getElementById('fullctx-toggle-slider');
+                            if (_fcS && !_fcS._fcInited) {
+                                _fcS._fcInited = true;
+                                _fcS.addEventListener('click', eitiFullCtxToggle);
+                            }
+                            if (typeof _eitiFullCtxRenderUI === 'function') _eitiFullCtxRenderUI();
+                        }, 100);
                     });
                 }
             };
@@ -9507,6 +9636,36 @@
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
                 }, true);
+
+                // Android fallback #1: beforeinput с inputType=insertFromPaste —
+                // ловит вставку даже когда clipboardData недоступен (Chrome Android).
+                document.addEventListener('beforeinput', function(e) {
+                    if (!e.target || e.target.id !== 'input') return;
+                    if (e.inputType !== 'insertFromPaste') return;
+                    var pasted = e.data || '';
+                    if (!pasted || pasted.length < 300) return;
+                    e.preventDefault();
+                    window._eitiPastedTextBuffer = pasted;
+                    _eitiShowPastedChip(pasted);
+                }, true);
+
+                // Android fallback #2: input-монитор — детектирует резкий прирост
+                // длины (gesture-вставка, голосовой ввод-сразу-блок).
+                var _prevInputLen = 0;
+                var _inputMonEl = document.getElementById('input');
+                if (_inputMonEl) {
+                    _inputMonEl.addEventListener('input', function() {
+                        var val = _inputMonEl.value || '';
+                        var delta = val.length - _prevInputLen;
+                        if (delta > 300 && !window._eitiPastedTextBuffer) {
+                            var pasted = val.slice(_prevInputLen);
+                            _inputMonEl.value = val.slice(0, _prevInputLen);
+                            window._eitiPastedTextBuffer = pasted;
+                            _eitiShowPastedChip(pasted);
+                        }
+                        _prevInputLen = _inputMonEl.value.length;
+                    });
+                }
             }
 
             function _eitiShowPastedChip(text) {
@@ -14320,6 +14479,27 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         // Gemini) receive the same enriched history. Prevents accumulation across turns
         // by stripping any previous [АРХИВНЫЙ КОНТЕКСТ] block before re-injecting.
         function eitiPrepareContext(query, baseHistory, callback) {
+            // Full Context Mode: оборачиваем callback в обёртку, которая дополняет
+            // system-сообщение полным контекстом (заметки/KB/MEM) если режим включён.
+            var _origCallback = callback;
+            callback = function(finalHistory) {
+                if (typeof eitiFullCtxIsEnabled === 'function' && eitiFullCtxIsEnabled()
+                    && typeof eitiFullCtxBuild === 'function') {
+                    eitiFullCtxBuild().then(function(fullCtx) {
+                        if (fullCtx && finalHistory && finalHistory.length > 0) {
+                            var sys = finalHistory[0];
+                            if (sys && sys.role === 'system') {
+                                finalHistory[0] = { role: 'system', content: sys.content + fullCtx };
+                            } else {
+                                finalHistory.unshift({ role: 'system', content: fullCtx });
+                            }
+                        }
+                        _origCallback(finalHistory);
+                    }).catch(function() { _origCallback(finalHistory); });
+                } else {
+                    _origCallback(finalHistory);
+                }
+            };
             var _SENTINEL = '\n[АРХИВНЫЙ КОНТЕКСТ]: ';
             // Strip previous archive injection to prevent infinite accumulation
             var _baseContent = baseHistory[0].content;
@@ -21978,10 +22158,24 @@ window.eitiLLMClearAll = async function() {
                 if (!_savedProvider) { localStorage.setItem('eiti_ai_provider', 'openrouter'); _savedProvider = 'openrouter'; }
                 if (typeof eitiSetProvider === 'function') eitiSetProvider(_savedProvider, true);
                 // Token budget
-                var tb = localStorage.getItem('eiti_token_budget');
-                var tbEl = document.getElementById('token-budget');
-                var tbVal = document.getElementById('token-budget-val');
-                if (tb && tbEl) { tbEl.value = tb; if(tbVal) tbVal.textContent = tb; }
+                var _tbEl = document.getElementById('token-budget');
+                var _tbVal = document.getElementById('token-budget-val');
+                if (_tbEl) {
+                    var _savedTB = parseInt(localStorage.getItem('eiti_token_budget') || '16000', 10);
+                    if (_savedTB <= 8000) {
+                        _savedTB = 16000;
+                        localStorage.setItem('eiti_token_budget', '16000');
+                    }
+                    _tbEl.value = _savedTB;
+                    if (_tbVal) _tbVal.textContent = _savedTB;
+                }
+                // Full context toggle (1M mode)
+                var _fcSlider = document.getElementById('fullctx-toggle-slider');
+                if (_fcSlider && !_fcSlider._fcInited) {
+                    _fcSlider._fcInited = true;
+                    _fcSlider.addEventListener('click', eitiFullCtxToggle);
+                }
+                if (typeof _eitiFullCtxRenderUI === 'function') _eitiFullCtxRenderUI();
                 // Профиль
                 var p = eitiGetProfile();
                 var ta = document.getElementById('eiti-profile-text');
