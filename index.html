@@ -111,7 +111,7 @@
                 localStorage.setItem('eiti_offline_mode', '0');
                 localStorage.setItem('eiti_only_ai', '1');
                 localStorage.setItem('eiti_ai_provider', 'openrouter');
-                localStorage.setItem('eiti_token_budget', '8000');
+                localStorage.setItem('eiti_token_budget', '16000');
                 localStorage.setItem('eiti_ai_instructions', 'Всегда отвечай в чате, пиши с emojis по смыслу');
                 localStorage.setItem('eiti_icon_mode', 'emoji_classic');
                 localStorage.setItem('eiti_header_hidden', '0');
@@ -3694,10 +3694,10 @@
                                 <span>⏱ Token Budget</span>
                                 <span id="token-budget-val" style="font-weight:700;color:var(--accent-color);">8000</span>
                             </div>
-                            <input type="range" id="token-budget" min="500" max="8000" step="500" value="8000"
+                            <input type="range" id="token-budget" min="500" max="40000" step="500" value="8000"
                                 oninput="document.getElementById('token-budget-val').textContent=this.value;localStorage.setItem('eiti_token_budget',this.value);"
                                 style="width:100%;accent-color:var(--accent-color);">
-                            <div style="font-size:11px;opacity:0.5;">Максимум токенов на запрос. Меньше = дешевле, быстрее. Больше = умнее для длинных диалогов.</div>
+                            <div style="font-size:11px;opacity:0.5;">Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.</div>
                             <!-- ═══ FILE CHUNK SIZE (v12.9.47) ═══ -->
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                                 <span>📄 File Chunk Size</span>
@@ -21978,10 +21978,17 @@ window.eitiLLMClearAll = async function() {
                 if (!_savedProvider) { localStorage.setItem('eiti_ai_provider', 'openrouter'); _savedProvider = 'openrouter'; }
                 if (typeof eitiSetProvider === 'function') eitiSetProvider(_savedProvider, true);
                 // Token budget
-                var tb = localStorage.getItem('eiti_token_budget');
-                var tbEl = document.getElementById('token-budget');
-                var tbVal = document.getElementById('token-budget-val');
-                if (tb && tbEl) { tbEl.value = tb; if(tbVal) tbVal.textContent = tb; }
+                var _tbEl = document.getElementById('token-budget');
+                var _tbVal = document.getElementById('token-budget-val');
+                if (_tbEl) {
+                    var _savedTB = parseInt(localStorage.getItem('eiti_token_budget') || '16000', 10);
+                    if (_savedTB <= 8000) {
+                        _savedTB = 16000;
+                        localStorage.setItem('eiti_token_budget', '16000');
+                    }
+                    _tbEl.value = _savedTB;
+                    if (_tbVal) _tbVal.textContent = _savedTB;
+                }
                 // Профиль
                 var p = eitiGetProfile();
                 var ta = document.getElementById('eiti-profile-text');
