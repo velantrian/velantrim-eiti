@@ -9636,6 +9636,36 @@
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
                 }, true);
+
+                // Android fallback #1: beforeinput с inputType=insertFromPaste —
+                // ловит вставку даже когда clipboardData недоступен (Chrome Android).
+                document.addEventListener('beforeinput', function(e) {
+                    if (!e.target || e.target.id !== 'input') return;
+                    if (e.inputType !== 'insertFromPaste') return;
+                    var pasted = e.data || '';
+                    if (!pasted || pasted.length < 300) return;
+                    e.preventDefault();
+                    window._eitiPastedTextBuffer = pasted;
+                    _eitiShowPastedChip(pasted);
+                }, true);
+
+                // Android fallback #2: input-монитор — детектирует резкий прирост
+                // длины (gesture-вставка, голосовой ввод-сразу-блок).
+                var _prevInputLen = 0;
+                var _inputMonEl = document.getElementById('input');
+                if (_inputMonEl) {
+                    _inputMonEl.addEventListener('input', function() {
+                        var val = _inputMonEl.value || '';
+                        var delta = val.length - _prevInputLen;
+                        if (delta > 300 && !window._eitiPastedTextBuffer) {
+                            var pasted = val.slice(_prevInputLen);
+                            _inputMonEl.value = val.slice(0, _prevInputLen);
+                            window._eitiPastedTextBuffer = pasted;
+                            _eitiShowPastedChip(pasted);
+                        }
+                        _prevInputLen = _inputMonEl.value.length;
+                    });
+                }
             }
 
             function _eitiShowPastedChip(text) {
