@@ -21719,33 +21719,36 @@ window.eitiLLMClearAll = async function() {
                     return;
                 }
 
-                // Intent Router — без LLM, перехват до DeepSeek
-                // ── VB: анализируем интент ДО роутинга ──────────────
-                if (typeof eitiVBAnalyze === 'function') {
-                    window._vbLast = eitiVBAnalyze(txt);
-                }
-                if (eitiIntentRouter(txt)) {
+                // Режим определяем до Intent Router
+                var _offlineMode = localStorage.getItem('eiti_offline_mode') === '1';
+                var _reasonMode  = localStorage.getItem('eiti_reason_mode') === '1';
 
-                    if (eitiDb) {
-                        var _saveIntentTurn = function(chatId) {
-                            eitiAddMessage(chatId, 'user', txt);
-                            setTimeout(function() { if (typeof eitiLoadHistory==='function') eitiLoadHistory(); }, 400);
-                        };
-                        if (!eitiCurrentChatId) {
-                            eitiCreateChat(txt.slice(0, 40)).then(function(c) {
-                                eitiCurrentChatId = c.id;
-                                _saveIntentTurn(c.id);
-                            });
-                        } else {
-                            _saveIntentTurn(eitiCurrentChatId);
-                        }
+                // Intent Router и MOSC — только в офлайн режиме.
+                // В онлайн режиме всегда идём в AI напрямую (как в eitiEditUserMsg).
+                if (_offlineMode) {
+                    if (typeof eitiVBAnalyze === 'function') {
+                        window._vbLast = eitiVBAnalyze(txt);
                     }
-                    return;
+                    if (eitiIntentRouter(txt)) {
+                        if (eitiDb) {
+                            var _saveIntentTurn = function(chatId) {
+                                eitiAddMessage(chatId, 'user', txt);
+                                setTimeout(function() { if (typeof eitiLoadHistory==='function') eitiLoadHistory(); }, 400);
+                            };
+                            if (!eitiCurrentChatId) {
+                                eitiCreateChat(txt.slice(0, 40)).then(function(c) {
+                                    eitiCurrentChatId = c.id;
+                                    _saveIntentTurn(c.id);
+                                });
+                            } else {
+                                _saveIntentTurn(eitiCurrentChatId);
+                            }
+                        }
+                        return;
+                    }
                 }
 
                 // LOCAL SEARCH — офлайн-режим или '?' в начале
-                var _offlineMode = localStorage.getItem('eiti_offline_mode') === '1';
-                var _reasonMode  = localStorage.getItem('eiti_reason_mode') === '1';
                 var _isLocalQuery = (_offlineMode && txt.charAt(0) !== '!') || txt.charAt(0) === '?';
                 if (_isLocalQuery && _offlineMode && _reasonMode) {
                     eitiOfflineReason(txt);
@@ -21754,11 +21757,6 @@ window.eitiLLMClearAll = async function() {
                 if (_isLocalQuery) {
                     eitiLocalSearch(txt);
                     return;
-                }
-
-                // MOSC — Curiosity Engine (только для неоднозначных запросов, не офлайн)
-                if (!_offlineMode && txt.charAt(0) !== '!') {
-                    if (moscProcess(txt)) return; // MOSC перехватил → уточнение/curiosity
                 }
 
                 // Сохраняем в IndexedDB и вызываем AI
