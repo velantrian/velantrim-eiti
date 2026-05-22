@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Один HTML-файл. Никаких зависимостей. Работает везде._
 
-[![Version](https://img.shields.io/badge/version-13.4.0-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![Version](https://img.shields.io/badge/version-13.4.4-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline](https://img.shields.io/badge/offline-supported-orange?style=flat-square)](#)
@@ -37,7 +37,7 @@ _(правой кнопкой → Сохранить как)_
 
 ---
 
-## 🆕 Что нового в v13.4.0
+## 🆕 Что нового в v13.4.4
 
 **🔴 Критичное (P0)**
 - 🔍 **FTS5 инкрементальный sync** — поиск по заметкам перестал тормозить (O(N²) → O(1) на заметку)
@@ -55,9 +55,9 @@ _(правой кнопкой → Сохранить как)_
 
 **🟢 Чистка (P2)**
 - 🔄 IDB onblocked → toast + retry · MOSC граф вынесен в `data/mosc_default_v1.json` (-115 КБ в HTML)
-- 🗑 TTS cache LRU через openCursor · Blob URL auto-revoke через 5 мин · SW cache → `eiti-v13.4.0`
+- 🗑 TTS cache LRU через openCursor · Blob URL auto-revoke через 5 мин · SW cache → `eiti-v13.4.4`
 
-📜 **Полный список изменений:** [коммиты v13.4.0](https://github.com/velantrian/velantrim-eiti/commits/main)
+📜 **Полный список изменений:** [коммиты v13.4.4](https://github.com/velantrian/velantrim-eiti/commits/main)
 🔍 **Открыть последнюю версию:** [velantrian.github.io/velantrim-eiti/](https://velantrian.github.io/velantrim-eiti/)
 
 ---
