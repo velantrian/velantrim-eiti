@@ -136,6 +136,520 @@
             }
         });
         var EITI_BUILD_DATE = "2026-05-19T12:00"; // v13.4.0 — Layer 1: 16 surgical fixes (FTS5, DOMPurify, AES, TTS, MOSC JSON, etc.)
+
+        // ───────────────────────────────────────────────────────────────
+        // i18n CORE — runtime локализация UI (ru/en). Не трогает данные пользователя (заметки, KB, чаты).
+        // Использование:
+        //   <div data-i18n="Чат">Чат</div>                 — текст элемента
+        //   <input data-i18n-placeholder="Поиск...">       — placeholder
+        //   <button data-i18n-title="Очистить">🗑</button> — title
+        //   <div data-i18n-html="Линия 1<br>Линия 2"></div>— html-content
+        //   В JS: T('Сохранено') / T('Найдено {n} результатов', {n: 5})
+        // ───────────────────────────────────────────────────────────────
+        window.EITI_I18N = (function() {
+            var DICT = { en: {
+                // === Tabs ===
+                'Чат': 'Chat',
+                'Дневник': 'Journal',
+                'История': 'History',
+                'Плеер': 'Player',
+                'Файлы': 'Files',
+                'Заметки': 'Notes',
+                'Лента': 'Timeline',
+                'Настройки': 'Settings',
+                // === Language switcher ===
+                '🌐 Язык / Language': '🌐 Язык / Language',
+                'Русский': 'Русский',
+                'English': 'English',
+                'Язык интерфейса': 'Interface language',
+                'Язык: Русский': 'Language: Русский',
+                'Language: English': 'Language: English',
+                'UI · меню · тосты. KB и заметки не переводятся.': 'UI · menu · toasts. KB and notes are not translated.',
+                // === Settings groups ===
+                'Внешний вид': 'Appearance',
+                '🤖 DeepSeek AI ⚡ Google Gemini': '🤖 DeepSeek AI ⚡ Google Gemini',
+                '🟣 Qwen AI — DashScope': '🟣 Qwen AI — DashScope',
+                '✈️ Офлайн-режим': '✈️ Offline mode',
+                '🧠 База знаний KB': '🧠 Knowledge base KB',
+                '💜 EITI Memory — Личная память': '💜 EITI Memory — Personal memory',
+                '📋 Персональная Доска': '📋 Personal Board',
+                '🧬 PKG — Хеббианский Граф Знаний': '🧬 PKG — Hebbian Knowledge Graph',
+                '🧠 MOSC — Reasoning Engine': '🧠 MOSC — Reasoning Engine',
+                '🧠 Smart Memory Hub': '🧠 Smart Memory Hub',
+                '🧬 Профиль — О себе': '🧬 Profile — About me',
+                '🧬 О системе': '🧬 About system',
+                '📝 Заметки': '📝 Notes',
+                '📊 Статистика': '📊 Statistics',
+                '🔔 Уведомления': '🔔 Notifications',
+                '🖼️ Фон чата': '🖼️ Chat wallpaper',
+                '🎵 Плеер': '🎵 Player',
+                '🔊 TTS — Голосовой плеер': '🔊 TTS — Voice player',
+                'О приложении': 'About app',
+                '🤖 Мои интенты (без LLM)': '🤖 My intents (no LLM)',
+                '💾 Как устроена Система 🛠': '💾 How the System works 🛠',
+                '📦 Архив — Экспорт / Импорт': '📦 Archive — Export / Import',
+                '🗂️ Импорт / Экспорт + AI Check': '🗂️ Import / Export + AI Check',
+                '🤖 AI Offline — Семантический поиск': '🤖 AI Offline — Semantic search',
+                '🧬 Embeddings & Chunks': '🧬 Embeddings & Chunks',
+                '📄 RAG — Умное чтение файлов': '📄 RAG — Smart file reading',
+                '🤖 LLM Чат — Лёгкие модели': '🤖 LLM Chat — Lightweight models',
+                '💳 API — Баланс и токены': '💳 API — Balance and tokens',
+                'VB🦋 Velantrim Brain': 'VB🦋 Velantrim Brain',
+                '📖 Лемматизатор — Морфология': '📖 Lemmatizer — Morphology',
+                'FL ⚖️ Умные веса — Retrieval': 'FL ⚖️ Smart weights — Retrieval',
+                'Материалы (iOS6 / Book / Paper)': 'Materials (iOS6 / Book / Paper)',
+                'Профили UI': 'UI Profiles',
+                '🎭 Emoji стиль (v6)': '🎭 Emoji style (v6)',
+                '✦ Символьный стиль (v6.1)': '✦ Symbol style (v6.1)',
+                '🎨 Цвет иконок': '🎨 Icon color',
+                '✨ Стиль иконок': '✨ Icon style',
+                '☁️ Статус подключения': '☁️ Connection status',
+                '🔑 Google OAuth Client ID': '🔑 Google OAuth Client ID',
+                '🔗 Авторизация': '🔗 Authorization',
+                '🔄 Синхронизация': '🔄 Sync',
+                '📦 Что включено в бэкап': '📦 What is included in the backup',
+                'Обои': 'Wallpapers',
+                'Предпросмотр': 'Preview',
+                'Пресеты': 'Presets',
+                '💬 Мои сообщения': '💬 My messages',
+                '🤖 Сообщения AI': '🤖 AI messages',
+                'Стиль пузырей': 'Bubble style',
+                'Видимость табов и шапки': 'Tabs & header visibility',
+                // === Appearance items ===
+                'Дизайн': 'Design',
+                'Темы': 'Themes',
+                'Иконки': 'Icons',
+                'Фон чата': 'Chat wallpaper',
+                '🎨 Оформление чата': '🎨 Chat style',
+                '📌 Табы': '📌 Tabs',
+                // === Cognitive modes ===
+                '🧠 Режим мышления AI': '🧠 AI thinking mode',
+                '🎯 Точность': '🎯 Precision',
+                '⚖️ Баланс': '⚖️ Balance',
+                '🔭 Идеи': '🔭 Ideas',
+                '🌐 Поиск': '🌐 Search',
+                '💡 Суть': '💡 Essence',
+                'Точность': 'Precision',
+                'Баланс': 'Balance',
+                'Идеи': 'Ideas',
+                'Поиск': 'Search',
+                'Суть': 'Essence',
+                // === Common buttons ===
+                'Сохранить': 'Save',
+                'Сохранено': 'Saved',
+                'Отмена': 'Cancel',
+                'Отменить': 'Cancel',
+                'ОК': 'OK',
+                'Закрыть': 'Close',
+                'Удалить': 'Delete',
+                'Удалено': 'Deleted',
+                'Очистить': 'Clear',
+                'Очистить всё': 'Clear all',
+                'Создать': 'Create',
+                'Добавить': 'Add',
+                'Импорт': 'Import',
+                'Экспорт': 'Export',
+                'Применить': 'Apply',
+                'Применено': 'Applied',
+                'Загрузить': 'Upload',
+                'Скачать': 'Download',
+                'Копировать': 'Copy',
+                'Скопировано': 'Copied',
+                'Скопировано в буфер': 'Copied to clipboard',
+                'Готово': 'Done',
+                'Назад': 'Back',
+                'Далее': 'Next',
+                'Пропустить': 'Skip',
+                'Начать': 'Start',
+                'Продолжить': 'Continue',
+                'Поделиться': 'Share',
+                'Поиск...': 'Search...',
+                'Поиск': 'Search',
+                'Нет': 'No',
+                'Да': 'Yes',
+                'ВКЛ': 'ON',
+                'ВЫКЛ': 'OFF',
+                'Вкл': 'On',
+                'Выкл': 'Off',
+                'Включить': 'Enable',
+                'Отключить': 'Disable',
+                'Включено': 'Enabled',
+                'Отключено': 'Disabled',
+                'Проверить': 'Check',
+                'Проверить подключение': 'Test connection',
+                'Тест': 'Test',
+                'Запустить': 'Run',
+                'Остановить': 'Stop',
+                'Пауза': 'Pause',
+                'Играть': 'Play',
+                'Воспроизвести': 'Play',
+                'Сбросить': 'Reset',
+                'Обновить': 'Refresh',
+                'Подтвердить': 'Confirm',
+                'Подтверждение': 'Confirmation',
+                'Ошибка': 'Error',
+                'Внимание': 'Warning',
+                'Информация': 'Info',
+                'Успех': 'Success',
+                'Загрузка...': 'Loading...',
+                'Сохранение...': 'Saving...',
+                'Подождите...': 'Please wait...',
+                'Ничего не найдено': 'Nothing found',
+                'Пусто': 'Empty',
+                'Без названия': 'Untitled',
+                'Без даты': 'No date',
+                // === Models ===
+                '⚡ Модель DeepSeek': '⚡ DeepSeek model',
+                'Быстро · дешево': 'Fast · cheap',
+                'Точнее · дороже': 'More accurate · pricier',
+                '⚡ Google Gemini': '⚡ Google Gemini',
+                // === API ===
+                'Сначала введи API-ключ': 'Enter API key first',
+                'Ключ сохранён': 'Key saved',
+                'Ключ удалён': 'Key cleared',
+                'Подключение работает': 'Connection works',
+                'Ошибка подключения': 'Connection error',
+                'Неверный ключ': 'Invalid key',
+                'Проверка...': 'Checking...',
+                // === About ===
+                'Версия': 'Version',
+                'Сборка': 'Build',
+                'Установить приложение': 'Install app',
+                'Приложение уже установлено': 'App already installed',
+                // === Profile ===
+                'Имя': 'Name',
+                'О себе': 'About me',
+                'Профиль сохранён': 'Profile saved',
+                // === Notes ===
+                'Новая заметка': 'New note',
+                'Поиск заметок...': 'Search notes...',
+                'Папка': 'Folder',
+                'Папки': 'Folders',
+                'Новая папка': 'New folder',
+                'Заметка': 'Note',
+                'Заметка сохранена': 'Note saved',
+                'Заметка удалена': 'Note deleted',
+                'Все заметки': 'All notes',
+                'Избранное': 'Favorites',
+                'Корзина': 'Trash',
+                // === Files ===
+                'Все файлы': 'All files',
+                'Фото': 'Photos',
+                'Видео': 'Videos',
+                'Музыка': 'Music',
+                'Документы': 'Documents',
+                'Загрузить файл': 'Upload file',
+                '📁 Импорт файла': '📁 Import file',
+                '⬇ Скачать все': '⬇ Download all',
+                'Нет файлов': 'No files',
+                // === History ===
+                'История чатов': 'Chat history',
+                'Поиск в истории...': 'Search history...',
+                'Новый чат': 'New chat',
+                'Чат удалён': 'Chat deleted',
+                'Очистить историю?': 'Clear history?',
+                // === Player ===
+                'Плейлист': 'Playlist',
+                'Сейчас играет': 'Now playing',
+                'Громкость': 'Volume',
+                'Трек': 'Track',
+                // === Timeline ===
+                'Лента событий': 'Timeline',
+                'Сегодня': 'Today',
+                'Вчера': 'Yesterday',
+                'На этой неделе': 'This week',
+                // === Chat ===
+                'Напишите сообщение...': 'Type a message...',
+                'Введите сообщение...': 'Type a message...',
+                'Сообщение': 'Message',
+                'Отправить': 'Send',
+                'Печатает...': 'Typing...',
+                'Думает...': 'Thinking...',
+                // === Onboarding ===
+                'Добро пожаловать': 'Welcome',
+                'Начать работу': 'Get started',
+                // === Misc ===
+                'Все': 'All',
+                'Выбрать': 'Select',
+                'Выбрано': 'Selected',
+                'Редактировать': 'Edit',
+                'Переименовать': 'Rename',
+                'Переименовано': 'Renamed',
+                'Дубликат': 'Duplicate',
+                'Действие отменено': 'Action cancelled',
+                'Не удалось': 'Failed',
+                'Не удалось сохранить': 'Failed to save',
+                'Скопировать ссылку': 'Copy link',
+                'Открыть': 'Open',
+                'Свернуть': 'Collapse',
+                'Развернуть': 'Expand',
+                'Подробнее': 'Details',
+                'Меньше': 'Less',
+                'Больше': 'More',
+                'Минут': 'min',
+                'Часов': 'h',
+                'Дней': 'd',
+                'Только что': 'Just now',
+                'минуту назад': 'a minute ago',
+                'час назад': 'an hour ago',
+                // === Defaults (system-seeded strings) ===
+                'Всегда отвечай в чате, пиши с emojis по смыслу': 'Always reply in chat, use emojis where it makes sense'
+            }};
+            var state = { locale: 'ru' };
+            try {
+                var saved = localStorage.getItem('eiti_locale');
+                if (saved === 'ru' || saved === 'en') state.locale = saved;
+            } catch(e) {}
+
+            function T(key, vars) {
+                if (key == null) return '';
+                var s = (state.locale === 'ru')
+                    ? String(key)
+                    : ((DICT[state.locale] && DICT[state.locale][key]) || String(key));
+                if (vars && typeof s === 'string') {
+                    for (var k in vars) {
+                        if (Object.prototype.hasOwnProperty.call(vars, k)) {
+                            s = s.split('{' + k + '}').join(String(vars[k]));
+                        }
+                    }
+                }
+                return s;
+            }
+            // Reverse dictionaries: REV.en is ru→en (DICT.en), REV.ru is en→ru (inverted).
+            // Used by text-node walker to translate any matching text in either direction.
+            var REV = { ru: {}, en: {} };
+            function buildRev() {
+                REV.en = DICT.en || {};
+                REV.ru = {};
+                for (var k in DICT.en) {
+                    if (Object.prototype.hasOwnProperty.call(DICT.en, k)) {
+                        var v = DICT.en[k];
+                        if (v && !REV.ru[v]) REV.ru[v] = k;
+                    }
+                }
+            }
+            buildRev();
+            // Tags whose subtree must NOT be translated (code, user input, raw text fields).
+            var SKIP_TAGS = {
+                'SCRIPT': 1, 'STYLE': 1, 'CODE': 1, 'PRE': 1,
+                'TEXTAREA': 1, 'INPUT': 1, 'NOSCRIPT': 1, 'SVG': 1,
+                'OPTION': 0 // allow OPTION text translation
+            };
+            function _shouldSkip(el) {
+                if (!el || el.nodeType !== 1) return false;
+                if (SKIP_TAGS[el.tagName]) return true;
+                if (el.hasAttribute && el.hasAttribute('data-i18n-skip')) return true;
+                if (el.isContentEditable) return true;
+                return false;
+            }
+            // Walks all text nodes under root, replacing any node text whose trimmed value
+            // exists as a key in REV[targetLocale]. Preserves leading/trailing whitespace.
+            function walkAndTranslate(root, targetLocale) {
+                if (!root) return;
+                var rev = REV[targetLocale] || {};
+                var stack = [root];
+                while (stack.length) {
+                    var node = stack.pop();
+                    if (!node) continue;
+                    if (node.nodeType === 3) {
+                        var v = node.nodeValue;
+                        if (!v) continue;
+                        var trimmed = v.replace(/^\s+|\s+$/g, '');
+                        if (!trimmed) continue;
+                        if (rev[trimmed]) {
+                            var lead = v.match(/^\s*/)[0];
+                            var trail = v.match(/\s*$/)[0];
+                            node.nodeValue = lead + rev[trimmed] + trail;
+                        }
+                        continue;
+                    }
+                    if (node.nodeType !== 1) continue;
+                    if (_shouldSkip(node)) continue;
+                    var ch = node.childNodes;
+                    for (var i = ch.length - 1; i >= 0; i--) stack.push(ch[i]);
+                }
+            }
+            function walkAndTranslateAttrs(root, targetLocale) {
+                if (!root || !root.querySelectorAll) return;
+                var rev = REV[targetLocale] || {};
+                var els = root.querySelectorAll('[placeholder],[title],[aria-label]');
+                for (var i = 0; i < els.length; i++) {
+                    var el = els[i];
+                    if (_shouldSkip(el)) continue;
+                    var p = el.getAttribute('placeholder');
+                    if (p) { var pt = p.trim(); if (rev[pt]) el.setAttribute('placeholder', rev[pt]); }
+                    var t = el.getAttribute('title');
+                    if (t) { var tt = t.trim(); if (rev[tt]) el.setAttribute('title', rev[tt]); }
+                    var a = el.getAttribute('aria-label');
+                    if (a) { var at = a.trim(); if (rev[at]) el.setAttribute('aria-label', rev[at]); }
+                }
+                var btns = root.querySelectorAll('input[type="button"][value],input[type="submit"][value]');
+                for (var j = 0; j < btns.length; j++) {
+                    var b = btns[j];
+                    if (_shouldSkip(b)) continue;
+                    var bv = b.getAttribute('value');
+                    if (bv) { var bvt = bv.trim(); if (rev[bvt]) b.setAttribute('value', rev[bvt]); }
+                }
+            }
+            function applyDOM(root) {
+                root = root || document;
+                if (!root.querySelectorAll) return;
+                var loc = state.locale;
+                var i, els, el, key;
+                els = root.querySelectorAll('[data-i18n]');
+                for (i = 0; i < els.length; i++) {
+                    el = els[i];
+                    key = el.getAttribute('data-i18n');
+                    if (key != null) el.textContent = T(key);
+                }
+                els = root.querySelectorAll('[data-i18n-placeholder]');
+                for (i = 0; i < els.length; i++) {
+                    el = els[i];
+                    key = el.getAttribute('data-i18n-placeholder');
+                    if (key != null) el.setAttribute('placeholder', T(key));
+                }
+                els = root.querySelectorAll('[data-i18n-title]');
+                for (i = 0; i < els.length; i++) {
+                    el = els[i];
+                    key = el.getAttribute('data-i18n-title');
+                    if (key != null) el.setAttribute('title', T(key));
+                }
+                els = root.querySelectorAll('[data-i18n-html]');
+                for (i = 0; i < els.length; i++) {
+                    el = els[i];
+                    key = el.getAttribute('data-i18n-html');
+                    if (key != null) el.innerHTML = T(key);
+                }
+                els = root.querySelectorAll('[data-i18n-aria]');
+                for (i = 0; i < els.length; i++) {
+                    el = els[i];
+                    key = el.getAttribute('data-i18n-aria');
+                    if (key != null) el.setAttribute('aria-label', T(key));
+                }
+                // Text-node walker translates anything else matching a dict key.
+                try { walkAndTranslate(root.body || root, loc); } catch(e) {}
+                try { walkAndTranslateAttrs(root.body || root, loc); } catch(e) {}
+            }
+            function setLocale(loc) {
+                if (loc !== 'ru' && loc !== 'en') return;
+                state.locale = loc;
+                try { localStorage.setItem('eiti_locale', loc); } catch(e) {}
+                try { document.documentElement.lang = loc; } catch(e) {}
+                try {
+                    if (document.body && document.body.classList) {
+                        document.body.classList.remove('lang-ru','lang-en');
+                        document.body.classList.add('lang-' + loc);
+                    }
+                } catch(e) {}
+                applyDOM(document);
+                try {
+                    if (typeof window.eitiOnLocaleChanged === 'function') window.eitiOnLocaleChanged(loc);
+                } catch(e) {}
+                try {
+                    if (typeof window.eitiUpdateLangSwitcherUI === 'function') window.eitiUpdateLangSwitcherUI();
+                } catch(e) {}
+                try {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(loc === 'en' ? 'Language: English' : 'Язык: Русский', 1400);
+                    }
+                } catch(e) {}
+            }
+            function getLocale() { return state.locale; }
+            function addDict(loc, obj) {
+                if (!DICT[loc]) DICT[loc] = {};
+                for (var k in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, k)) DICT[loc][k] = obj[k];
+                }
+                buildRev();
+            }
+            // Throttled MutationObserver — translates dynamically inserted DOM nodes.
+            var _mutBuf = [];
+            var _mutTimer = null;
+            function _flushMut() {
+                _mutTimer = null;
+                if (!_mutBuf.length) return;
+                var roots = _mutBuf.slice();
+                _mutBuf = [];
+                for (var i = 0; i < roots.length; i++) {
+                    try { applyDOM(roots[i]); } catch(e) {}
+                }
+            }
+            function _scheduleMut(target) {
+                _mutBuf.push(target);
+                if (_mutTimer == null) _mutTimer = setTimeout(_flushMut, 80);
+            }
+            var _observer = null;
+            function _initObserver() {
+                if (typeof MutationObserver === 'undefined' || !document.body) return;
+                if (_observer) return;
+                _observer = new MutationObserver(function(muts) {
+                    for (var i = 0; i < muts.length; i++) {
+                        var m = muts[i];
+                        if (m.addedNodes && m.addedNodes.length) {
+                            for (var j = 0; j < m.addedNodes.length; j++) {
+                                var n = m.addedNodes[j];
+                                if (n.nodeType === 1) _scheduleMut(n);
+                            }
+                        }
+                    }
+                });
+                _observer.observe(document.body, { childList: true, subtree: true });
+            }
+            // Apply on DOM ready
+            function _initApply() {
+                try { document.documentElement.lang = state.locale; } catch(e) {}
+                try {
+                    if (document.body && document.body.classList) {
+                        document.body.classList.remove('lang-ru','lang-en');
+                        document.body.classList.add('lang-' + state.locale);
+                    }
+                } catch(e) {}
+                applyDOM(document);
+                _initObserver();
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', _initApply);
+            } else {
+                _initApply();
+            }
+            return { T: T, setLocale: setLocale, getLocale: getLocale, applyDOM: applyDOM, addDict: addDict, _dict: DICT };
+        })();
+        window.T = window.EITI_I18N.T;
+        window.eitiSetLocale = window.EITI_I18N.setLocale;
+        window.eitiGetLocale = window.EITI_I18N.getLocale;
+        window.eitiApplyI18n = window.EITI_I18N.applyDOM;
+        // Подсветка активной кнопки переключателя языка
+        window.eitiUpdateLangSwitcherUI = function() {
+            try {
+                var loc = window.eitiGetLocale();
+                var ruBtn = document.getElementById('eiti-lang-ru-btn');
+                var enBtn = document.getElementById('eiti-lang-en-btn');
+                var active = 'linear-gradient(145deg,var(--accent-color),#c9a700)';
+                var activeColor = '#000';
+                var inactive = 'var(--secondary-color)';
+                var inactiveColor = 'var(--text-color)';
+                if (ruBtn) {
+                    ruBtn.style.background = (loc === 'ru') ? active : inactive;
+                    ruBtn.style.color = (loc === 'ru') ? activeColor : inactiveColor;
+                    ruBtn.style.borderColor = (loc === 'ru') ? 'var(--accent-color)' : 'var(--border-color)';
+                }
+                if (enBtn) {
+                    enBtn.style.background = (loc === 'en') ? active : inactive;
+                    enBtn.style.color = (loc === 'en') ? activeColor : inactiveColor;
+                    enBtn.style.borderColor = (loc === 'en') ? 'var(--accent-color)' : 'var(--border-color)';
+                }
+            } catch(e) {}
+        };
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.eitiUpdateLangSwitcherUI, 100); });
+        // Локалезависимый дефолт AI-инструкций — заменяем русский seed выше, если язык English при первом запуске
+        try {
+            if (window.eitiGetLocale && window.eitiGetLocale() === 'en' && !localStorage.getItem('eiti_first_run_done_v1_lang_seeded')) {
+                if (localStorage.getItem('eiti_ai_instructions') === 'Всегда отвечай в чате, пиши с emojis по смыслу') {
+                    localStorage.setItem('eiti_ai_instructions', 'Always reply in chat, use emojis where it makes sense');
+                }
+                localStorage.setItem('eiti_first_run_done_v1_lang_seeded', '1');
+            }
+        } catch(e) {}
     </script>
     <!-- sql.js — SQLite WASM для FTS5 поиска, Attention Graph, эпистемических статусов -->
     <!-- v12.9.1 FIX: возвращён defer вместо async. async не гарантирует порядок выполнения
@@ -3399,36 +3913,59 @@
             <!-- SETTINGS -->
             <div id="view-settings" class="content-view" style="overflow-y:auto;-webkit-overflow-scrolling:touch;">
                 <div class="settings-container">
+                    <!-- ═══ 🌐 LANGUAGE / ЯЗЫК (v13.4.5) ═══ -->
+                    <div class="settings-group" id="lang-settings-group">
+                        <div class="settings-title" data-i18n="🌐 Язык / Language">🌐 Язык / Language</div>
+                        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                            <div style="font-size:12px;opacity:0.6;" data-i18n="Язык интерфейса">Язык интерфейса</div>
+                            <div style="display:flex;gap:8px;">
+                                <button id="eiti-lang-ru-btn" type="button" onclick="eitiSetLocale('ru')"
+                                    style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                                    <span style="font-size:18px;">🇷🇺</span>
+                                    <span>Русский</span>
+                                </button>
+                                <button id="eiti-lang-en-btn" type="button" onclick="eitiSetLocale('en')"
+                                    style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                                    <span style="font-size:18px;">🇬🇧</span>
+                                    <span>English</span>
+                                </button>
+                            </div>
+                            <div style="font-size:11px;opacity:0.5;line-height:1.5;">
+                                <span data-i18n="UI · меню · тосты. KB и заметки не переводятся.">UI · меню · тосты. KB и заметки не переводятся.</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="settings-group">
-                        <div class="settings-title">Внешний вид</div>
+                        <div class="settings-title" data-i18n="Внешний вид">Внешний вид</div>
                         <div class="settings-item" onclick="openDesignMode()" style="cursor:pointer">
-                            <div>Дизайн</div>
+                            <div data-i18n="Дизайн">Дизайн</div>
                             <div>🧩</div>
                         </div>
                         <div class="settings-item" onclick="openThemeMode()" style="cursor:pointer">
-                            <div>Темы</div>
+                            <div data-i18n="Темы">Темы</div>
                             <div>🎨</div>
                         </div>
                         <div class="settings-item" onclick="openIconMode()" style="cursor:pointer">
-                            <div>Иконки</div>
+                            <div data-i18n="Иконки">Иконки</div>
                             <div>🧷</div>
                         </div>
                         <div class="settings-item" onclick="openWallpaperMode()" style="cursor:pointer">
-                            <div>Фон чата</div>
+                            <div data-i18n="Фон чата">Фон чата</div>
                             <div>🖼</div>
                         </div>
                         <div class="settings-item" onclick="openChatStyleMode()" style="cursor:pointer">
-                            <div>🎨 Оформление чата</div>
+                            <div data-i18n="🎨 Оформление чата">🎨 Оформление чата</div>
                             <div>💬</div>
                         </div>
                         <div class="settings-item" onclick="openTabsMode()" style="cursor:pointer">
-                            <div>📌 Табы</div>
+                            <div data-i18n="📌 Табы">📌 Табы</div>
                             <div>🔧</div>
                         </div>
                     </div>
 
                     <div class="settings-group">
-                        <div class="settings-title">🤖 DeepSeek AI ⚡ Google Gemini</div>
+                        <div class="settings-title" data-i18n="🤖 DeepSeek AI ⚡ Google Gemini">🤖 DeepSeek AI ⚡ Google Gemini</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <!-- ═══ COGNITIVE MODES (Hyperia-style) ═══ -->
                             <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:2px;">
@@ -3775,7 +4312,7 @@
                     <div class="settings-group">
 
                         <!-- ═══ QWEN AI SETTINGS ═══ -->
-                        <div class="settings-title">🟣 Qwen AI — DashScope</div>
+                        <div class="settings-title" data-i18n="🟣 Qwen AI — DashScope">🟣 Qwen AI — DashScope</div>
                         <div id="qwen-settings-panel" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                 <button id="qwen-model-qwen-max" onclick="eitiQwenSetModel('qwen-max')" style="flex:1;min-width:80px;padding:8px 4px;border-radius:9px;font-size:11px;cursor:pointer;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);">
@@ -3827,7 +4364,7 @@
                             </div>
                         </div>
 
-                        <div class="settings-title">✈️ Офлайн-режим</div>
+                        <div class="settings-title" data-i18n="✈️ Офлайн-режим">✈️ Офлайн-режим</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Когда включён — все сообщения идут в локальный поиск по заметкам, истории и фактам. DeepSeek API не используется. Работает без интернета.</div>
                             <button id="eiti-offline-btn" onclick="eitiToggleOffline()"
@@ -3849,7 +4386,7 @@
                     </div>
                     <!-- v9: KB — БАЗА ЗНАНИЙ -->
                     <div class="settings-group">
-                        <div class="settings-title">🧠 База знаний KB</div>
+                        <div class="settings-title" data-i18n="🧠 База знаний KB">🧠 База знаний KB</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Локальная база фактов. Используется в режиме Рассуждений. Хранится в localStorage, экспортируется как JSON.</div>
                             <!-- Статистика KB -->
@@ -3928,7 +4465,7 @@
                     </div>
                     <!-- v12.0: EITI Memory — Личная память -->
                     <div class="settings-group">
-                        <div class="settings-title">💜 EITI Memory — Личная память</div>
+                        <div class="settings-title" data-i18n="💜 EITI Memory — Личная память">💜 EITI Memory — Личная память</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Персональная память EITI. Хранится в IndexedDB (store <code>memory</code>). AI может сохранять сюда через команду <code>[MEM_ADD:tag|текст]</code>.</div>
                             <!-- Статистика + дельта -->
@@ -3973,7 +4510,7 @@
                     </div>
                     <!-- v12.9.46: Персональная Доска задач -->
                     <div class="settings-group">
-                        <div class="settings-title">📋 Персональная Доска</div>
+                        <div class="settings-title" data-i18n="📋 Персональная Доска">📋 Персональная Доска</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Kanban-доска задач. Хранится в IndexedDB (store <code>tasks</code>). AI добавляет задачи через <code>[TASK_ADD:статус|название|...]</code>.</div>
                             <div id="eiti-tasks-stats" style="padding:10px;border-radius:10px;background:var(--secondary-color);font-size:13px;text-align:center;opacity:0.8;">⏳ Загрузка...</div>
@@ -3992,7 +4529,7 @@
                     </div>
                     <!-- v12.9.40: PKG — Хеббианский граф знаний -->
                     <div class="settings-group">
-                        <div class="settings-title">🧬 PKG — Хеббианский Граф Знаний</div>
+                        <div class="settings-title" data-i18n="🧬 PKG — Хеббианский Граф Знаний">🧬 PKG — Хеббианский Граф Знаний</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Персональный граф знаний. Накапливает приоритеты через повторения — «neurons that fire together, wire together» (Hebb, 1949). Decay по кривой Эббингауза. AI добавляет узлы через <code>[PKG:category|concept|weight]</code>.</div>
                             <div id="pkg-stats" style="padding:10px;border-radius:10px;background:var(--secondary-color);font-size:13px;text-align:center;opacity:0.8;">⏳ Загрузка...</div>
@@ -4011,7 +4548,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🧠 MOSC — Reasoning Engine</div>
+                        <div class="settings-title" data-i18n="🧠 MOSC — Reasoning Engine">🧠 MOSC — Reasoning Engine</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Символьное мышление. Граф понятий хранится отдельно от KB. MOSC отвечает за логику принятия решений: что ты хочешь сделать. KB отвечает за факты: что знает система.</div>
                             <div id="mosc-stats" style="padding:10px;border-radius:10px;background:var(--secondary-color);font-size:13px;text-align:center;opacity:0.8;">⏳ Загрузка...</div>
@@ -4106,7 +4643,7 @@
                     </div>
                     <!-- ═══ 🧠 SMART MEMORY HUB v12.9.77 ═══ -->
                     <div class="settings-group" id="smh-settings-group">
-                        <div class="settings-title">🧠 Smart Memory Hub</div>
+                        <div class="settings-title" data-i18n="🧠 Smart Memory Hub">🧠 Smart Memory Hub</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
 
                             <!-- Статистика -->
@@ -4237,7 +4774,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🧬 Профиль — О себе</div>
+                        <div class="settings-title" data-i18n="🧬 Профиль — О себе">🧬 Профиль — О себе</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Напишите о себе свободным текстом — имя, интересы, проекты, предпочтения. EITI преобразует это в JSON и будет знать тебя в каждом чате.</div>
                             <textarea id="eiti-profile-text" rows="6" placeholder="Например: Меня зовут Алекс. Я разработчик, работаю над проектом Hyperia — системой памяти для AI агентов. Люблю минимализм и чистый код. Часто работаю ночью. Предпочитаю краткие ответы без воды."
@@ -4254,7 +4791,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🧬 О системе</div>
+                        <div class="settings-title" data-i18n="🧬 О системе">🧬 О системе</div>
                         <div style="padding:14px;">
                             <button onclick="eitiShowAboutSystem()" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
                                 <span>🔍</span><span>Как устроена EITI</span><span style="opacity:0.4;margin-left:auto;">→</span>
@@ -4262,7 +4799,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">📝 Заметки</div>
+                        <div class="settings-title" data-i18n="📝 Заметки">📝 Заметки</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
                             <div style="font-size:13px;font-weight:600;opacity:0.8;">Колонки отображения</div>
                             <div style="display:flex;gap:7px;">
@@ -4284,14 +4821,14 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">📊 Статистика</div>
+                        <div class="settings-title" data-i18n="📊 Статистика">📊 Статистика</div>
                         <div id="eiti-stats-block" style="padding:14px;display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.7;opacity:0.85;"></div>
                         <div style="padding:0 14px 12px;">
                             <button onclick="eitiRenderStats()" style="padding:9px 16px;border-radius:12px;border:none;background:linear-gradient(145deg,var(--accent-color),#c9a700);color:#000;font-weight:700;font-size:13px;cursor:pointer;">Обновить</button>
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🔔 Уведомления</div>
+                        <div class="settings-title" data-i18n="🔔 Уведомления">🔔 Уведомления</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Настройте звук и разрешение уведомлений. Для попадания в шторку требуется разрешение браузера.</div>
                             <button onclick="remindersRequestPermission();showToast('🔔 Запрос разрешения отправлен');" style="padding:11px;border-radius:12px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-weight:600;font-size:14px;cursor:pointer;width:100%;">
@@ -4307,7 +4844,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🖼️ Фон чата</div>
+                        <div class="settings-title" data-i18n="🖼️ Фон чата">🖼️ Фон чата</div>
                         <div class="settings-block">
                             <div style="font-size:12px;opacity:0.6;margin-bottom:10px;">Выбери или загрузи изображение фона</div>
                             <div style="display:flex;flex-direction:column;gap:8px;">
@@ -4348,7 +4885,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🎵 Плеер</div>
+                        <div class="settings-title" data-i18n="🎵 Плеер">🎵 Плеер</div>
                         <div class="settings-block">
                             <div style="font-size:12px;opacity:0.6;margin-bottom:8px;">Макет плеера</div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
@@ -4391,7 +4928,7 @@
                             </div>
                         </div>
 
-                        <div class="settings-title">🔊 TTS — Голосовой плеер</div>
+                        <div class="settings-title" data-i18n="🔊 TTS — Голосовой плеер">🔊 TTS — Голосовой плеер</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
                             <!-- Provider selector -->
                             <div style="font-size:12px;font-weight:600;opacity:0.7;">Провайдер озвучки</div>
@@ -4610,17 +5147,17 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">О приложении</div>
+                        <div class="settings-title" data-i18n="О приложении">О приложении</div>
                         <div class="settings-item">
-                            <div>Версия</div>
+                            <div data-i18n="Версия">Версия</div>
                             <div id="about-version-label" style="opacity:0.7;font-family:monospace;">VELANTRIM EITI v<script>document.currentScript.parentElement.textContent='VELANTRIM EITI v'+(window.EITI_VERSION||'?');</script></div>
                         </div>
                         <div class="settings-item">
-                            <div>Сборка</div>
+                            <div data-i18n="Сборка">Сборка</div>
                             <div id="about-build-label" style="opacity:0.7;font-size:12px;" data-build="2026-04-11">2026-04-11</div>
                         </div>
                         <div class="settings-item" onclick="installPWA()" style="cursor:pointer">
-                            <div>Установить приложение</div>
+                            <div data-i18n="Установить приложение">Установить приложение</div>
                             <div>📲</div>
                         </div>
                         
@@ -4687,7 +5224,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">🤖 Мои интенты (без LLM)</div>
+                        <div class="settings-title" data-i18n="🤖 Мои интенты (без LLM)">🤖 Мои интенты (без LLM)</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:12px;opacity:0.65;line-height:1.6;">Добавь свои команды. Формат каждой строки:<br>
                                 <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;font-size:11px;">триггер фраза|Ответ системы 💬</code><br>
@@ -4711,7 +5248,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">💾 Как устроена Система 🛠</div>
+                        <div class="settings-title" data-i18n="💾 Как устроена Система 🛠">💾 Как устроена Система 🛠</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.7;line-height:1.5;">Опишите архитектуру системы в JSON. DeepSeek увидит этот блок в каждом чате как <code style="font-size:11px;background:rgba(255,255,255,0.1);padding:2px 5px;border-radius:4px;">[СИСТЕМА]</code> и сможет отвечать на вопросах о ней.</div>
                             <textarea id="eiti-system-desc" rows="8" placeholder='{\n  "project": "VELANTRIM EITI",\n  "version": "13.2.0",\n  "memory": "DAAD FractalMemory",\n  "storage": "IndexedDB + localStorage + SQLite WASM",\n  "ai": "DeepSeek / OpenRouter / Grok Voice"\n}'
@@ -4724,7 +5261,7 @@
                         </div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">📦 Архив — Экспорт / Импорт</div>
+                        <div class="settings-title" data-i18n="📦 Архив — Экспорт / Импорт">📦 Архив — Экспорт / Импорт</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div id="eiti-archive-stats" style="font-size:13px;opacity:0.75;line-height:1.7;padding:10px;background:var(--secondary-color);border-radius:10px;"></div>
                             <button onclick="eitiArchiveExport()"
@@ -4782,7 +5319,7 @@
                     </div>
                     <!-- 🗂 ИМПОРТ / ЭКСПОРТ + AI CHECK + OBSERVER + BACKUP -->
                     <div class="settings-group">
-                        <div class="settings-title">🗂️ Импорт / Экспорт + AI Check</div>
+                        <div class="settings-title" data-i18n="🗂️ Импорт / Экспорт + AI Check">🗂️ Импорт / Экспорт + AI Check</div>
                         <div style="padding:16px;display:flex;flex-direction:column;gap:0;">
 
                             <!-- Google Drive Sync -->
@@ -4832,7 +5369,7 @@
 
                     <!-- 🤖 AI OFFLINE СЕКЦИЯ -->
                     <div class="settings-group">
-                        <div class="settings-title">🤖 AI Offline — Семантический поиск</div>
+                        <div class="settings-title" data-i18n="🤖 AI Offline — Семантический поиск">🤖 AI Offline — Семантический поиск</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.8;line-height:1.5;">
                                 Загрузите нейросеть для понимания смысла вопросов — без точного совпадения слов. Модель работает локально, без интернета.
@@ -4937,7 +5474,7 @@
 
                     <!-- ═══ EMBEDDINGS & CHUNKS HUB (v12.9.61) ═══ -->
                     <div class="settings-group">
-                        <div class="settings-title">🧬 Embeddings & Chunks</div>
+                        <div class="settings-title" data-i18n="🧬 Embeddings & Chunks">🧬 Embeddings & Chunks</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:14px;">
 
                             <!-- Описание -->
@@ -5138,7 +5675,7 @@
 
                     <!-- ═══ RAG — УМНОЕ ЧТЕНИЕ ФАЙЛОВ (v12.9.55) ═══ -->
                     <div class="settings-group">
-                        <div class="settings-title">📄 RAG — Умное чтение файлов</div>
+                        <div class="settings-title" data-i18n="📄 RAG — Умное чтение файлов">📄 RAG — Умное чтение файлов</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
                             <div style="font-size:13px;opacity:0.8;line-height:1.6;">Выберите как EITI читает и передаёт файлы в AI. Каждый режим оптимален для разных задач.</div>
                             <!-- Статус -->
@@ -5237,7 +5774,7 @@
 
                     <!-- 🤖 LLM ЧАТ — ЛЁГКИЕ МОДЕЛИ -->
                     <div class="settings-group">
-                        <div class="settings-title">🤖 LLM Чат — Лёгкие модели</div>
+                        <div class="settings-title" data-i18n="🤖 LLM Чат — Лёгкие модели">🤖 LLM Чат — Лёгкие модели</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:13px;opacity:0.8;line-height:1.5;">
                                 Полноценный ИИ-чат прямо на устройстве — без интернета и без сервера. Модель загружается один раз и работает офлайн. ⚡ Требует Chrome (WebGPU).
@@ -5377,7 +5914,7 @@
 
                     <!-- 💳 API BALANCE CHECKER -->
                     <div class="settings-group">
-                        <div class="settings-title">💳 API — Баланс и токены</div>
+                        <div class="settings-title" data-i18n="💳 API — Баланс и токены">💳 API — Баланс и токены</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
                             <div style="font-size:12px;opacity:0.65;line-height:1.5;">
                                 Введите API ключ — приложение подключится к серверу и покажет баланс, расход токенов и денег.<br>
@@ -5433,7 +5970,7 @@
 
                     <!-- VB🦋 VELANTRIM BRAIN -->
                     <div class="settings-group">
-                        <div class="settings-title">VB🦋 Velantrim Brain</div>
+                        <div class="settings-title" data-i18n="VB🦋 Velantrim Brain">VB🦋 Velantrim Brain</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:12px;opacity:0.65;">Офлайн-движок понимания запросов без LLM. В офлайн-режиме ответы помечаются <b>VB🦋</b>.</div>
                             <div id="vb-stats" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px 12px;background:var(--secondary-color);border-radius:12px;"></div>
@@ -5470,7 +6007,7 @@
                         </div>
                     </div>                    <!-- 📖 ЛЕММАТИЗАТОР v11.8 -->
                     <div class="settings-group">
-                        <div class="settings-title">📖 Лемматизатор — Морфология</div>
+                        <div class="settings-title" data-i18n="📖 Лемматизатор — Морфология">📖 Лемматизатор — Морфология</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:12px;opacity:0.65;line-height:1.5;">Морфологический словарь для точного понимания русских слов. Работает offline, дополняет стеммер Портера. Хранится в IndexedDB.</div>
                             <div id="lemma-stats" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px 12px;background:var(--secondary-color);border-radius:12px;">
@@ -5498,7 +6035,7 @@
                         </div>
                     </div>                    <!-- FL ⚖️ УМНЫЕ ВЕСА (RETRIEVAL CONFIG) -->
                     <div class="settings-group">
-                        <div class="settings-title">FL ⚖️ Умные веса — Retrieval</div>
+                        <div class="settings-title" data-i18n="FL ⚖️ Умные веса — Retrieval">FL ⚖️ Умные веса — Retrieval</div>
                         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                             <!-- Счётчик весов -->
                             <div id="fl-weights-stats" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:10px 12px;background:var(--secondary-color);border-radius:12px;"></div>
@@ -5588,7 +6125,7 @@
                 </div>
                 <div class="settings-container">
                     <div class="settings-group">
-                        <div class="settings-title">Материалы (iOS6 / Book / Paper)</div>
+                        <div class="settings-title" data-i18n="Материалы (iOS6 / Book / Paper)">Материалы (iOS6 / Book / Paper)</div>
                         <div class="theme-grid-compact" id="themeGrid"></div>
                     </div>
                 </div>
@@ -5603,7 +6140,7 @@
                 </div>
                 <div class="settings-container">
                     <div class="settings-group">
-                        <div class="settings-title">Профили UI</div>
+                        <div class="settings-title" data-i18n="Профили UI">Профили UI</div>
                         <div class="option-grid" id="designGrid"></div>
                     </div>
                 </div>
@@ -5618,16 +6155,16 @@
                 </div>
                 <div class="settings-container">
                     <div class="settings-group">
-                        <div class="settings-title">🎭 Emoji стиль (v6)</div>
+                        <div class="settings-title" data-i18n="🎭 Emoji стиль (v6)">🎭 Emoji стиль (v6)</div>
                         <div class="option-grid" id="iconGridEmoji"></div>
                     </div>
                     <div class="settings-group">
-                        <div class="settings-title">✦ Символьный стиль (v6.1)</div>
+                        <div class="settings-title" data-i18n="✦ Символьный стиль (v6.1)">✦ Символьный стиль (v6.1)</div>
                         <div class="option-grid" id="iconGrid"></div>
                     </div>
                     <!-- Icon Color -->
                     <div class="settings-group">
-                        <div class="settings-title">🎨 Цвет иконок</div>
+                        <div class="settings-title" data-i18n="🎨 Цвет иконок">🎨 Цвет иконок</div>
                         <div style="padding:10px 14px;">
                             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;" id="iconColorSwatches"></div>
                             <div style="display:flex;align-items:center;gap:12px;">
@@ -5642,7 +6179,7 @@
                     </div>
                     <!-- 3D / Volume style -->
                     <div class="settings-group">
-                        <div class="settings-title">✨ Стиль иконок</div>
+                        <div class="settings-title" data-i18n="✨ Стиль иконок">✨ Стиль иконок</div>
                         <div style="padding:10px 14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="display:flex;justify-content:space-between;align-items:center;">
                                 <span style="font-size:14px;">Объёмный (3D) стиль</span>
@@ -5672,7 +6209,7 @@
             <div class="settings-container">
                 <!-- Статус подключения -->
                 <div class="settings-group">
-                    <div class="settings-title">☁️ Статус подключения</div>
+                    <div class="settings-title" data-i18n="☁️ Статус подключения">☁️ Статус подключения</div>
                     <div id="drive-status-card" style="padding:14px;border-radius:14px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);text-align:center;">
                         <div id="drive-status-icon" style="font-size:32px;margin-bottom:6px;">🔌</div>
                         <div id="drive-status-text" style="font-size:14px;font-weight:700;color:var(--text-color);">Не подключено</div>
@@ -5681,7 +6218,7 @@
                 </div>
                 <!-- Client ID -->
                 <div class="settings-group">
-                    <div class="settings-title">🔑 Google OAuth Client ID</div>
+                    <div class="settings-title" data-i18n="🔑 Google OAuth Client ID">🔑 Google OAuth Client ID</div>
                     <div style="font-size:12px;opacity:0.6;margin-bottom:8px;line-height:1.5;">
                         Создай проект в <b>console.cloud.google.com</b> → APIs &amp; Services → Credentials → OAuth 2.0 Client ID (тип: Web). Добавь URL этого PWA в Authorized Origins и Redirect URIs.
                     </div>
@@ -5692,7 +6229,7 @@
                 </div>
                 <!-- Кнопки подключения -->
                 <div class="settings-group">
-                    <div class="settings-title">🔗 Авторизация</div>
+                    <div class="settings-title" data-i18n="🔗 Авторизация">🔗 Авторизация</div>
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         <button onclick="eitiDriveConnect()" style="padding:13px;border-radius:13px;border:none;background:linear-gradient(145deg,#1a73e8,#1557b0);color:#fff;font-weight:700;font-size:14px;cursor:pointer;">🔗 Подключить Google Drive</button>
                         <button onclick="eitiDriveDisconnect()" id="drive-disconnect-btn" style="padding:11px;border-radius:13px;border:1px solid #7b2020;background:rgba(123,32,32,0.15);color:#ff6b6b;font-size:13px;font-weight:600;cursor:pointer;display:none;">🔌 Отключить</button>
@@ -5700,7 +6237,7 @@
                 </div>
                 <!-- Синхронизация -->
                 <div class="settings-group" id="drive-sync-group" style="display:none;">
-                    <div class="settings-title">🔄 Синхронизация</div>
+                    <div class="settings-title" data-i18n="🔄 Синхронизация">🔄 Синхронизация</div>
                     <div style="font-size:12px;opacity:0.6;margin-bottom:10px;line-height:1.5;">Файл <code>eiti_backup.json</code> в папке EITI на твоём Drive.</div>
                     <div style="display:flex;gap:10px;">
                         <button onclick="eitiDriveUpload()" style="flex:1;padding:12px;border-radius:12px;border:none;background:linear-gradient(145deg,#2d7a3a,#1b5e20);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">📤 Сохранить на Drive</button>
@@ -5710,7 +6247,7 @@
                 </div>
                 <!-- Что синхронизируется -->
                 <div class="settings-group">
-                    <div class="settings-title">📦 Что включено в бэкап</div>
+                    <div class="settings-title" data-i18n="📦 Что включено в бэкап">📦 Что включено в бэкап</div>
                     <div style="font-size:13px;line-height:1.9;opacity:0.8;">
                         ✅ Чаты и сообщения (IDB)<br>
                         ✅ База знаний KB<br>
@@ -5733,7 +6270,7 @@
             </div>
             <div class="settings-container">
                 <div class="settings-group">
-                    <div class="settings-title">Обои</div>
+                    <div class="settings-title" data-i18n="Обои">Обои</div>
                     <div class="wallpaper-grid" id="wallpaperGrid"></div>
                 </div>
             </div>
@@ -5749,7 +6286,7 @@
             <div class="settings-container" style="overflow-y:auto;padding-bottom:40px;">
                 <!-- PREVIEW -->
                 <div class="settings-group">
-                    <div class="settings-title">Предпросмотр</div>
+                    <div class="settings-title" data-i18n="Предпросмотр">Предпросмотр</div>
                     <div id="cs-preview" style="padding:14px;display:flex;flex-direction:column;gap:8px;border-radius:14px;background:var(--panel-bg);min-height:90px;">
                         <div id="cs-prev-in" style="align-self:flex-start;padding:10px 14px;border-radius:18px 18px 18px 4px;font-size:14px;max-width:75%;">AI: Привет! Чем помочь?</div>
                         <div id="cs-prev-out" style="align-self:flex-end;padding:10px 14px;border-radius:18px 18px 4px 18px;font-size:14px;max-width:75%;">Я: Отлично выглядит!</div>
@@ -5757,22 +6294,22 @@
                 </div>
                 <!-- PRESETS -->
                 <div class="settings-group">
-                    <div class="settings-title">Пресеты</div>
+                    <div class="settings-title" data-i18n="Пресеты">Пресеты</div>
                     <div id="cs-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 14px;"></div>
                 </div>
                 <!-- MY BUBBLE -->
                 <div class="settings-group">
-                    <div class="settings-title">💬 Мои сообщения</div>
+                    <div class="settings-title" data-i18n="💬 Мои сообщения">💬 Мои сообщения</div>
                     <div id="cs-out-colors" style="display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px;"></div>
                 </div>
                 <!-- AI BUBBLE -->
                 <div class="settings-group">
-                    <div class="settings-title">🤖 Сообщения AI</div>
+                    <div class="settings-title" data-i18n="🤖 Сообщения AI">🤖 Сообщения AI</div>
                     <div id="cs-in-colors" style="display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px;"></div>
                 </div>
                 <!-- BUBBLE STYLE -->
                 <div class="settings-group">
-                    <div class="settings-title">Стиль пузырей</div>
+                    <div class="settings-title" data-i18n="Стиль пузырей">Стиль пузырей</div>
                     <div id="cs-styles" style="display:flex;gap:8px;padding:10px 14px;flex-wrap:wrap;"></div>
                 </div>
             </div>
@@ -5787,7 +6324,7 @@
             </div>
             <div class="settings-container" style="padding-bottom:130px;overflow-y:auto;-webkit-overflow-scrolling:touch;">
                 <div class="settings-group">
-                    <div class="settings-title">Видимость табов и шапки</div>
+                    <div class="settings-title" data-i18n="Видимость табов и шапки">Видимость табов и шапки</div>
                     <div style="padding:8px 14px 14px;display:flex;flex-direction:column;gap:8px;">
                         <div style="font-size:11px;opacity:0.45;line-height:1.3;margin-bottom:2px;">«Чат» и «Настройки» нельзя скрыть.</div>
                         <div id="tabs-toggle-list" style="display:flex;flex-direction:column;gap:8px;"></div>
@@ -6155,7 +6692,7 @@
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_chat">💬</div>
                 </div>
-                <div class="tab-label">Чат</div>
+                <div class="tab-label" data-i18n="Чат">Чат</div>
             </div>
             <!-- 📓 Дневник RNE v12.9.63 -->
             <div class="tab-item" data-view="journal">
@@ -6163,28 +6700,28 @@
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_journal">📓</div>
                 </div>
-                <div class="tab-label">Дневник</div>
+                <div class="tab-label" data-i18n="Дневник">Дневник</div>
             </div>
             <div class="tab-item" data-view="history">
                 <div class="tab-icon-wrapper">
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_history">📚</div>
                 </div>
-                <div class="tab-label">История</div>
+                <div class="tab-label" data-i18n="История">История</div>
             </div>
             <div class="tab-item" data-view="player">
                 <div class="tab-icon-wrapper">
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_player">🎵</div>
                 </div>
-                <div class="tab-label">Плеер</div>
+                <div class="tab-label" data-i18n="Плеер">Плеер</div>
             </div>
             <div class="tab-item" data-view="files">
                 <div class="tab-icon-wrapper">
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_files">📁</div>
                 </div>
-                <div class="tab-label">Файлы</div>
+                <div class="tab-label" data-i18n="Файлы">Файлы</div>
             </div>
 
             <div class="tab-item" data-view="notes">
@@ -6192,21 +6729,21 @@
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_notes">📝</div>
                 </div>
-                <div class="tab-label">Заметки</div>
+                <div class="tab-label" data-i18n="Заметки">Заметки</div>
             </div>
             <div class="tab-item" data-view="timeline">
                 <div class="tab-icon-wrapper">
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_timeline">📅</div>
                 </div>
-                <div class="tab-label">Лента</div>
+                <div class="tab-label" data-i18n="Лента">Лента</div>
             </div>
             <div class="tab-item" data-view="settings">
                 <div class="tab-icon-wrapper">
                     <div class="tab-indicator"></div>
                     <div class="tab-icon" data-icon="tab_settings">⚙️</div>
                 </div>
-                <div class="tab-label">Настройки</div>
+                <div class="tab-label" data-i18n="Настройки">Настройки</div>
             </div>
         </div>
     </div>
