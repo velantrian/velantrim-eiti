@@ -1712,6 +1712,57 @@
                 'Дневной лог': 'Daily log',
                 'Лог пуст': 'Log is empty',
                 'Лог сохранён': 'Log saved',
+                // === v13.4.5 Batch 8 — placeholders, journal, notes empty, KB observer ===
+                '🔍 Поиск по заметкам...': '🔍 Search notes...',
+                'Поиск по заметкам...': 'Search notes...',
+                '⏰ Время (чч:мм)': '⏰ Time (hh:mm)',
+                '🏷 Теги: работа, идеи, личное...': '🏷 Tags: work, ideas, personal...',
+                '📝 Текст напоминания': '📝 Reminder text',
+                'Название (без расширения)': 'Name (no extension)',
+                'API ключ DashScope (sk-…)': 'DashScope API key (sk-…)',
+                'Напиши инструкцию или описание связи своими словами...': 'Write an instruction or describe the link in your own words...',
+                'Транскрипция образца (что говорится в записи)…': 'Sample transcription (what is said in the recording)…',
+                'купить|магазин|🛒 Открываю список покупок!&#10;план на день|расписание|📅 Открываю ежедневник!': 'buy|store|🛒 Opening shopping list!&#10;day plan|schedule|📅 Opening daily planner!',
+                '📓 Дневник': '📓 Journal',
+                '🎯 Цели': '🎯 Goals',
+                '💡 Факты': '💡 Facts',
+                '❓ Вопросы': '❓ Questions',
+                '🕳 Пробелы': '🕳 Gaps',
+                '✅ Решения': '✅ Solutions',
+                'Цели': 'Goals',
+                'Факты': 'Facts',
+                'Вопросы': 'Questions',
+                'Пробелы': 'Gaps',
+                'Решения': 'Solutions',
+                'Нет подключённой модели': 'No model connected',
+                'Нет подключённ': 'No connection',
+                'Grok Voice': 'Grok Voice',
+                'Нет заметок': 'No notes',
+                'Нажмите ＋ чтобы создать': 'Press ＋ to create',
+                'Нажмите + чтобы создать': 'Press + to create',
+                'Нет заметок<br><br>Нажмите ＋ чтобы создать': 'No notes<br><br>Press ＋ to create',
+                '📅 Лента событий': '📅 Timeline',
+                '📅 Календарь': '📅 Calendar',
+                '💬 Чаты': '💬 Chats',
+                '🔔 Напоминания': '🔔 Reminders',
+                'дубль триггера': 'duplicate trigger',
+                'tags не массив': 'tags is not an array',
+                'слишком много тегов': 'too many tags',
+                'пустой answer': 'empty answer',
+                'issues:': 'issues:',
+                'и ещё': 'and',
+                '🔍 Сканировать сейчас': '🔍 Scan now',
+                'Сканировать сейчас': 'Scan now',
+                'Отправить (Enter)': 'Send (Enter)',
+                'Прикрепить': 'Attach',
+                'Записать голосом': 'Record voice',
+                'Остановить запись': 'Stop recording',
+                'Очистить чат?': 'Clear chat?',
+                'Сообщение скопировано': 'Message copied',
+                'Сообщение озвучено': 'Message spoken',
+                'Озвучка остановлена': 'Speech stopped',
+                'Регенерируется...': 'Regenerating...',
+                'Регенерировано': 'Regenerated',
                 'Всегда отвечай в чате, пиши с emojis по смыслу': 'Always reply in chat, use emojis where it makes sense'
             }};
             var state = { locale: 'ru' };
@@ -1788,13 +1839,21 @@
                     for (var i = ch.length - 1; i >= 0; i--) stack.push(ch[i]);
                 }
             }
+            // For attribute translation we want to FOLLOW INPUT/TEXTAREA — only their text
+            // content (user input) must be left alone. Attribute placeholders/titles are UI.
+            function _shouldSkipAttrs(el) {
+                if (!el || el.nodeType !== 1) return false;
+                if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NOSCRIPT') return true;
+                if (el.hasAttribute && el.hasAttribute('data-i18n-skip')) return true;
+                return false;
+            }
             function walkAndTranslateAttrs(root, targetLocale) {
                 if (!root || !root.querySelectorAll) return;
                 var rev = REV[targetLocale] || {};
                 var els = root.querySelectorAll('[placeholder],[title],[aria-label]');
                 for (var i = 0; i < els.length; i++) {
                     var el = els[i];
-                    if (_shouldSkip(el)) continue;
+                    if (_shouldSkipAttrs(el)) continue;
                     var p = el.getAttribute('placeholder');
                     if (p) { var pt = p.trim(); if (rev[pt]) el.setAttribute('placeholder', rev[pt]); }
                     var t = el.getAttribute('title');
@@ -1805,7 +1864,7 @@
                 var btns = root.querySelectorAll('input[type="button"][value],input[type="submit"][value]');
                 for (var j = 0; j < btns.length; j++) {
                     var b = btns[j];
-                    if (_shouldSkip(b)) continue;
+                    if (_shouldSkipAttrs(b)) continue;
                     var bv = b.getAttribute('value');
                     if (bv) { var bvt = bv.trim(); if (rev[bvt]) b.setAttribute('value', rev[bvt]); }
                 }
@@ -19759,12 +19818,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 if (f.category === 'other') issues.push('KB['+i+']: category=other');
                 if (typeof f.category === 'string' && /^(geo|bio|astro)_/i.test(f.category))
                     issues.push('KB['+i+']: подкатегория: '+f.category);
-                if (!Array.isArray(f.tags)) issues.push('KB['+i+']: tags не массив');
-                else if (f.tags.length > 5) issues.push('KB['+i+']: слишком много тегов ('+f.tags.length+')');
-                if (!f.text && !f.answer) issues.push('KB['+i+']: пустой answer');
+                if (!Array.isArray(f.tags)) issues.push('KB['+i+']: ' + (typeof T==='function'?T('tags не массив'):'tags не массив'));
+                else if (f.tags.length > 5) issues.push('KB['+i+']: ' + (typeof T==='function'?T('слишком много тегов'):'слишком много тегов') + ' ('+f.tags.length+')');
+                if (!f.text && !f.answer) issues.push('KB['+i+']: ' + (typeof T==='function'?T('пустой answer'):'пустой answer'));
                 (f.triggers||[]).forEach(function(t) {
                     var key = String(t).toLowerCase();
-                    if (triggersSeen[key]) issues.push('KB['+i+']: дубль триггера «'+t+'»');
+                    if (triggersSeen[key]) issues.push('KB['+i+']: ' + (typeof T==='function'?T('дубль триггера'):'дубль триггера') + ' «'+t+'»');
                     else triggersSeen[key] = true;
                 });
             });
@@ -31642,7 +31701,7 @@ window.eitiLLMClearAll = async function() {
             if (!dot || !name) return;
             if (!provider) {
                 dot.style.background = '#f87171';
-                name.textContent = 'Нет подключённой модели';
+                name.textContent = (typeof T === 'function' ? T('Нет подключённой модели') : 'Нет подключённой модели');
                 return;
             }
             var info = RNE_PROVIDERS[provider] || {};
