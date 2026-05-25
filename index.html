@@ -13769,14 +13769,14 @@
             var d=[
                 // ── БАЗОВЫЕ (исправлены дубли и шум) ─────────────────────────
                 // FIX: добавлены границы слов, убраны слишком общие токены
-                {intent:'greeting',re:/^(привет|хай|хей|здравствуй|здравствуйте|добрый день|добрый вечер|доброе утро|hello|hi\b|ку\b|салют|доброго)/i},
-                {intent:'farewell',re:/^(пока|до свидания|прощай|бай|bye|увидимся|до встречи|всего хорошего|спокойной ночи|до завтра)/i},
-                {intent:'howdy',re:/^(как дела|как ты|как сам|что нового|как жизнь|как поживаешь|как настроение|как себя чувствуешь|всё нормально\?)/i},
-                {intent:'thanks',re:/^(спасибо|благодар|thanks|пасиб|мерси|ценю|благодарю)/i},
+                {intent:'greeting',re:/^(привет|хай|хей|здравствуй|здравствуйте|добрый день|добрый вечер|доброе утро|hello|hi\b|hey\b|ку\b|салют|доброго|good (morning|afternoon|evening|day)|greetings|howdy|sup\b|yo\b)/i},
+                {intent:'farewell',re:/^(пока|до свидания|прощай|бай|bye|goodbye|farewell|увидимся|до встречи|see you|see ya|cya|всего хорошего|good night|спокойной ночи|до завтра|until tomorrow|take care|catch you later)/i},
+                {intent:'howdy',re:/^(как дела|как ты|как сам|что нового|как жизнь|как поживаешь|как настроение|как себя чувствуешь|всё нормально\?|how are you|how('s| is) it going|how have you been|how do you do|what'?s up|what'?s new|how'?s life)/i},
+                {intent:'thanks',re:/^(спасибо|благодар|thanks|thank you|thx|пасиб|мерси|merci|ценю|appreciate|благодарю|grateful|cheers)/i},
                 // FIX: убраны слишком короткие токены (когда/где/какой) — слишком много ложных срабатываний
-                {intent:'fact',re:/^(что такое|кто такой|кто такая|объясни|расскажи про|что означает|что значит|дай определение|поясни|как называется)/i},
+                {intent:'fact',re:/^(что такое|кто такой|кто такая|объясни|расскажи про|что означает|что значит|дай определение|поясни|как называется|what is|who is|explain|tell me about|what does .* mean|define|definition of|what is called|describe)/i},
                 // FIX: расширен список команд
-                {intent:'command',re:/^(создай|добавь|удали|покажи|найди|открой|сохрани|запомни|напомни|составь|сделай|отправь|скопируй|переименуй|перенеси|закрой|обнови|очисти|включи|выключи|запусти)/i},
+                {intent:'command',re:/^(создай|добавь|удали|покажи|найди|открой|сохрани|запомни|напомни|составь|сделай|отправь|скопируй|переименуй|перенеси|закрой|обнови|очисти|включи|выключи|запусти|create|add|delete|remove|show|find|open|save|remember|remind|make|send|copy|rename|move|close|update|clear|turn (on|off)|enable|disable|launch|run|start|stop)/i},
                 {intent:'philosophy',re:/(смысл жизни|сознание|свобода воли|бытие|что есть истина|зачем мы живём|существование|этика|мораль|что значит быть|нигилизм|экзистенц|детерминизм|солипсизм)/i},
                 {intent:'science',re:/(как работает|принцип действия|механизм|научная теория|квантов|относительност|эволюц|гравитац|нейрон|молекул|атом|термодинамик|физика|химия|биология|астрономи)/i},
                 {intent:'emotion',re:/(устал|устала|грустн|тяжело|плохо мне|тревог|стресс|злой|злая|скучно|одинок|не могу|депресс|апати|выгорел|переживаю|беспокоюсь|страшно|больно|обидно|расстроен)/i},
@@ -13784,7 +13784,7 @@
                 // FIX: убраны 'интересный факт' и 'удиви меня' — они были в kb_facts и создавали конфликт
                 {intent:'smalltalk',re:/(поболтаем|поговорим|расскажи что-нибудь|fun fact|просто поговори|поддержи разговор|скажи что-нибудь интересное)/i},
                 // FIX: убран голый '^нет' — слишком широко. Теперь только явные исправления
-                {intent:'correction',re:/^(не то|не правильно|имею в виду|я имел в виду|ты неправильно понял|не это я имею|не совсем так|не об этом|перефразирую|уточню)/i},
+                {intent:'correction',re:/^(не то|не правильно|имею в виду|я имел в виду|ты неправильно понял|не это я имею|не совсем так|не об этом|перефразирую|уточню|not that|wrong|incorrect|i meant|that'?s wrong|you misunderstood|not quite|to clarify|let me rephrase|that'?s not what i meant)/i},
                 {intent:'kb_quotes',re:/(расскажи|дай|покажи|скажи)\s+(цитату|мудрую мысль|афоризм)|^цитату?$|^афоризм$|случайная цитата|цитата дня|мудрость дня/i},
                 {intent:'kb_jokes',re:/(расскажи|дай|покажи)\s+(анекдот|шутку|смешное)|^анекдот$|^шутку?$|рассмеши меня|что-нибудь смешное/i},
                 // FIX: убран 'интересный факт' из smalltalk, он живёт здесь
@@ -13812,64 +13812,64 @@
                 {intent:'kb_relationships_topic',re:/четыре всадник.*готтман|готтман|языки любви|треугольник.*любв.*стернберг|стернберг любов/i},
 
                 // ── ЗАМЕТКИ И ПАМЯТЬ ──────────────────────────────────────────
-                {intent:'note_create',re:/^(запиши|сохрани заметку|создай заметку|добавь заметку|новая заметка|заметка:|хочу записать|запомни это|сохрани это)/i},
-                {intent:'note_search',re:/^(найди заметку|поищи в заметках|найди в заметках|есть ли заметка|поиск по заметкам|покажи заметки|найди записи)/i},
-                {intent:'note_list',re:/^(покажи (все |мои )?заметки|список заметок|мои заметки|все записи|что я записывал)/i},
-                {intent:'memory_recall',re:/(что я (говорил|упоминал|рассказывал|писал)|мы говорили о|вспомни что|помнишь когда|ранее (я|мы)|в прошлый раз|напомни что мы обсуждали)/i},
+                {intent:'note_create',re:/^(запиши|сохрани заметку|создай заметку|добавь заметку|новая заметка|заметка:|хочу записать|запомни это|сохрани это|write down|save (a |this )?note|create (a |new )?note|add (a |new )?note|new note|note:|i want to (write|note)|remember this|save this)/i},
+                {intent:'note_search',re:/^(найди заметку|поищи в заметках|найди в заметках|есть ли заметка|поиск по заметкам|покажи заметки|найди записи|find (a |the )?note|search (in )?notes|look in notes|search my notes|find in notes|is there a note|show me (the )?notes|find (my )?records|look at notes)/i},
+                {intent:'note_list',re:/^(покажи (все |мои )?заметки|список заметок|мои заметки|все записи|что я записывал|show (all |my )?notes|list (of )?notes|my notes|all (my )?records|all notes|what (did|have) i (written|noted))/i},
+                {intent:'memory_recall',re:/(что я (говорил|упоминал|рассказывал|писал)|мы говорили о|вспомни что|помнишь когда|ранее (я|мы)|в прошлый раз|напомни что мы обсуждали|what (did|have) i (said|mentioned|told|written)|we (talked|spoke|discussed) about|remember (when|what)|do you remember|earlier (i|we)|last time|what did we (discuss|talk about)|look at history)/i},
 
                 // ── ВРЕМЯ И ДАТА ──────────────────────────────────────────────
-                {intent:'time_date',re:/^(который час|сколько времени|какое сегодня|какой сегодня|какой день|какой месяц|какой год|сколько дней|дата сегодня|текущее время|когда наступит)/i},
-                {intent:'reminder_set',re:/^(напомни|поставь напоминание|создай напоминание|напомни мне|не дай забыть|поставь будильник|запланируй)/i},
-                {intent:'timer',re:/^(таймер|запусти таймер|поставь таймер|засеки|через .+ минут|через .+ секунд|обратный отсчёт)/i},
+                {intent:'time_date',re:/^(который час|сколько времени|какое сегодня|какой сегодня|какой день|какой месяц|какой год|сколько дней|дата сегодня|текущее время|когда наступит|what time|current time|what(s| is) the date|what date|today'?s date|what day|what month|what year|how many days|when (is|will))/i},
+                {intent:'reminder_set',re:/^(напомни|поставь напоминание|создай напоминание|напомни мне|не дай забыть|поставь будильник|запланируй|remind me|set (a |the )?reminder|create (a |the )?reminder|don'?t let me forget|set (an? )?alarm|schedule)/i},
+                {intent:'timer',re:/^(таймер|запусти таймер|поставь таймер|засеки|через .+ минут|через .+ секунд|обратный отсчёт|timer|set (a |the )?timer|start (a )?timer|in .+ (minute|second|hour)s?|countdown|count down)/i},
 
                 // ── МАТЕМАТИКА И ВЫЧИСЛЕНИЯ ───────────────────────────────────
-                {intent:'math',re:/(посчитай|вычисли|сколько будет|реши пример|реши уравнение|математическ|интеграл|производная|процент от|квадратный корень|степень|делить|умножить|сложить|вычесть|\d+\s*[\+\-\*\/]\s*\d+)/i},
+                {intent:'math',re:/(посчитай|вычисли|сколько будет|реши пример|реши уравнение|математическ|интеграл|производная|процент от|квадратный корень|степень|делить|умножить|сложить|вычесть|\d+\s*[\+\-\*\/]\s*\d+|calculate|compute|what is \d|how much is|solve (the )?(equation|problem)|integral|derivative|percent of|square root|raised to|divide|multiply|add|subtract|plus|minus|times)/i},
 
                 // ── КОД И ПРОГРАММИРОВАНИЕ ────────────────────────────────────
-                {intent:'code',re:/(напиши (код|скрипт|функцию|класс|программу)|помоги с кодом|разбери код|что делает этот код|ошибка в коде|баг|дебаг|javascript|python|css|html|sql|json|регулярное выражение|regex|алгоритм|рефактор)/i},
-                {intent:'debug',re:/(ошибка|error|exception|не работает|сломалось|баг|bug|почему не (работает|запускается|открывается)|упало|крашится|undefined|null pointer|syntax error)/i},
+                {intent:'code',re:/(напиши (код|скрипт|функцию|класс|программу)|помоги с кодом|разбери код|что делает этот код|ошибка в коде|баг|дебаг|write (a |some )?(code|script|function|class|program)|help with (the )?code|review (this |the )?code|what does this code do|code review|debug|refactor|javascript|python|css|html|sql|json|regular expression|regex|algorithm)/i},
+                {intent:'debug',re:/(ошибка|error|exception|не работает|doesn'?t work|isn'?t working|broken|сломалось|баг|bug|почему не (работает|запускается|открывается)|why (doesn'?t|won'?t) (it )?(work|run|open|start)|упало|crashed|crashes|crashing|крашится|undefined|null pointer|syntax error|stack trace|stacktrace)/i},
 
                 // ── ПЕРЕВОД И ЯЗЫКИ ───────────────────────────────────────────
-                {intent:'translate',re:/(переведи|перевод|как (сказать|будет) (по|на) |translate|что значит|как переводится|с английского|на английский|с русского|на русский|на немецком|на французском|на испанском|как по-английски|как по-русски)/i},
-                {intent:'language_learn',re:/(учу (язык|английский|немецкий|испанский|французский|китайский|японский)|как правильно (сказать|написать)|грамматика|произношение|слова на|выражение на|фраза на)/i},
+                {intent:'translate',re:/(переведи|перевод|как (сказать|будет) (по|на) |translate|translation|how (do you say|to say) in|what does .+ mean in|how is .+ translated|что значит|как переводится|с английского|на английский|с русского|на русский|from (english|russian|german|french|spanish)|to (english|russian|german|french|spanish)|in (german|french|spanish|english|russian)|как по-английски|как по-русски|in english|in russian)/i},
+                {intent:'language_learn',re:/(учу (язык|английский|немецкий|испанский|французский|китайский|японский)|как правильно (сказать|написать)|грамматика|произношение|слова на|выражение на|фраза на|i'?m learning (english|german|spanish|french|chinese|japanese|a language)|how to (say|write) correctly|grammar|pronunciation|words for|expression for|phrase for|learning a language)/i},
 
                 // ── ПОГОДА И ОКРУЖЕНИЕ ────────────────────────────────────────
-                {intent:'weather',re:/^(какая погода|прогноз погоды|температура (сегодня|завтра|на неделю)|будет ли дождь|нужна ли куртка|тепло ли (будет|сегодня))/i},
+                {intent:'weather',re:/^(какая погода|прогноз погоды|температура (сегодня|завтра|на неделю)|будет ли дождь|нужна ли куртка|тепло ли (будет|сегодня)|what(s| is) the weather|weather (forecast|today|tomorrow|this week)|temperature (today|tomorrow|for the week)|will it rain|do i need a (jacket|coat|umbrella)|is it warm)/i},
 
                 // ── ТВОРЧЕСТВО ────────────────────────────────────────────────
-                {intent:'creative_write',re:/(напиши (стихотворение|стих|поэму|рассказ|историю|сказку|пост|текст|эссе|статью|сочинение|письмо|описание|сценарий|диалог|монолог)|придумай (историю|сюжет|персонажа|имя|название)|сгенерируй текст|помоги написать)/i},
-                {intent:'brainstorm',re:/(придумай идеи|предложи идеи|мозговой штурм|генерация идей|как можно (сделать|улучшить|решить)|варианты решения|какие есть способы|помоги придумать|накидай идей)/i},
-                {intent:'summarize',re:/(кратко|резюмируй|подведи итог|tldr|tl;dr|суть в том|главная мысль|выжимка|ключевые точки|основные тезисы|сделай краткое изложение|в двух словах)/i},
+                {intent:'creative_write',re:/(напиши (стихотворение|стих|поэму|рассказ|историю|сказку|пост|текст|эссе|статью|сочинение|письмо|описание|сценарий|диалог|монолог)|придумай (историю|сюжет|персонажа|имя|название)|сгенерируй текст|помоги написать|write (a |an )?(poem|story|tale|post|text|essay|article|letter|description|script|dialog|monologue)|come up with (a )?(story|plot|character|name|title)|generate (a |some )?text|help (me )?write)/i},
+                {intent:'brainstorm',re:/(придумай идеи|предложи идеи|мозговой штурм|генерация идей|как можно (сделать|улучшить|решить)|варианты решения|какие есть способы|помоги придумать|накидай идей|brainstorm|come up with ideas|generate ideas|suggest ideas|how (can|could) (i|we) (do|improve|solve)|options for|what are the ways|help (me )?(think|brainstorm)|ways to)/i},
+                {intent:'summarize',re:/(кратко|резюмируй|подведи итог|tldr|tl;dr|суть в том|главная мысль|выжимка|ключевые точки|основные тезисы|сделай краткое изложение|в двух словах|summarize|summary of|in summary|the gist|the main point|key points|main thesis|sum up|in short|in brief|to summarize|brief overview)/i},
 
                 // ── ЗДОРОВЬЕ И ФИТНЕС ─────────────────────────────────────────
-                {intent:'health',re:/(болит|болит голова|температура|симптом|лечение|таблетки|врач|здоровье|иммунитет|витамин|диета|похудеть|набрать вес|калори|бмi|давление|пульс|сон плохой|бессонница)/i},
-                {intent:'fitness',re:/(тренировка|упражнения|качалка|бег|кардио|растяжка|йога|отжимания|приседания|пресс|мышцы|фитнес|спорт|как накачать|программа тренировок)/i},
-                {intent:'meditation',re:/(медитация|медитировать|дыхательные упражнения|расслабиться|успокоиться|осознанность|mindfulness|майндфулнес|визуализация|релакс|снять напряжение|внутренний покой)/i},
+                {intent:'health',re:/(болит|болит голова|температура|симптом|лечение|таблетки|врач|здоровье|иммунитет|витамин|диета|похудеть|набрать вес|калори|бмi|давление|пульс|сон плохой|бессонница|hurts|headache|fever|symptom|treatment|medication|doctor|health|immunity|vitamin|diet|lose weight|gain weight|calorie|bmi|blood pressure|pulse|insomnia|can'?t sleep)/i},
+                {intent:'fitness',re:/(тренировка|упражнения|качалка|бег|кардио|растяжка|йога|отжимания|приседания|пресс|мышцы|фитнес|спорт|как накачать|программа тренировок|workout|exercise|gym|running|cardio|stretching|yoga|pushups|squats|abs|muscles|fitness|sport|how to (build|gain) muscle|training program)/i},
+                {intent:'meditation',re:/(медитация|медитировать|дыхательные упражнения|расслабиться|успокоиться|осознанность|mindfulness|майндфулнес|визуализация|релакс|снять напряжение|внутренний покой|meditation|meditate|breathing exercise|relax|calm down|awareness|visualization|inner peace|release tension)/i},
 
                 // ── ЕДА ───────────────────────────────────────────────────────
-                {intent:'food_recipe',re:/(рецепт|как (приготовить|сварить|испечь|пожарить)|что приготовить|ингредиенты|блюдо|еда|кухня|завтрак из|ужин из|обед из|калорийность|полезно ли есть|можно ли есть)/i},
+                {intent:'food_recipe',re:/(рецепт|как (приготовить|сварить|испечь|пожарить)|что приготовить|ингредиенты|блюдо|еда|кухня|завтрак из|ужин из|обед из|калорийность|полезно ли есть|можно ли есть|recipe|how to (cook|boil|bake|fry|prepare)|what to cook|ingredients|dish|food|cuisine|breakfast (with|of)|dinner (with|of)|lunch (with|of)|calories|is it (healthy|safe) to eat|can i eat)/i},
 
                 // ── ПУТЕШЕСТВИЯ ───────────────────────────────────────────────
-                {intent:'travel',re:/(куда (поехать|слетать|сходить)|путешествие|туризм|достопримечательности|что посмотреть в|виза|билет|отель|хостел|маршрут|лучшие места|топ мест|страна|город|планирую поездку)/i},
+                {intent:'travel',re:/(куда (поехать|слетать|сходить)|путешествие|туризм|достопримечательности|что посмотреть в|виза|билет|отель|хостел|маршрут|лучшие места|топ мест|страна|город|планирую поездку|where to (go|travel|fly)|travel|tourism|sights|things to see in|visa|ticket|hotel|hostel|itinerary|best places|top places|planning a (trip|vacation))/i},
 
                 // ── ОБУЧЕНИЕ ──────────────────────────────────────────────────
-                {intent:'learn',re:/(как (научиться|выучить|освоить)|с чего начать (изучение|учёбу)|объясни простыми словами|для новичка|основы|введение в|туториал|самообразование|обучение|курс|урок)/i},
-                {intent:'compare',re:/(сравни|чем отличается|в чём разница|что лучше|что хуже|преимущества и недостатки|плюсы и минусы|vs\b|versus|или .+\?$|выбрать между)/i},
-                {intent:'list_request',re:/(дай список|составь список|перечисли|топ[ -]\d|\d+ (лучших|главных|основных|способов|шагов|причин|примеров|советов)|список (рекомендаций|книг|фильмов|ресурсов))/i},
+                {intent:'learn',re:/(как (научиться|выучить|освоить)|с чего начать (изучение|учёбу)|объясни простыми словами|для новичка|основы|введение в|туториал|самообразование|обучение|курс|урок|how to (learn|study|master)|where to start|explain (it )?simply|for beginners|basics|introduction to|tutorial|self-?taught|learning|course|lesson|getting started)/i},
+                {intent:'compare',re:/(сравни|чем отличается|в чём разница|что лучше|что хуже|преимущества и недостатки|плюсы и минусы|vs\b|versus|или .+\?$|выбрать между|compare|difference between|what'?s the difference|which is (better|worse)|pros and cons|advantages and disadvantages|choose between|or .+\?$)/i},
+                {intent:'list_request',re:/(дай список|составь список|перечисли|топ[ -]\d|\d+ (лучших|главных|основных|способов|шагов|причин|примеров|советов)|список (рекомендаций|книг|фильмов|ресурсов)|give (me )?a list|make (a |the )?list|enumerate|list of|top[ -]\d|\d+ (best|main|key|ways|steps|reasons|examples|tips)|list of (recommendations|books|movies|resources))/i},
 
                 // ── ПРОДУКТИВНОСТЬ ────────────────────────────────────────────
-                {intent:'productivity',re:/(тайм-менеджмент|управление временем|как (не откладывать|всё успевать|быть продуктивным|сосредоточиться|перестать прокрастинировать)|pomodoro|помодоро|расставить приоритеты|план на день|задачи на сегодня|gtd)/i},
-                {intent:'opinion',re:/(как ты думаешь|что думаешь|твоё мнение|посоветуй|порекомендуй|стоит ли|что выбрать|что посмотреть|что почитать|что послушать|лучший выбор|ты бы (выбрал|рекомендовал))/i},
+                {intent:'productivity',re:/(тайм-менеджмент|управление временем|как (не откладывать|всё успевать|быть продуктивным|сосредоточиться|перестать прокрастинировать)|pomodoro|помодоро|расставить приоритеты|план на день|задачи на сегодня|gtd|time management|how to (stop procrastinating|be productive|focus|get things done|prioritize)|set priorities|day plan|today'?s tasks|to-?do list)/i},
+                {intent:'opinion',re:/(как ты думаешь|что думаешь|твоё мнение|посоветуй|порекомендуй|стоит ли|что выбрать|что посмотреть|что почитать|что послушать|лучший выбор|ты бы (выбрал|рекомендовал)|what do you think|your opinion|advise me|recommend|do you think|should i|what to (pick|choose|watch|read|listen to)|best choice|would you (pick|recommend))/i},
 
                 // ── ФИНАНСЫ ───────────────────────────────────────────────────
-                {intent:'finance',re:/(инвестиции|акции|криптовалюта|бюджет|экономить|финансы|деньги|кредит|ипотека|вклад|процентная ставка|инфляция|как накопить|финансовое планирование)/i},
+                {intent:'finance',re:/(инвестиции|акции|криптовалюта|бюджет|экономить|финансы|деньги|кредит|ипотека|вклад|процентная ставка|инфляция|как накопить|финансовое планирование|investment|investing|stocks|crypto|cryptocurrency|budget|save money|finance|finances|money|credit|loan|mortgage|deposit|interest rate|inflation|how to save|financial planning)/i},
 
                 // ── ОТНОШЕНИЯ ─────────────────────────────────────────────────
-                {intent:'relationship',re:/(отношения|любовь|партнёр|парень|девушка|муж|жена|семья|дети|дружба|конфликт с|поругались|как помириться|как поговорить с|одиночество|познакомиться)/i},
-                {intent:'apology',re:/^(извини|прости|извините|простите|sorry|виноват|моя ошибка|я был неправ|я ошибся)/i},
+                {intent:'relationship',re:/(отношения|любовь|партнёр|парень|девушка|муж|жена|семья|дети|дружба|конфликт с|поругались|как помириться|как поговорить с|одиночество|познакомиться|relationship|love|partner|boyfriend|girlfriend|husband|wife|family|kids|children|friendship|conflict with|had a fight|how to make up|how to talk to|loneliness|meet (someone|people))/i},
+                {intent:'apology',re:/^(извини|прости|извините|простите|sorry|my apologies|my bad|виноват|моя ошибка|my mistake|i was wrong|я был неправ|я ошибся|i (made an )?mistake|forgive me|apologies)/i},
 
                 // ── ТЕХНОЛОГИИ ────────────────────────────────────────────────
-                {intent:'tech_help',re:/(как (пользоваться|настроить|установить|обновить|починить|подключить)|телефон|компьютер|приложение|программа|настройки|wi-fi|интернет|браузер|операционная система|windows|macos|android|ios|linux)/i},
+                {intent:'tech_help',re:/(как (пользоваться|настроить|установить|обновить|починить|подключить)|how to (use|configure|install|update|fix|repair|connect)|телефон|phone|компьютер|computer|приложение|app|программа|software|настройки|settings|wi-?fi|интернет|internet|browser|browser|operating system|windows|macos|android|ios|linux)/i},
 
                 // ── РАЗВЛЕЧЕНИЯ ───────────────────────────────────────────────
                 {intent:'movie_book',re:/(посоветуй (фильм|сериал|книгу|аниме|игру)|хочу (посмотреть|почитать|поиграть)|что посмотреть|что почитать|лучшие фильмы|топ книг|рейтинг|жанр)/i},
