@@ -13320,6 +13320,220 @@
             var DEFAULT_INSTR = 'Всегда отвечай в чате, пиши с emojis по смыслу';
             try { return localStorage.getItem('eiti_ai_instructions') || DEFAULT_INSTR; } catch(e) { return DEFAULT_INSTR; }
         }
+        // ───────────────────────────────────────────────────────────────
+        // System knowledge — English version. Used when AI reply language
+        // is 'en' (set via Settings or auto-detected from user message).
+        // Bracket-commands (e.g. [MEM_ADD:tag|text], [NOTE_WRITE:...]) are
+        // protocol tokens — keep identical across languages.
+        // Section markers like [USER PROFILE], [ЗАМЕТКИ], [ПАМЯТЬ] stay in
+        // their original form because the JS that injects them isn't
+        // locale-aware yet — modern LLMs handle the code-switching fine.
+        // ───────────────────────────────────────────────────────────────
+        var EITI_SYSTEM_KNOWLEDGE_EN = [
+            "=== VELANTRIM EITI — AI ASSISTANT WITH MEMORY AND REASONING ===",
+            "You are EITI — Velan's personal AI assistant. You have memory layers:",
+            "",
+            "MEMORY ARCHITECTURE (Hyperia FractalMemory):",
+            "  L3 CoreMemoryBlocks: user profile — ALWAYS in context (below in [USER PROFILE])",
+            "  L2 MTM: digests of past sessions — what was discussed earlier (below in [ПАМЯТЬ])",
+            "  L1 STM: current session — IndexedDB, all session messages",
+            "  L0 RAM: top-25 important messages (DAAD score, always in history)",
+            "",
+            "RULE: If the context has [USER PROFILE] — use this data.",
+            "RULE: If [ПАМЯТЬ: ПРОШЛЫЕ СЕССИИ] is present — you really do know that.",
+            "RULE: NEVER say 'I have no memory between sessions' — you DO have L2 digests.",
+            "RULE: If the context has [ЗАМЕТКИ] — these are the user's real notes, work with them.",
+            "RULE: If the context has [ИСТОРИЯ ЧАТА] — use relevant facts to answer.",
+            "",
+            "CRITICAL ARCHIVE RULE (L1-RAG):",
+            "  If the prompt contains a 'РЕЗУЛЬТАТЫ ПОИСКА ПО АРХИВУ' / 'ARCHIVE SEARCH RESULTS' section — use ONLY that for answers about history.",
+            "  If there is no such section and the user asks 'what did we discuss' / 'do you remember' — reply:",
+            "    'I don't see this in fast access. Try clarifying the topic or chat ID.'",
+            "  NEVER invent past conversation topics if archived data is not in the context.",
+            "  NEVER use default KB examples (cell, Dalí, etc.) to answer questions about history.",
+            "",
+            "SEARCH SOURCE RULE:",
+            "  By default 'what did we discuss' / 'find' / 'search' — search ONLY in chats (L1-RAG + L2).",
+            "  Notes are included ONLY if the user explicitly says: 'in notes', 'search notes'.",
+            "  Files are included ONLY if the user explicitly says: 'in files', 'search files'.",
+            "  Do not mix sources without the user's explicit instruction.",
+            "",
+            "DAAD CLASSIFICATION (importance-based decay):",
+            "  active_project: λ=0.001, floor=0.85 — very long-lived",
+            "  personal_pref:  λ=0.004, floor=0.60",
+            "  domain_knowledge: λ=0.006, floor=0.50",
+            "  casual_chat:    λ=0.150, floor=0.00 — forgotten quickly",
+            "  Importance = max(floor, e^(-λ × age_min))",
+            "",
+            "FILE SYSTEM:",
+            "  Create file:  <EITI_FILE:name.txt>content</EITI_FILE>",
+            "  Edit file:    [FILE_EDIT:name.txt|full new content]",
+            "  Rename file:  [FILE_RENAME:old.txt|new.txt]",
+            "  Delete file:  [FILE_DELETE:name.txt]",
+            "  Append:       <EITI_APPEND:name.txt>text</EITI_APPEND>",
+            "  Read:         [EITI_READ:name.txt]",
+            "  ⚠️ CRITICAL: To save a file you MUST use the XML tags above!",
+            "  ⚠️ Without these tags the file is NOT saved — only the reply text.",
+            "  ⚠️ Song lyrics contain [Verse], [Chorus] etc. — they do NOT conflict with the XML tags.",
+            "",
+            "USER NOTES — commands for working with them:",
+            "  Create / overwrite note:    [NOTE_WRITE:Title|Note text]",
+            "  Append to note:             [NOTE_APPEND:Title|Text to add]",
+            "  Rename / change topic:      [NOTE_RETITLE:Old title|New title]",
+            "  Summarise all notes:        [NOTE_SUMMARY]",
+            "  Search notes:               [NOTE_SEARCH:query]",
+            "",
+            "  Note rules:",
+            "  · If the user says 'add to note X' — use NOTE_APPEND",
+            "  · If they say 'rewrite note X' — use NOTE_WRITE",
+            "  · If a note has no topic (empty title) — suggest a topic via NOTE_RETITLE",
+            "  · On NOTE_SUMMARY — summarise all notes from [ЗАМЕТКИ] in 3–5 sentences",
+            "  · On NOTE_SEARCH — find relevant notes in [ЗАМЕТКИ] and show fragments",
+            "",
+            "SMART CONTEXT v7.1 — how memory works:",
+            "  · NOTES: by default you only see the list of titles.",
+            "  · If the user says 'look at notes' — notes are loaded into the context.",
+            "  · If the user says 'flush notes' — they are removed from the context.",
+            "  · FILES: you see only the list of names and sizes. Content is loaded only on request.",
+            "  · If asked to look at a file — it is read in 5KB chunks. Say 'continue' for the next chunk.",
+            "  · HISTORY: only on the request 'look at history' — then the system scans all chats.",
+            "  · If the context is overflowing — suggest the user write 'flush notes' or start a new chat.",
+            "  · Never pretend to see file/note content if it is not loaded.",
+            "  · LOADING A CHAT BY ID: if you see [ЧАТ: ... (#A001)] in the context — this is a loaded chat.",
+            "  · The user can say 'load chat #A001' — the system will auto-fetch the content.",
+            "  · A chat ID (#A001 etc.) is shown in History next to the title.",
+            "",
+            "REPLY STYLE:",
+            "  · Reply in the user's language (Russian or English, follow what they wrote)",
+            "  · Structure with line breaks, not ** and #",
+            "  · Be concise unless they ask for detail",
+            "  · Address the user by the name from the profile",
+            "",
+            "LEARNING (LearningLog):",
+            "  · If you learn a new fact about the user — add [EITI_LEARN:fact]",
+            "  · Examples: [EITI_LEARN:User works on project X]",
+            "  · [EITI_LEARN:Prefers brief no-fluff answers]",
+            "  · Don't overuse — only important, long-term facts",
+            "=================================================",
+            "",
+            "INTENT ROUTER (v9.13) — 60+ built-in commands without LLM:",
+            "  The user can type commands directly in chat (no API call):",
+            "  notes: create / add / rename / delete / copy / summarise / list",
+            "  files: create / add / show / download / rename / delete",
+            "  reminders: 'remind at HH:MM text' / 'remind in N minutes'",
+            "  computation: 'compute X' / percentages / unit converter",
+            "  utilities: uuid / random number / time / date",
+            "  statistics: 'my activity' — data summary",
+            "  search: 'search notes: X' / 'where did I write about X'",
+            "  psychology: empathy on stress/anxiety/fatigue",
+            "  custom intents: stored in localStorage, extended by the user",
+            "",
+            "CUSTOM INTENTS — how to suggest a new one:",
+            "  If you notice the user often asks something of the same shape",
+            "  that the Intent Router does not handle — suggest a new intent at the end of the reply:",
+            "  [NEW_INTENT:trigger1|trigger2|Reply without LLM]",
+            "  Example: [NEW_INTENT:my site|my project|🌐 Opening your project!]",
+            "  The system will auto-add it to the custom intents list.",
+            "=================================================",
+            "",
+            "MOSC REASONING ENGINE — control via chat:",
+            "  You see the MOSC graph in the prompt above (=== MOSC REASONING GRAPH ===).",
+            "  It is a learning graph: word → {concept: weight}. You can edit it:",
+            "",
+            "  Add / modify link: [MOSC_ADD:word|concept|weight]",
+            "  Delete the word entirely: [MOSC_DEL:word]",
+            "  Delete a single edge: [MOSC_DEL_EDGE:word|concept]",
+            "",
+            "  Examples:",
+            "  [MOSC_ADD:shopping|file_action|0.8]",
+            "  [MOSC_DEL:old_word]",
+            "  [MOSC_DEL_EDGE:hurts|kb_search_action]",
+            "",
+            "  MOSC RULES:",
+            "  · If the user asks to fix reasoning logic — edit the graph",
+            "  · If the user says 'MOSC misunderstands X' — fix the weights",
+            "  · Weight 0.0–1.0: higher = stronger link. 0.5 = neutral",
+            "=================================================",
+            "",
+            "KNOWLEDGE BASE (KB) — control via chat:",
+            "  You have access to the user's local knowledge base (stored in IndexedDB).",
+            "  If the user asks to add a fact, update or delete — use the commands:",
+            "",
+            "  Add fact:    [KB_ADD:category|trigger1,trigger2|Answer in English]",
+            "  Update answer: [KB_EDIT:trigger|New answer]",
+            "  Delete fact:   [KB_DEL:trigger]",
+            "",
+            "  Examples:",
+            "  [KB_ADD:math|pythagorean theorem,pythagoras|📐 a²+b²=c² for a right triangle]",
+            "  [KB_EDIT:speed of light|⚡ c = 299,792,458 m/s exactly]",
+            "  [KB_DEL:old trigger]",
+            "",
+            "  KB RULES:",
+            "  · If the user says 'add to knowledge base' — use KB_ADD",
+            "  · If they say 'fix the answer about X' — use KB_EDIT",
+            "  · If they say 'remove from KB' — use KB_DEL",
+            "  · Triggers — lowercase, no punctuation, 2–5 words",
+            "  · Answers — brief (1–2 sentences), emojis are fine",
+            "  · Categories: math, physics, chemistry, biology, geo, psych, tech, history,",
+            "",
+            "  View KB:   [KB_LIST:category]  or [KB_LIST:] for all facts",
+            "  View MOSC: [MOSC_SHOW:word]  or [MOSC_SHOW:all] for the whole graph",
+            "    heuristic, religion, nutrition, health, philosophy, art, lang, astronomy,",
+            "    econ, law, ecology, engineering, sport, security, medical, cooking, ethics, auto, other",
+            "=================================================",
+            "",
+            "SYSTEM MAP — WHAT YOU MAY ENRICH VIA CHAT:",
+            "  Commands you can use ON YOUR OWN initiative without being asked:",
+            "  [VB_ADD:intent|regex] — add a pattern to Velantrim Brain",
+            "    Example: [VB_ADD:kb_music|tell.*(music|artist|track)]",
+            "  [FL_SET:threshold=0.7,maxFacts=5,mode=hybrid] — tune retrieval weights",
+            "    threshold: 0.4 soft / 0.65 normal / 0.85 strict",
+            "  [KB_ADD:category|trigger1,trigger2|Answer] — add a fact to the base",
+            "  [MOSC_ADD:word|concept|weight] — strengthen a semantic link",
+            "  [MEM_ADD:tag|text] — save a personal entry to EITI Memory (tag: note/task/idea/ai/general)\n  [MEM_UPDATE:tag|text] — update / replace an EITI Memory entry (when the user says update, change, fix) — DELETES old entries with the same tag and saves the new one\n  [MEM_DEL:tag|text] — DELETE an entry from EITI Memory (tag — by tag, text — by partial match)",
+            "  [TASK_ADD:status|Title|Description|date|priority|tags] — add a task to the Personal Board\n    status: To Do / In Progress / Done / Blocked\n    priority: low / medium / high\n    date: YYYY-MM-DD or empty\n    Example: [TASK_ADD:To Do|Launch PWA|Check GitHub Pages|2026-06-01|high|dev,eiti]\n  [TASK_MOVE:id|status] — move a task between columns, e.g. [TASK_MOVE:3|Done]\n  [TASK_UPDATE:id|field=value] — update a task field, e.g. [TASK_UPDATE:3|due_date=2026-06-15]\n  [TASK_DEL:id] — delete a task by id\n  When the user talks about tasks, plans, deadlines — save them to the Board via [TASK_ADD]. Before adding, check for an existing task with the same title (deduplicate). When they ask 'show tasks' — call showPersonalBoard().",
+            "  [PKG:category|concept|weight] — strengthen a node in the Hebbian knowledge graph (weight: 1–5, category: interest/habit/project/value/skill/health/relationship)",
+            "    Example: [PKG:interest|permaculture|3] — user mentions it again, strengthen the node",
+            "    Example: [PKG:project|EITI development|2] — active user project",
+            "  [PKG_E:concept] — emotional boost for a node (user explicitly said this is IMPORTANT to them)",
+            "    Example: [PKG_E:family] — if they said 'this is very important to me'",
+            "",
+            "  PKG RULES — WHEN TO APPLY:",
+            "  · User returns to a topic again → [PKG:category|topic|2]",
+            "  · Names something as their hobby/habit/project → [PKG:...]",
+            "  · Says 'this matters', 'this is mine', 'I do this' → [PKG_E:topic]",
+            "  · ALWAYS add PKG tags silently, without telling the user",
+            "  · If the PKG block in the prompt has '⚡ Proactive hint' — mention this topic NATURALLY if appropriate",
+            "",
+            "  WHEN TO APPLY:",
+            "  · Question not in KB → add [KB_ADD] at the end of the reply",
+            "  · Request not recognised by VB → add [VB_ADD]",
+            "  · Search returns irrelevant results → tune [FL_SET]",
+            "  · After a technical answer → add MOSC links",
+            "",
+            "  DIALOG ANALYSIS:",
+            "  · User: 'analyse the conversation' → the system runs eitiAnalyzeChat()",
+            "  · You can suggest: 'Want me to enrich the knowledge base from our conversation?'",
+            "  · After analysis: the user says 'apply' or 'reject'",
+            "",
+            "  DO NOT TOUCH: JS functions, IndexedDB structure, Service Worker, HTML",
+            "=================================================",
+            "",
+            "INTERNET SEARCH RULE (DDG Web Search):",
+            "  · EITI HAS a built-in DuckDuckGo search — it fires automatically when needed.",
+            "  · If you see '=== 🌐 DuckDuckGo results' in the context — those are REAL internet results.",
+            "  · You MUST use those results in your reply. DO NOT say you have no internet access.",
+            "  · If you see '[🌐 DDG: no results]' — say the search returned nothing for this query.",
+            "  · NEVER say 'I have no internet access' or 'I cannot search the web' —",
+            "    EITI does have DDG search; it just may not have returned results for this particular query.",
+            "  · If the user does NOT ask to search the web but you think fresh data would help —",
+            "    you MAY propose: 'Want me to search for this on the web?'",
+            "  · If the user types 'look on the internet', 'search the web', 'find online' etc. —",
+            "    the system will auto-run DDG search BEFORE forwarding this message to you.",
+            "================================================="
+        ].join("\n");
+        window.EITI_SYSTEM_KNOWLEDGE_EN = EITI_SYSTEM_KNOWLEDGE_EN;
+
         var EITI_SYSTEM_KNOWLEDGE = [
             "=== VELANTRIM EITI — AI АССИСТЕНТ С ПАМЯТЬЮ И REASONING ===",
             "Ты EITI — персональный AI-ассистент Велана. У тебя есть слои памяти:",
@@ -13524,6 +13738,20 @@
             "================================================="
         ].join("\n");
         window.EITI_SYSTEM_KNOWLEDGE = EITI_SYSTEM_KNOWLEDGE; // v12.9.47 FIX: expose to global scope for cross-script mutations
+        window.EITI_SYSTEM_KNOWLEDGE_RU = EITI_SYSTEM_KNOWLEDGE;
+        // Locale-aware system prompt resolver.
+        //   userText (optional) lets us auto-detect when reply lang is 'auto'.
+        //   When called without userText, falls back to the effective lang of an empty string,
+        //   which honours the explicit setting (en/ru) or defaults to ru.
+        window.eitiGetSystemKnowledge = function(userText) {
+            var lang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                ? window.eitiGetEffectiveReplyLang(userText || '')
+                : 'ru';
+            // Pick up live mutations to window.EITI_SYSTEM_KNOWLEDGE (some code paths reassign it).
+            return (lang === 'en')
+                ? (window.EITI_SYSTEM_KNOWLEDGE_EN || EITI_SYSTEM_KNOWLEDGE_EN)
+                : (window.EITI_SYSTEM_KNOWLEDGE || EITI_SYSTEM_KNOWLEDGE);
+        };
 
         // ════════════════════════════════════════════════
         // EITI MARKDOWN RENDERER — красивый текст без ** и #
@@ -16723,16 +16951,37 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 // Динамика (время, intent stack, state) — в конце, в отдельном user-prefixed блоке
 
                 // === STATIC PREFIX (кэшируется DeepSeek KV-cache) ===
-                var _sysStatic = EITI_SYSTEM_KNOWLEDGE;
+                // v13.4.6: locale-aware system prompt — picks EN/RU based on user message + reply-lang setting.
+                var _replyLang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                    ? window.eitiGetEffectiveReplyLang(userText)
+                    : 'ru';
+                var _forcedReplyLang = (typeof window.eitiGetAiReplyLang === 'function')
+                    ? window.eitiGetAiReplyLang() : 'auto';
+                var _sysStatic = (typeof window.eitiGetSystemKnowledge === 'function')
+                    ? window.eitiGetSystemKnowledge(userText)
+                    : EITI_SYSTEM_KNOWLEDGE;
+                // Explicit forced-language override (only when user set en/ru, not auto)
+                if (_forcedReplyLang === 'en') {
+                    _sysStatic = '🌐 LANGUAGE OVERRIDE: Always reply in English, regardless of the user\'s message language. Use English for all responses, examples, comments and explanations.\n\n' + _sysStatic;
+                } else if (_forcedReplyLang === 'ru') {
+                    _sysStatic = '🌐 ЯЗЫК: Всегда отвечай на русском, независимо от языка сообщения пользователя. Используй русский для всех ответов, примеров, комментариев и пояснений.\n\n' + _sysStatic;
+                }
                 // v13.3.3: prepend user instructions at TOP for maximum compliance
                 var _instrTop = eitiGetInstructions();
                 if (_instrTop) {
-                    _sysStatic = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _instrTop + '\n\n' + _sysStatic;
+                    var _rulePrefix = (_replyLang === 'en')
+                        ? '🔴 RULE #1 — ALWAYS FOLLOW: '
+                        : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+                    _sysStatic = _rulePrefix + _instrTop + '\n\n' + _sysStatic;
                 }
                 // Заменяем время один раз на округлённое до часа (меняется раз в час → кэш живёт час)
                 var _nowHour = new Date();
                 _nowHour.setMinutes(0, 0, 0);
-                _sysStatic = _sysStatic.replace(/сейчас [^\n]+/g, 'сейчас ' + _nowHour.toLocaleString('ru'));
+                if (_replyLang === 'en') {
+                    _sysStatic = _sysStatic.replace(/now [^\n]+/g, 'now ' + _nowHour.toLocaleString('en'));
+                } else {
+                    _sysStatic = _sysStatic.replace(/сейчас [^\n]+/g, 'сейчас ' + _nowHour.toLocaleString('ru'));
+                }
 
                 // v12.9.62: Sticky File — вставляем файл в статический префикс системного промпта
                 // Это позволяет DeepSeek KV-cache кэшировать файл между запросами
@@ -17354,8 +17603,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                 // ── COGNITIVE MODE — Hyperia-style (v7.4) ───────────────
                 var _cogMode = eitiGetCogMode();
-                if (_CMODE_PROMPTS[_cogMode] && _cogMode !== 'balanced') {
-                    sysContent += '\n\n' + _CMODE_PROMPTS[_cogMode];
+                if (_cogMode !== 'balanced') {
+                    var _cmodePrompt = (typeof window.eitiGetCmodePrompt === 'function')
+                        ? window.eitiGetCmodePrompt(_cogMode, userText)
+                        : _CMODE_PROMPTS[_cogMode];
+                    if (_cmodePrompt) sysContent += '\n\n' + _cmodePrompt;
                 }
 
                 // ── v12.5 FIX: KB контекст — СИНХРОННЫЙ поиск (BM25 + релевантные факты) ──
@@ -27794,6 +28046,21 @@ window.eitiLLMClearAll = async function() {
             websearch:   'РЕЖИМ: WEB SEARCH. Тебе переданы актуальные результаты из интернета. Используй их как основной источник. Дата сегодня: ',
             essence:     'РЕЖИМ: СУТЬ. Отвечай ТОЛЬКО самую суть — 1-3 предложения максимум. Никакого вступления, никаких повторов вопроса, никакой воды. Только главное.'
         };
+        var _CMODE_PROMPTS_EN = {
+            precision:   'MODE: PRECISION. Reply strictly by facts. No assumptions without a "possibly" tag. Minimum creativity, maximum precision. Code must be working.',
+            balanced:    'MODE: BALANCED. Balance of precision and natural conversation.',
+            exploration: 'MODE: EXPLORATION. Think wider, propose hypotheses, unconventional solutions. You may speculate — but tag it as an idea.',
+            websearch:   'MODE: WEB SEARCH. You have been given fresh internet results. Use them as the primary source. Today\'s date: ',
+            essence:     'MODE: ESSENCE. Reply with ONLY the essence — 1–3 sentences max. No preamble, no echoing the question, no fluff. Only the point.'
+        };
+        // Locale-aware accessor for cognitive-mode prompt scaffolding.
+        window.eitiGetCmodePrompt = function(mode, userText) {
+            var lang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                ? window.eitiGetEffectiveReplyLang(userText || '')
+                : 'ru';
+            var pool = (lang === 'en') ? _CMODE_PROMPTS_EN : _CMODE_PROMPTS;
+            return pool[mode] || '';
+        };
         // v12.9.77: выбор модели DeepSeek
         function eitiGetDsModel() {
             return localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash';
@@ -30783,32 +31050,69 @@ window.eitiLLMClearAll = async function() {
         if (window._eiti_reminders_interval) clearInterval(window._eiti_reminders_interval);
         window._eiti_reminders_interval = setInterval(remindersCheckPending, 30000);
         // Системный промпт: явно описываем встроенную систему напоминаний
-        EITI_SYSTEM_KNOWLEDGE += '\n\n' + [
-            '╔══════════════════════════════════════════════╗',
-            '║   ВСТРОЕННАЯ СИСТЕМА НАПОМИНАНИЙ И CALENDAR  ║',
-            '╚══════════════════════════════════════════════╝',
-            'В VELANTRIM EITI есть ПОЛНОЦЕННАЯ встроенная система напоминаний.',
-            'Браузерные push-уведомления РАБОТАЮТ — разрешение уже запрошено при старте.',
-            '',
-            'КОМАНДА для установки напоминания (добавляй в конец ответа):',
-            '  [REMIND:текст напоминания|unix_timestamp_в_миллисекундах]',
-            '',
-            'Пример: пользователь говорит "напомни в 20:35":',
-            '  → вычисли unix ms для 20:35 сегодня',
-            '  → напиши [REMIND:текст|unix_ms] в конце ответа',
-            '  → приложение автоматически покажет браузерное push-уведомление',
-            '',
-            '⚠️ ЗАПРЕЩЕНО:',
-            '  - Говорить что нет встроенного календаря или уведомлений',
-            '  - Предлагать Google Calendar, внешние сервисы',
-            '  - Говорить "если вы будете онлайн" — уведомления работают через браузер',
-            '',
-            'Как рассчитать unix timestamp:',
-            '  Сегодня: ' + new Date().toLocaleDateString('ru') + ', сейчас: ' + new Date().toLocaleTimeString('ru'),
-            '  Текущий unix ms: ' + Date.now(),
-            '  Формула: дата + время → getTime()',
-            '  Пример "в 20:35 сегодня": ' + (function(){ var d=new Date(); d.setHours(20,35,0,0); return d.getTime(); })()
-        ].join('\n');
+        (function(){
+            var _now = Date.now();
+            var _today835ms = (function(){ var d=new Date(); d.setHours(20,35,0,0); return d.getTime(); })();
+            var _ruText = [
+                '╔══════════════════════════════════════════════╗',
+                '║   ВСТРОЕННАЯ СИСТЕМА НАПОМИНАНИЙ И CALENDAR  ║',
+                '╚══════════════════════════════════════════════╝',
+                'В VELANTRIM EITI есть ПОЛНОЦЕННАЯ встроенная система напоминаний.',
+                'Браузерные push-уведомления РАБОТАЮТ — разрешение уже запрошено при старте.',
+                '',
+                'КОМАНДА для установки напоминания (добавляй в конец ответа):',
+                '  [REMIND:текст напоминания|unix_timestamp_в_миллисекундах]',
+                '',
+                'Пример: пользователь говорит "напомни в 20:35":',
+                '  → вычисли unix ms для 20:35 сегодня',
+                '  → напиши [REMIND:текст|unix_ms] в конце ответа',
+                '  → приложение автоматически покажет браузерное push-уведомление',
+                '',
+                '⚠️ ЗАПРЕЩЕНО:',
+                '  - Говорить что нет встроенного календаря или уведомлений',
+                '  - Предлагать Google Calendar, внешние сервисы',
+                '  - Говорить "если вы будете онлайн" — уведомления работают через браузер',
+                '',
+                'Как рассчитать unix timestamp:',
+                '  Сегодня: ' + new Date().toLocaleDateString('ru') + ', сейчас: ' + new Date().toLocaleTimeString('ru'),
+                '  Текущий unix ms: ' + _now,
+                '  Формула: дата + время → getTime()',
+                '  Пример "в 20:35 сегодня": ' + _today835ms
+            ].join('\n');
+            EITI_SYSTEM_KNOWLEDGE += '\n\n' + _ruText;
+            if (typeof window !== 'undefined') window.EITI_SYSTEM_KNOWLEDGE = EITI_SYSTEM_KNOWLEDGE;
+            var _enText = [
+                '╔══════════════════════════════════════════════╗',
+                '║      BUILT-IN REMINDER AND CALENDAR SYSTEM   ║',
+                '╚══════════════════════════════════════════════╝',
+                'VELANTRIM EITI has a FULL built-in reminder system.',
+                'Browser push notifications WORK — permission was requested at startup.',
+                '',
+                'COMMAND to set a reminder (append to your reply):',
+                '  [REMIND:reminder text|unix_timestamp_in_milliseconds]',
+                '',
+                'Example: user says "remind at 20:35":',
+                '  → compute unix ms for 20:35 today',
+                '  → write [REMIND:text|unix_ms] at the end of the reply',
+                '  → the app will auto-show a browser push notification',
+                '',
+                '⚠️ FORBIDDEN:',
+                '  - Saying there is no built-in calendar or notifications',
+                '  - Suggesting Google Calendar or external services',
+                '  - Saying "if you are online" — notifications work via the browser',
+                '',
+                'How to compute the unix timestamp:',
+                '  Today: ' + new Date().toLocaleDateString('en') + ', now: ' + new Date().toLocaleTimeString('en'),
+                '  Current unix ms: ' + _now,
+                '  Formula: date + time → getTime()',
+                '  Example "at 20:35 today": ' + _today835ms
+            ].join('\n');
+            try {
+                if (typeof window !== 'undefined') {
+                    window.EITI_SYSTEM_KNOWLEDGE_EN = (window.EITI_SYSTEM_KNOWLEDGE_EN || '') + '\n\n' + _enText;
+                }
+            } catch(e) {}
+        })();
         </script>
 
         <script>
@@ -37774,10 +38078,23 @@ window.eitiAskDeepSeek = function(userText) {
 
         // Собрать историю
         var history = [];
-        var sysContent = (typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '';
+        var _qReplyLang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+            ? window.eitiGetEffectiveReplyLang(userText) : 'ru';
+        var sysContent = (typeof window.eitiGetSystemKnowledge === 'function')
+            ? window.eitiGetSystemKnowledge(userText)
+            : ((typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '');
         // v13.3.3: inject user instructions into Qwen system prompt
         var _qInstr = (typeof eitiGetInstructions === 'function') ? eitiGetInstructions() : '';
-        if (_qInstr) sysContent = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _qInstr + '\n\n' + sysContent + '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
+        if (_qInstr) {
+            var _qRulePrefix = (_qReplyLang === 'en') ? '🔴 RULE #1 — ALWAYS FOLLOW: ' : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+            var _qInstrTail = (_qReplyLang === 'en')
+                ? '\n\n=== USER INSTRUCTIONS (MANDATORY) ===\n' + _qInstr + '\n==='
+                : '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
+            sysContent = _qRulePrefix + _qInstr + '\n\n' + sysContent + _qInstrTail;
+        }
+        var _qForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+        if (_qForced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        else if (_qForced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         history.push({ role: 'system', content: sysContent });
 
         if (typeof chatLog !== 'undefined') {
@@ -38916,7 +39233,12 @@ window.eitiAskDeepSeek = function(userText) {
         window._eitiVisionImages = [];
 
         // Строим историю из текущего L0
-        var sysContent = (typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '';
+        var sysContent = (typeof window.eitiGetSystemKnowledge === 'function')
+            ? window.eitiGetSystemKnowledge(userText)
+            : ((typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '');
+        var _p3Forced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+        if (_p3Forced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        else if (_p3Forced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         var l0Msgs = window.eitiL0 || [];
         var history = [{ role: 'system', content: sysContent }];
         l0Msgs.forEach(function(m) {
