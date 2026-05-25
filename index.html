@@ -165,6 +165,9 @@
                 'Язык: Русский': 'Language: Русский',
                 'Language: English': 'Language: English',
                 'UI · меню · тосты. KB и заметки не переводятся.': 'UI · menu · toasts. KB and notes are not translated.',
+                'Язык ответов AI': 'AI reply language',
+                'Авто': 'Auto',
+                'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
                 // === Settings groups ===
                 'Внешний вид': 'Appearance',
                 '🤖 DeepSeek AI ⚡ Google Gemini': '🤖 DeepSeek AI ⚡ Google Gemini',
@@ -2005,6 +2008,68 @@
         window.eitiSetLocale = window.EITI_I18N.setLocale;
         window.eitiGetLocale = window.EITI_I18N.getLocale;
         window.eitiApplyI18n = window.EITI_I18N.applyDOM;
+
+        // ─────────────────────────────────────────────────────────────────
+        // AI reply language — независимо от UI-локали.
+        // Хранится в localStorage.eiti_ai_reply_lang: 'auto' | 'en' | 'ru'.
+        // По умолчанию 'auto' (детект по тексту сообщения пользователя).
+        // ─────────────────────────────────────────────────────────────────
+        window.eitiGetAiReplyLang = function() {
+            try {
+                var v = localStorage.getItem('eiti_ai_reply_lang');
+                if (v === 'en' || v === 'ru' || v === 'auto') return v;
+            } catch(e) {}
+            return 'auto';
+        };
+        window.eitiSetAiReplyLang = function(v) {
+            if (v !== 'auto' && v !== 'en' && v !== 'ru') return;
+            try { localStorage.setItem('eiti_ai_reply_lang', v); } catch(e) {}
+            try { if (typeof window.eitiUpdateAiReplyLangUI === 'function') window.eitiUpdateAiReplyLangUI(); } catch(e) {}
+            try {
+                if (typeof window.showToast === 'function') {
+                    var labels = { auto: 'Auto · Автоопределение', en: 'English', ru: 'Русский' };
+                    window.showToast('🤖 AI reply: ' + labels[v], 1400);
+                }
+            } catch(e) {}
+        };
+        // Heuristic language detection: count Cyrillic vs Latin letters.
+        // Returns 'ru' | 'en'. Used only when reply-lang setting is 'auto'.
+        window.eitiDetectMessageLang = function(text) {
+            if (!text || typeof text !== 'string') return 'ru';
+            var cyr = (text.match(/[Ѐ-ӿ]/g) || []).length;
+            var lat = (text.match(/[A-Za-z]/g) || []).length;
+            if (cyr === 0 && lat === 0) return window.eitiGetLocale() || 'ru';
+            // Cyrillic dominant if it has at least as many letters as Latin
+            return cyr >= lat ? 'ru' : 'en';
+        };
+        // Effective reply language for a given user message.
+        // If setting is 'auto' → detect from text; else honor explicit setting.
+        // Falls back to UI locale if nothing else is known.
+        window.eitiGetEffectiveReplyLang = function(userText) {
+            var s = window.eitiGetAiReplyLang();
+            if (s === 'en' || s === 'ru') return s;
+            return window.eitiDetectMessageLang(userText || '');
+        };
+
+        // Подсветка активной кнопки переключателя AI reply language
+        window.eitiUpdateAiReplyLangUI = function() {
+            try {
+                var v = window.eitiGetAiReplyLang();
+                var active = 'linear-gradient(145deg,var(--accent-color),#c9a700)';
+                var activeColor = '#000';
+                var inactive = 'var(--secondary-color)';
+                var inactiveColor = 'var(--text-color)';
+                ['auto','en','ru'].forEach(function(opt) {
+                    var btn = document.getElementById('eiti-ai-reply-' + opt + '-btn');
+                    if (!btn) return;
+                    btn.style.background = (v === opt) ? active : inactive;
+                    btn.style.color = (v === opt) ? activeColor : inactiveColor;
+                    btn.style.borderColor = (v === opt) ? 'var(--accent-color)' : 'var(--border-color)';
+                });
+            } catch(e) {}
+        };
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.eitiUpdateAiReplyLangUI, 100); });
+
         // Подсветка активной кнопки переключателя языка
         window.eitiUpdateLangSwitcherUI = function() {
             try {
@@ -5319,6 +5384,31 @@
                             </div>
                             <div style="font-size:11px;opacity:0.5;line-height:1.5;">
                                 <span data-i18n="UI · меню · тосты. KB и заметки не переводятся.">UI · меню · тосты. KB и заметки не переводятся.</span>
+                            </div>
+
+                            <!-- ═══ AI reply language (v13.4.6) ═══ -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">
+                                <div style="font-size:12px;opacity:0.6;margin-bottom:8px;" data-i18n="Язык ответов AI">Язык ответов AI</div>
+                                <div style="display:flex;gap:6px;">
+                                    <button id="eiti-ai-reply-auto-btn" type="button" onclick="eitiSetAiReplyLang('auto')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🪄</span>
+                                        <span data-i18n="Авто">Авто</span>
+                                    </button>
+                                    <button id="eiti-ai-reply-ru-btn" type="button" onclick="eitiSetAiReplyLang('ru')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🇷🇺</span>
+                                        <span>RU</span>
+                                    </button>
+                                    <button id="eiti-ai-reply-en-btn" type="button" onclick="eitiSetAiReplyLang('en')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🇬🇧</span>
+                                        <span>EN</span>
+                                    </button>
+                                </div>
+                                <div style="font-size:11px;opacity:0.5;line-height:1.5;margin-top:6px;">
+                                    <span data-i18n="Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.">Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -11988,7 +12078,17 @@
 
             var escapeHtml = eitiEsc;
 
-            if (chatLog.length === 0) addMessage('Привет! Я ваш AI-помощник. Чем могу помочь?', false);
+            if (chatLog.length === 0) {
+                // Pick greeting based on AI reply language: forced en/ru wins, else UI locale.
+                var _greetForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+                var _greetLang = (_greetForced === 'en' || _greetForced === 'ru')
+                    ? _greetForced
+                    : (typeof window.eitiGetLocale === 'function' ? window.eitiGetLocale() : 'ru');
+                var _greetText = (_greetLang === 'en')
+                    ? 'Hi! I am your AI assistant. How can I help?'
+                    : 'Привет! Я ваш AI-помощник. Чем могу помочь?';
+                addMessage(_greetText, false);
+            }
             
             // ✅ FIX: send.onclick устанавливается в eitiPatchSendButton()
             // Здесь НЕ вешаем обработчик чтобы не получить двойной ответ
@@ -13230,6 +13330,220 @@
             var DEFAULT_INSTR = 'Всегда отвечай в чате, пиши с emojis по смыслу';
             try { return localStorage.getItem('eiti_ai_instructions') || DEFAULT_INSTR; } catch(e) { return DEFAULT_INSTR; }
         }
+        // ───────────────────────────────────────────────────────────────
+        // System knowledge — English version. Used when AI reply language
+        // is 'en' (set via Settings or auto-detected from user message).
+        // Bracket-commands (e.g. [MEM_ADD:tag|text], [NOTE_WRITE:...]) are
+        // protocol tokens — keep identical across languages.
+        // Section markers like [USER PROFILE], [ЗАМЕТКИ], [ПАМЯТЬ] stay in
+        // their original form because the JS that injects them isn't
+        // locale-aware yet — modern LLMs handle the code-switching fine.
+        // ───────────────────────────────────────────────────────────────
+        var EITI_SYSTEM_KNOWLEDGE_EN = [
+            "=== VELANTRIM EITI — AI ASSISTANT WITH MEMORY AND REASONING ===",
+            "You are EITI — Velan's personal AI assistant. You have memory layers:",
+            "",
+            "MEMORY ARCHITECTURE (Hyperia FractalMemory):",
+            "  L3 CoreMemoryBlocks: user profile — ALWAYS in context (below in [USER PROFILE])",
+            "  L2 MTM: digests of past sessions — what was discussed earlier (below in [ПАМЯТЬ])",
+            "  L1 STM: current session — IndexedDB, all session messages",
+            "  L0 RAM: top-25 important messages (DAAD score, always in history)",
+            "",
+            "RULE: If the context has [USER PROFILE] — use this data.",
+            "RULE: If [ПАМЯТЬ: ПРОШЛЫЕ СЕССИИ] is present — you really do know that.",
+            "RULE: NEVER say 'I have no memory between sessions' — you DO have L2 digests.",
+            "RULE: If the context has [ЗАМЕТКИ] — these are the user's real notes, work with them.",
+            "RULE: If the context has [ИСТОРИЯ ЧАТА] — use relevant facts to answer.",
+            "",
+            "CRITICAL ARCHIVE RULE (L1-RAG):",
+            "  If the prompt contains a 'РЕЗУЛЬТАТЫ ПОИСКА ПО АРХИВУ' / 'ARCHIVE SEARCH RESULTS' section — use ONLY that for answers about history.",
+            "  If there is no such section and the user asks 'what did we discuss' / 'do you remember' — reply:",
+            "    'I don't see this in fast access. Try clarifying the topic or chat ID.'",
+            "  NEVER invent past conversation topics if archived data is not in the context.",
+            "  NEVER use default KB examples (cell, Dalí, etc.) to answer questions about history.",
+            "",
+            "SEARCH SOURCE RULE:",
+            "  By default 'what did we discuss' / 'find' / 'search' — search ONLY in chats (L1-RAG + L2).",
+            "  Notes are included ONLY if the user explicitly says: 'in notes', 'search notes'.",
+            "  Files are included ONLY if the user explicitly says: 'in files', 'search files'.",
+            "  Do not mix sources without the user's explicit instruction.",
+            "",
+            "DAAD CLASSIFICATION (importance-based decay):",
+            "  active_project: λ=0.001, floor=0.85 — very long-lived",
+            "  personal_pref:  λ=0.004, floor=0.60",
+            "  domain_knowledge: λ=0.006, floor=0.50",
+            "  casual_chat:    λ=0.150, floor=0.00 — forgotten quickly",
+            "  Importance = max(floor, e^(-λ × age_min))",
+            "",
+            "FILE SYSTEM:",
+            "  Create file:  <EITI_FILE:name.txt>content</EITI_FILE>",
+            "  Edit file:    [FILE_EDIT:name.txt|full new content]",
+            "  Rename file:  [FILE_RENAME:old.txt|new.txt]",
+            "  Delete file:  [FILE_DELETE:name.txt]",
+            "  Append:       <EITI_APPEND:name.txt>text</EITI_APPEND>",
+            "  Read:         [EITI_READ:name.txt]",
+            "  ⚠️ CRITICAL: To save a file you MUST use the XML tags above!",
+            "  ⚠️ Without these tags the file is NOT saved — only the reply text.",
+            "  ⚠️ Song lyrics contain [Verse], [Chorus] etc. — they do NOT conflict with the XML tags.",
+            "",
+            "USER NOTES — commands for working with them:",
+            "  Create / overwrite note:    [NOTE_WRITE:Title|Note text]",
+            "  Append to note:             [NOTE_APPEND:Title|Text to add]",
+            "  Rename / change topic:      [NOTE_RETITLE:Old title|New title]",
+            "  Summarise all notes:        [NOTE_SUMMARY]",
+            "  Search notes:               [NOTE_SEARCH:query]",
+            "",
+            "  Note rules:",
+            "  · If the user says 'add to note X' — use NOTE_APPEND",
+            "  · If they say 'rewrite note X' — use NOTE_WRITE",
+            "  · If a note has no topic (empty title) — suggest a topic via NOTE_RETITLE",
+            "  · On NOTE_SUMMARY — summarise all notes from [ЗАМЕТКИ] in 3–5 sentences",
+            "  · On NOTE_SEARCH — find relevant notes in [ЗАМЕТКИ] and show fragments",
+            "",
+            "SMART CONTEXT v7.1 — how memory works:",
+            "  · NOTES: by default you only see the list of titles.",
+            "  · If the user says 'look at notes' — notes are loaded into the context.",
+            "  · If the user says 'flush notes' — they are removed from the context.",
+            "  · FILES: you see only the list of names and sizes. Content is loaded only on request.",
+            "  · If asked to look at a file — it is read in 5KB chunks. Say 'continue' for the next chunk.",
+            "  · HISTORY: only on the request 'look at history' — then the system scans all chats.",
+            "  · If the context is overflowing — suggest the user write 'flush notes' or start a new chat.",
+            "  · Never pretend to see file/note content if it is not loaded.",
+            "  · LOADING A CHAT BY ID: if you see [ЧАТ: ... (#A001)] in the context — this is a loaded chat.",
+            "  · The user can say 'load chat #A001' — the system will auto-fetch the content.",
+            "  · A chat ID (#A001 etc.) is shown in History next to the title.",
+            "",
+            "REPLY STYLE:",
+            "  · Reply in the user's language (Russian or English, follow what they wrote)",
+            "  · Structure with line breaks, not ** and #",
+            "  · Be concise unless they ask for detail",
+            "  · Address the user by the name from the profile",
+            "",
+            "LEARNING (LearningLog):",
+            "  · If you learn a new fact about the user — add [EITI_LEARN:fact]",
+            "  · Examples: [EITI_LEARN:User works on project X]",
+            "  · [EITI_LEARN:Prefers brief no-fluff answers]",
+            "  · Don't overuse — only important, long-term facts",
+            "=================================================",
+            "",
+            "INTENT ROUTER (v9.13) — 60+ built-in commands without LLM:",
+            "  The user can type commands directly in chat (no API call):",
+            "  notes: create / add / rename / delete / copy / summarise / list",
+            "  files: create / add / show / download / rename / delete",
+            "  reminders: 'remind at HH:MM text' / 'remind in N minutes'",
+            "  computation: 'compute X' / percentages / unit converter",
+            "  utilities: uuid / random number / time / date",
+            "  statistics: 'my activity' — data summary",
+            "  search: 'search notes: X' / 'where did I write about X'",
+            "  psychology: empathy on stress/anxiety/fatigue",
+            "  custom intents: stored in localStorage, extended by the user",
+            "",
+            "CUSTOM INTENTS — how to suggest a new one:",
+            "  If you notice the user often asks something of the same shape",
+            "  that the Intent Router does not handle — suggest a new intent at the end of the reply:",
+            "  [NEW_INTENT:trigger1|trigger2|Reply without LLM]",
+            "  Example: [NEW_INTENT:my site|my project|🌐 Opening your project!]",
+            "  The system will auto-add it to the custom intents list.",
+            "=================================================",
+            "",
+            "MOSC REASONING ENGINE — control via chat:",
+            "  You see the MOSC graph in the prompt above (=== MOSC REASONING GRAPH ===).",
+            "  It is a learning graph: word → {concept: weight}. You can edit it:",
+            "",
+            "  Add / modify link: [MOSC_ADD:word|concept|weight]",
+            "  Delete the word entirely: [MOSC_DEL:word]",
+            "  Delete a single edge: [MOSC_DEL_EDGE:word|concept]",
+            "",
+            "  Examples:",
+            "  [MOSC_ADD:shopping|file_action|0.8]",
+            "  [MOSC_DEL:old_word]",
+            "  [MOSC_DEL_EDGE:hurts|kb_search_action]",
+            "",
+            "  MOSC RULES:",
+            "  · If the user asks to fix reasoning logic — edit the graph",
+            "  · If the user says 'MOSC misunderstands X' — fix the weights",
+            "  · Weight 0.0–1.0: higher = stronger link. 0.5 = neutral",
+            "=================================================",
+            "",
+            "KNOWLEDGE BASE (KB) — control via chat:",
+            "  You have access to the user's local knowledge base (stored in IndexedDB).",
+            "  If the user asks to add a fact, update or delete — use the commands:",
+            "",
+            "  Add fact:    [KB_ADD:category|trigger1,trigger2|Answer in English]",
+            "  Update answer: [KB_EDIT:trigger|New answer]",
+            "  Delete fact:   [KB_DEL:trigger]",
+            "",
+            "  Examples:",
+            "  [KB_ADD:math|pythagorean theorem,pythagoras|📐 a²+b²=c² for a right triangle]",
+            "  [KB_EDIT:speed of light|⚡ c = 299,792,458 m/s exactly]",
+            "  [KB_DEL:old trigger]",
+            "",
+            "  KB RULES:",
+            "  · If the user says 'add to knowledge base' — use KB_ADD",
+            "  · If they say 'fix the answer about X' — use KB_EDIT",
+            "  · If they say 'remove from KB' — use KB_DEL",
+            "  · Triggers — lowercase, no punctuation, 2–5 words",
+            "  · Answers — brief (1–2 sentences), emojis are fine",
+            "  · Categories: math, physics, chemistry, biology, geo, psych, tech, history,",
+            "",
+            "  View KB:   [KB_LIST:category]  or [KB_LIST:] for all facts",
+            "  View MOSC: [MOSC_SHOW:word]  or [MOSC_SHOW:all] for the whole graph",
+            "    heuristic, religion, nutrition, health, philosophy, art, lang, astronomy,",
+            "    econ, law, ecology, engineering, sport, security, medical, cooking, ethics, auto, other",
+            "=================================================",
+            "",
+            "SYSTEM MAP — WHAT YOU MAY ENRICH VIA CHAT:",
+            "  Commands you can use ON YOUR OWN initiative without being asked:",
+            "  [VB_ADD:intent|regex] — add a pattern to Velantrim Brain",
+            "    Example: [VB_ADD:kb_music|tell.*(music|artist|track)]",
+            "  [FL_SET:threshold=0.7,maxFacts=5,mode=hybrid] — tune retrieval weights",
+            "    threshold: 0.4 soft / 0.65 normal / 0.85 strict",
+            "  [KB_ADD:category|trigger1,trigger2|Answer] — add a fact to the base",
+            "  [MOSC_ADD:word|concept|weight] — strengthen a semantic link",
+            "  [MEM_ADD:tag|text] — save a personal entry to EITI Memory (tag: note/task/idea/ai/general)\n  [MEM_UPDATE:tag|text] — update / replace an EITI Memory entry (when the user says update, change, fix) — DELETES old entries with the same tag and saves the new one\n  [MEM_DEL:tag|text] — DELETE an entry from EITI Memory (tag — by tag, text — by partial match)",
+            "  [TASK_ADD:status|Title|Description|date|priority|tags] — add a task to the Personal Board\n    status: To Do / In Progress / Done / Blocked\n    priority: low / medium / high\n    date: YYYY-MM-DD or empty\n    Example: [TASK_ADD:To Do|Launch PWA|Check GitHub Pages|2026-06-01|high|dev,eiti]\n  [TASK_MOVE:id|status] — move a task between columns, e.g. [TASK_MOVE:3|Done]\n  [TASK_UPDATE:id|field=value] — update a task field, e.g. [TASK_UPDATE:3|due_date=2026-06-15]\n  [TASK_DEL:id] — delete a task by id\n  When the user talks about tasks, plans, deadlines — save them to the Board via [TASK_ADD]. Before adding, check for an existing task with the same title (deduplicate). When they ask 'show tasks' — call showPersonalBoard().",
+            "  [PKG:category|concept|weight] — strengthen a node in the Hebbian knowledge graph (weight: 1–5, category: interest/habit/project/value/skill/health/relationship)",
+            "    Example: [PKG:interest|permaculture|3] — user mentions it again, strengthen the node",
+            "    Example: [PKG:project|EITI development|2] — active user project",
+            "  [PKG_E:concept] — emotional boost for a node (user explicitly said this is IMPORTANT to them)",
+            "    Example: [PKG_E:family] — if they said 'this is very important to me'",
+            "",
+            "  PKG RULES — WHEN TO APPLY:",
+            "  · User returns to a topic again → [PKG:category|topic|2]",
+            "  · Names something as their hobby/habit/project → [PKG:...]",
+            "  · Says 'this matters', 'this is mine', 'I do this' → [PKG_E:topic]",
+            "  · ALWAYS add PKG tags silently, without telling the user",
+            "  · If the PKG block in the prompt has '⚡ Proactive hint' — mention this topic NATURALLY if appropriate",
+            "",
+            "  WHEN TO APPLY:",
+            "  · Question not in KB → add [KB_ADD] at the end of the reply",
+            "  · Request not recognised by VB → add [VB_ADD]",
+            "  · Search returns irrelevant results → tune [FL_SET]",
+            "  · After a technical answer → add MOSC links",
+            "",
+            "  DIALOG ANALYSIS:",
+            "  · User: 'analyse the conversation' → the system runs eitiAnalyzeChat()",
+            "  · You can suggest: 'Want me to enrich the knowledge base from our conversation?'",
+            "  · After analysis: the user says 'apply' or 'reject'",
+            "",
+            "  DO NOT TOUCH: JS functions, IndexedDB structure, Service Worker, HTML",
+            "=================================================",
+            "",
+            "INTERNET SEARCH RULE (DDG Web Search):",
+            "  · EITI HAS a built-in DuckDuckGo search — it fires automatically when needed.",
+            "  · If you see '=== 🌐 DuckDuckGo results' in the context — those are REAL internet results.",
+            "  · You MUST use those results in your reply. DO NOT say you have no internet access.",
+            "  · If you see '[🌐 DDG: no results]' — say the search returned nothing for this query.",
+            "  · NEVER say 'I have no internet access' or 'I cannot search the web' —",
+            "    EITI does have DDG search; it just may not have returned results for this particular query.",
+            "  · If the user does NOT ask to search the web but you think fresh data would help —",
+            "    you MAY propose: 'Want me to search for this on the web?'",
+            "  · If the user types 'look on the internet', 'search the web', 'find online' etc. —",
+            "    the system will auto-run DDG search BEFORE forwarding this message to you.",
+            "================================================="
+        ].join("\n");
+        window.EITI_SYSTEM_KNOWLEDGE_EN = EITI_SYSTEM_KNOWLEDGE_EN;
+
         var EITI_SYSTEM_KNOWLEDGE = [
             "=== VELANTRIM EITI — AI АССИСТЕНТ С ПАМЯТЬЮ И REASONING ===",
             "Ты EITI — персональный AI-ассистент Велана. У тебя есть слои памяти:",
@@ -13434,6 +13748,20 @@
             "================================================="
         ].join("\n");
         window.EITI_SYSTEM_KNOWLEDGE = EITI_SYSTEM_KNOWLEDGE; // v12.9.47 FIX: expose to global scope for cross-script mutations
+        window.EITI_SYSTEM_KNOWLEDGE_RU = EITI_SYSTEM_KNOWLEDGE;
+        // Locale-aware system prompt resolver.
+        //   userText (optional) lets us auto-detect when reply lang is 'auto'.
+        //   When called without userText, falls back to the effective lang of an empty string,
+        //   which honours the explicit setting (en/ru) or defaults to ru.
+        window.eitiGetSystemKnowledge = function(userText) {
+            var lang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                ? window.eitiGetEffectiveReplyLang(userText || '')
+                : 'ru';
+            // Pick up live mutations to window.EITI_SYSTEM_KNOWLEDGE (some code paths reassign it).
+            return (lang === 'en')
+                ? (window.EITI_SYSTEM_KNOWLEDGE_EN || EITI_SYSTEM_KNOWLEDGE_EN)
+                : (window.EITI_SYSTEM_KNOWLEDGE || EITI_SYSTEM_KNOWLEDGE);
+        };
 
         // ════════════════════════════════════════════════
         // EITI MARKDOWN RENDERER — красивый текст без ** и #
@@ -13451,14 +13779,14 @@
             var d=[
                 // ── БАЗОВЫЕ (исправлены дубли и шум) ─────────────────────────
                 // FIX: добавлены границы слов, убраны слишком общие токены
-                {intent:'greeting',re:/^(привет|хай|хей|здравствуй|здравствуйте|добрый день|добрый вечер|доброе утро|hello|hi\b|ку\b|салют|доброго)/i},
-                {intent:'farewell',re:/^(пока|до свидания|прощай|бай|bye|увидимся|до встречи|всего хорошего|спокойной ночи|до завтра)/i},
-                {intent:'howdy',re:/^(как дела|как ты|как сам|что нового|как жизнь|как поживаешь|как настроение|как себя чувствуешь|всё нормально\?)/i},
-                {intent:'thanks',re:/^(спасибо|благодар|thanks|пасиб|мерси|ценю|благодарю)/i},
+                {intent:'greeting',re:/^(привет|хай|хей|здравствуй|здравствуйте|добрый день|добрый вечер|доброе утро|hello|hi\b|hey\b|ку\b|салют|доброго|good (morning|afternoon|evening|day)|greetings|howdy|sup\b|yo\b)/i},
+                {intent:'farewell',re:/^(пока|до свидания|прощай|бай|bye|goodbye|farewell|увидимся|до встречи|see you|see ya|cya|всего хорошего|good night|спокойной ночи|до завтра|until tomorrow|take care|catch you later)/i},
+                {intent:'howdy',re:/^(как дела|как ты|как сам|что нового|как жизнь|как поживаешь|как настроение|как себя чувствуешь|всё нормально\?|how are you|how('s| is) it going|how have you been|how do you do|what'?s up|what'?s new|how'?s life)/i},
+                {intent:'thanks',re:/^(спасибо|благодар|thanks|thank you|thx|пасиб|мерси|merci|ценю|appreciate|благодарю|grateful|cheers)/i},
                 // FIX: убраны слишком короткие токены (когда/где/какой) — слишком много ложных срабатываний
-                {intent:'fact',re:/^(что такое|кто такой|кто такая|объясни|расскажи про|что означает|что значит|дай определение|поясни|как называется)/i},
+                {intent:'fact',re:/^(что такое|кто такой|кто такая|объясни|расскажи про|что означает|что значит|дай определение|поясни|как называется|what is|who is|explain|tell me about|what does .* mean|define|definition of|what is called|describe)/i},
                 // FIX: расширен список команд
-                {intent:'command',re:/^(создай|добавь|удали|покажи|найди|открой|сохрани|запомни|напомни|составь|сделай|отправь|скопируй|переименуй|перенеси|закрой|обнови|очисти|включи|выключи|запусти)/i},
+                {intent:'command',re:/^(создай|добавь|удали|покажи|найди|открой|сохрани|запомни|напомни|составь|сделай|отправь|скопируй|переименуй|перенеси|закрой|обнови|очисти|включи|выключи|запусти|create|add|delete|remove|show|find|open|save|remember|remind|make|send|copy|rename|move|close|update|clear|turn (on|off)|enable|disable|launch|run|start|stop)/i},
                 {intent:'philosophy',re:/(смысл жизни|сознание|свобода воли|бытие|что есть истина|зачем мы живём|существование|этика|мораль|что значит быть|нигилизм|экзистенц|детерминизм|солипсизм)/i},
                 {intent:'science',re:/(как работает|принцип действия|механизм|научная теория|квантов|относительност|эволюц|гравитац|нейрон|молекул|атом|термодинамик|физика|химия|биология|астрономи)/i},
                 {intent:'emotion',re:/(устал|устала|грустн|тяжело|плохо мне|тревог|стресс|злой|злая|скучно|одинок|не могу|депресс|апати|выгорел|переживаю|беспокоюсь|страшно|больно|обидно|расстроен)/i},
@@ -13466,7 +13794,7 @@
                 // FIX: убраны 'интересный факт' и 'удиви меня' — они были в kb_facts и создавали конфликт
                 {intent:'smalltalk',re:/(поболтаем|поговорим|расскажи что-нибудь|fun fact|просто поговори|поддержи разговор|скажи что-нибудь интересное)/i},
                 // FIX: убран голый '^нет' — слишком широко. Теперь только явные исправления
-                {intent:'correction',re:/^(не то|не правильно|имею в виду|я имел в виду|ты неправильно понял|не это я имею|не совсем так|не об этом|перефразирую|уточню)/i},
+                {intent:'correction',re:/^(не то|не правильно|имею в виду|я имел в виду|ты неправильно понял|не это я имею|не совсем так|не об этом|перефразирую|уточню|not that|wrong|incorrect|i meant|that'?s wrong|you misunderstood|not quite|to clarify|let me rephrase|that'?s not what i meant)/i},
                 {intent:'kb_quotes',re:/(расскажи|дай|покажи|скажи)\s+(цитату|мудрую мысль|афоризм)|^цитату?$|^афоризм$|случайная цитата|цитата дня|мудрость дня/i},
                 {intent:'kb_jokes',re:/(расскажи|дай|покажи)\s+(анекдот|шутку|смешное)|^анекдот$|^шутку?$|рассмеши меня|что-нибудь смешное/i},
                 // FIX: убран 'интересный факт' из smalltalk, он живёт здесь
@@ -13494,64 +13822,64 @@
                 {intent:'kb_relationships_topic',re:/четыре всадник.*готтман|готтман|языки любви|треугольник.*любв.*стернберг|стернберг любов/i},
 
                 // ── ЗАМЕТКИ И ПАМЯТЬ ──────────────────────────────────────────
-                {intent:'note_create',re:/^(запиши|сохрани заметку|создай заметку|добавь заметку|новая заметка|заметка:|хочу записать|запомни это|сохрани это)/i},
-                {intent:'note_search',re:/^(найди заметку|поищи в заметках|найди в заметках|есть ли заметка|поиск по заметкам|покажи заметки|найди записи)/i},
-                {intent:'note_list',re:/^(покажи (все |мои )?заметки|список заметок|мои заметки|все записи|что я записывал)/i},
-                {intent:'memory_recall',re:/(что я (говорил|упоминал|рассказывал|писал)|мы говорили о|вспомни что|помнишь когда|ранее (я|мы)|в прошлый раз|напомни что мы обсуждали)/i},
+                {intent:'note_create',re:/^(запиши|сохрани заметку|создай заметку|добавь заметку|новая заметка|заметка:|хочу записать|запомни это|сохрани это|write down|save (a |this )?note|create (a |new )?note|add (a |new )?note|new note|note:|i want to (write|note)|remember this|save this)/i},
+                {intent:'note_search',re:/^(найди заметку|поищи в заметках|найди в заметках|есть ли заметка|поиск по заметкам|покажи заметки|найди записи|find (a |the )?note|search (in )?notes|look in notes|search my notes|find in notes|is there a note|show me (the )?notes|find (my )?records|look at notes)/i},
+                {intent:'note_list',re:/^(покажи (все |мои )?заметки|список заметок|мои заметки|все записи|что я записывал|show (all |my )?notes|list (of )?notes|my notes|all (my )?records|all notes|what (did|have) i (written|noted))/i},
+                {intent:'memory_recall',re:/(что я (говорил|упоминал|рассказывал|писал)|мы говорили о|вспомни что|помнишь когда|ранее (я|мы)|в прошлый раз|напомни что мы обсуждали|what (did|have) i (said|mentioned|told|written)|we (talked|spoke|discussed) about|remember (when|what)|do you remember|earlier (i|we)|last time|what did we (discuss|talk about)|look at history)/i},
 
                 // ── ВРЕМЯ И ДАТА ──────────────────────────────────────────────
-                {intent:'time_date',re:/^(который час|сколько времени|какое сегодня|какой сегодня|какой день|какой месяц|какой год|сколько дней|дата сегодня|текущее время|когда наступит)/i},
-                {intent:'reminder_set',re:/^(напомни|поставь напоминание|создай напоминание|напомни мне|не дай забыть|поставь будильник|запланируй)/i},
-                {intent:'timer',re:/^(таймер|запусти таймер|поставь таймер|засеки|через .+ минут|через .+ секунд|обратный отсчёт)/i},
+                {intent:'time_date',re:/^(который час|сколько времени|какое сегодня|какой сегодня|какой день|какой месяц|какой год|сколько дней|дата сегодня|текущее время|когда наступит|what time|current time|what(s| is) the date|what date|today'?s date|what day|what month|what year|how many days|when (is|will))/i},
+                {intent:'reminder_set',re:/^(напомни|поставь напоминание|создай напоминание|напомни мне|не дай забыть|поставь будильник|запланируй|remind me|set (a |the )?reminder|create (a |the )?reminder|don'?t let me forget|set (an? )?alarm|schedule)/i},
+                {intent:'timer',re:/^(таймер|запусти таймер|поставь таймер|засеки|через .+ минут|через .+ секунд|обратный отсчёт|timer|set (a |the )?timer|start (a )?timer|in .+ (minute|second|hour)s?|countdown|count down)/i},
 
                 // ── МАТЕМАТИКА И ВЫЧИСЛЕНИЯ ───────────────────────────────────
-                {intent:'math',re:/(посчитай|вычисли|сколько будет|реши пример|реши уравнение|математическ|интеграл|производная|процент от|квадратный корень|степень|делить|умножить|сложить|вычесть|\d+\s*[\+\-\*\/]\s*\d+)/i},
+                {intent:'math',re:/(посчитай|вычисли|сколько будет|реши пример|реши уравнение|математическ|интеграл|производная|процент от|квадратный корень|степень|делить|умножить|сложить|вычесть|\d+\s*[\+\-\*\/]\s*\d+|calculate|compute|what is \d|how much is|solve (the )?(equation|problem)|integral|derivative|percent of|square root|raised to|divide|multiply|add|subtract|plus|minus|times)/i},
 
                 // ── КОД И ПРОГРАММИРОВАНИЕ ────────────────────────────────────
-                {intent:'code',re:/(напиши (код|скрипт|функцию|класс|программу)|помоги с кодом|разбери код|что делает этот код|ошибка в коде|баг|дебаг|javascript|python|css|html|sql|json|регулярное выражение|regex|алгоритм|рефактор)/i},
-                {intent:'debug',re:/(ошибка|error|exception|не работает|сломалось|баг|bug|почему не (работает|запускается|открывается)|упало|крашится|undefined|null pointer|syntax error)/i},
+                {intent:'code',re:/(напиши (код|скрипт|функцию|класс|программу)|помоги с кодом|разбери код|что делает этот код|ошибка в коде|баг|дебаг|write (a |some )?(code|script|function|class|program)|help with (the )?code|review (this |the )?code|what does this code do|code review|debug|refactor|javascript|python|css|html|sql|json|regular expression|regex|algorithm)/i},
+                {intent:'debug',re:/(ошибка|error|exception|не работает|doesn'?t work|isn'?t working|broken|сломалось|баг|bug|почему не (работает|запускается|открывается)|why (doesn'?t|won'?t) (it )?(work|run|open|start)|упало|crashed|crashes|crashing|крашится|undefined|null pointer|syntax error|stack trace|stacktrace)/i},
 
                 // ── ПЕРЕВОД И ЯЗЫКИ ───────────────────────────────────────────
-                {intent:'translate',re:/(переведи|перевод|как (сказать|будет) (по|на) |translate|что значит|как переводится|с английского|на английский|с русского|на русский|на немецком|на французском|на испанском|как по-английски|как по-русски)/i},
-                {intent:'language_learn',re:/(учу (язык|английский|немецкий|испанский|французский|китайский|японский)|как правильно (сказать|написать)|грамматика|произношение|слова на|выражение на|фраза на)/i},
+                {intent:'translate',re:/(переведи|перевод|как (сказать|будет) (по|на) |translate|translation|how (do you say|to say) in|what does .+ mean in|how is .+ translated|что значит|как переводится|с английского|на английский|с русского|на русский|from (english|russian|german|french|spanish)|to (english|russian|german|french|spanish)|in (german|french|spanish|english|russian)|как по-английски|как по-русски|in english|in russian)/i},
+                {intent:'language_learn',re:/(учу (язык|английский|немецкий|испанский|французский|китайский|японский)|как правильно (сказать|написать)|грамматика|произношение|слова на|выражение на|фраза на|i'?m learning (english|german|spanish|french|chinese|japanese|a language)|how to (say|write) correctly|grammar|pronunciation|words for|expression for|phrase for|learning a language)/i},
 
                 // ── ПОГОДА И ОКРУЖЕНИЕ ────────────────────────────────────────
-                {intent:'weather',re:/^(какая погода|прогноз погоды|температура (сегодня|завтра|на неделю)|будет ли дождь|нужна ли куртка|тепло ли (будет|сегодня))/i},
+                {intent:'weather',re:/^(какая погода|прогноз погоды|температура (сегодня|завтра|на неделю)|будет ли дождь|нужна ли куртка|тепло ли (будет|сегодня)|what(s| is) the weather|weather (forecast|today|tomorrow|this week)|temperature (today|tomorrow|for the week)|will it rain|do i need a (jacket|coat|umbrella)|is it warm)/i},
 
                 // ── ТВОРЧЕСТВО ────────────────────────────────────────────────
-                {intent:'creative_write',re:/(напиши (стихотворение|стих|поэму|рассказ|историю|сказку|пост|текст|эссе|статью|сочинение|письмо|описание|сценарий|диалог|монолог)|придумай (историю|сюжет|персонажа|имя|название)|сгенерируй текст|помоги написать)/i},
-                {intent:'brainstorm',re:/(придумай идеи|предложи идеи|мозговой штурм|генерация идей|как можно (сделать|улучшить|решить)|варианты решения|какие есть способы|помоги придумать|накидай идей)/i},
-                {intent:'summarize',re:/(кратко|резюмируй|подведи итог|tldr|tl;dr|суть в том|главная мысль|выжимка|ключевые точки|основные тезисы|сделай краткое изложение|в двух словах)/i},
+                {intent:'creative_write',re:/(напиши (стихотворение|стих|поэму|рассказ|историю|сказку|пост|текст|эссе|статью|сочинение|письмо|описание|сценарий|диалог|монолог)|придумай (историю|сюжет|персонажа|имя|название)|сгенерируй текст|помоги написать|write (a |an )?(poem|story|tale|post|text|essay|article|letter|description|script|dialog|monologue)|come up with (a )?(story|plot|character|name|title)|generate (a |some )?text|help (me )?write)/i},
+                {intent:'brainstorm',re:/(придумай идеи|предложи идеи|мозговой штурм|генерация идей|как можно (сделать|улучшить|решить)|варианты решения|какие есть способы|помоги придумать|накидай идей|brainstorm|come up with ideas|generate ideas|suggest ideas|how (can|could) (i|we) (do|improve|solve)|options for|what are the ways|help (me )?(think|brainstorm)|ways to)/i},
+                {intent:'summarize',re:/(кратко|резюмируй|подведи итог|tldr|tl;dr|суть в том|главная мысль|выжимка|ключевые точки|основные тезисы|сделай краткое изложение|в двух словах|summarize|summary of|in summary|the gist|the main point|key points|main thesis|sum up|in short|in brief|to summarize|brief overview)/i},
 
                 // ── ЗДОРОВЬЕ И ФИТНЕС ─────────────────────────────────────────
-                {intent:'health',re:/(болит|болит голова|температура|симптом|лечение|таблетки|врач|здоровье|иммунитет|витамин|диета|похудеть|набрать вес|калори|бмi|давление|пульс|сон плохой|бессонница)/i},
-                {intent:'fitness',re:/(тренировка|упражнения|качалка|бег|кардио|растяжка|йога|отжимания|приседания|пресс|мышцы|фитнес|спорт|как накачать|программа тренировок)/i},
-                {intent:'meditation',re:/(медитация|медитировать|дыхательные упражнения|расслабиться|успокоиться|осознанность|mindfulness|майндфулнес|визуализация|релакс|снять напряжение|внутренний покой)/i},
+                {intent:'health',re:/(болит|болит голова|температура|симптом|лечение|таблетки|врач|здоровье|иммунитет|витамин|диета|похудеть|набрать вес|калори|бмi|давление|пульс|сон плохой|бессонница|hurts|headache|fever|symptom|treatment|medication|doctor|health|immunity|vitamin|diet|lose weight|gain weight|calorie|bmi|blood pressure|pulse|insomnia|can'?t sleep)/i},
+                {intent:'fitness',re:/(тренировка|упражнения|качалка|бег|кардио|растяжка|йога|отжимания|приседания|пресс|мышцы|фитнес|спорт|как накачать|программа тренировок|workout|exercise|gym|running|cardio|stretching|yoga|pushups|squats|abs|muscles|fitness|sport|how to (build|gain) muscle|training program)/i},
+                {intent:'meditation',re:/(медитация|медитировать|дыхательные упражнения|расслабиться|успокоиться|осознанность|mindfulness|майндфулнес|визуализация|релакс|снять напряжение|внутренний покой|meditation|meditate|breathing exercise|relax|calm down|awareness|visualization|inner peace|release tension)/i},
 
                 // ── ЕДА ───────────────────────────────────────────────────────
-                {intent:'food_recipe',re:/(рецепт|как (приготовить|сварить|испечь|пожарить)|что приготовить|ингредиенты|блюдо|еда|кухня|завтрак из|ужин из|обед из|калорийность|полезно ли есть|можно ли есть)/i},
+                {intent:'food_recipe',re:/(рецепт|как (приготовить|сварить|испечь|пожарить)|что приготовить|ингредиенты|блюдо|еда|кухня|завтрак из|ужин из|обед из|калорийность|полезно ли есть|можно ли есть|recipe|how to (cook|boil|bake|fry|prepare)|what to cook|ingredients|dish|food|cuisine|breakfast (with|of)|dinner (with|of)|lunch (with|of)|calories|is it (healthy|safe) to eat|can i eat)/i},
 
                 // ── ПУТЕШЕСТВИЯ ───────────────────────────────────────────────
-                {intent:'travel',re:/(куда (поехать|слетать|сходить)|путешествие|туризм|достопримечательности|что посмотреть в|виза|билет|отель|хостел|маршрут|лучшие места|топ мест|страна|город|планирую поездку)/i},
+                {intent:'travel',re:/(куда (поехать|слетать|сходить)|путешествие|туризм|достопримечательности|что посмотреть в|виза|билет|отель|хостел|маршрут|лучшие места|топ мест|страна|город|планирую поездку|where to (go|travel|fly)|travel|tourism|sights|things to see in|visa|ticket|hotel|hostel|itinerary|best places|top places|planning a (trip|vacation))/i},
 
                 // ── ОБУЧЕНИЕ ──────────────────────────────────────────────────
-                {intent:'learn',re:/(как (научиться|выучить|освоить)|с чего начать (изучение|учёбу)|объясни простыми словами|для новичка|основы|введение в|туториал|самообразование|обучение|курс|урок)/i},
-                {intent:'compare',re:/(сравни|чем отличается|в чём разница|что лучше|что хуже|преимущества и недостатки|плюсы и минусы|vs\b|versus|или .+\?$|выбрать между)/i},
-                {intent:'list_request',re:/(дай список|составь список|перечисли|топ[ -]\d|\d+ (лучших|главных|основных|способов|шагов|причин|примеров|советов)|список (рекомендаций|книг|фильмов|ресурсов))/i},
+                {intent:'learn',re:/(как (научиться|выучить|освоить)|с чего начать (изучение|учёбу)|объясни простыми словами|для новичка|основы|введение в|туториал|самообразование|обучение|курс|урок|how to (learn|study|master)|where to start|explain (it )?simply|for beginners|basics|introduction to|tutorial|self-?taught|learning|course|lesson|getting started)/i},
+                {intent:'compare',re:/(сравни|чем отличается|в чём разница|что лучше|что хуже|преимущества и недостатки|плюсы и минусы|vs\b|versus|или .+\?$|выбрать между|compare|difference between|what'?s the difference|which is (better|worse)|pros and cons|advantages and disadvantages|choose between|or .+\?$)/i},
+                {intent:'list_request',re:/(дай список|составь список|перечисли|топ[ -]\d|\d+ (лучших|главных|основных|способов|шагов|причин|примеров|советов)|список (рекомендаций|книг|фильмов|ресурсов)|give (me )?a list|make (a |the )?list|enumerate|list of|top[ -]\d|\d+ (best|main|key|ways|steps|reasons|examples|tips)|list of (recommendations|books|movies|resources))/i},
 
                 // ── ПРОДУКТИВНОСТЬ ────────────────────────────────────────────
-                {intent:'productivity',re:/(тайм-менеджмент|управление временем|как (не откладывать|всё успевать|быть продуктивным|сосредоточиться|перестать прокрастинировать)|pomodoro|помодоро|расставить приоритеты|план на день|задачи на сегодня|gtd)/i},
-                {intent:'opinion',re:/(как ты думаешь|что думаешь|твоё мнение|посоветуй|порекомендуй|стоит ли|что выбрать|что посмотреть|что почитать|что послушать|лучший выбор|ты бы (выбрал|рекомендовал))/i},
+                {intent:'productivity',re:/(тайм-менеджмент|управление временем|как (не откладывать|всё успевать|быть продуктивным|сосредоточиться|перестать прокрастинировать)|pomodoro|помодоро|расставить приоритеты|план на день|задачи на сегодня|gtd|time management|how to (stop procrastinating|be productive|focus|get things done|prioritize)|set priorities|day plan|today'?s tasks|to-?do list)/i},
+                {intent:'opinion',re:/(как ты думаешь|что думаешь|твоё мнение|посоветуй|порекомендуй|стоит ли|что выбрать|что посмотреть|что почитать|что послушать|лучший выбор|ты бы (выбрал|рекомендовал)|what do you think|your opinion|advise me|recommend|do you think|should i|what to (pick|choose|watch|read|listen to)|best choice|would you (pick|recommend))/i},
 
                 // ── ФИНАНСЫ ───────────────────────────────────────────────────
-                {intent:'finance',re:/(инвестиции|акции|криптовалюта|бюджет|экономить|финансы|деньги|кредит|ипотека|вклад|процентная ставка|инфляция|как накопить|финансовое планирование)/i},
+                {intent:'finance',re:/(инвестиции|акции|криптовалюта|бюджет|экономить|финансы|деньги|кредит|ипотека|вклад|процентная ставка|инфляция|как накопить|финансовое планирование|investment|investing|stocks|crypto|cryptocurrency|budget|save money|finance|finances|money|credit|loan|mortgage|deposit|interest rate|inflation|how to save|financial planning)/i},
 
                 // ── ОТНОШЕНИЯ ─────────────────────────────────────────────────
-                {intent:'relationship',re:/(отношения|любовь|партнёр|парень|девушка|муж|жена|семья|дети|дружба|конфликт с|поругались|как помириться|как поговорить с|одиночество|познакомиться)/i},
-                {intent:'apology',re:/^(извини|прости|извините|простите|sorry|виноват|моя ошибка|я был неправ|я ошибся)/i},
+                {intent:'relationship',re:/(отношения|любовь|партнёр|парень|девушка|муж|жена|семья|дети|дружба|конфликт с|поругались|как помириться|как поговорить с|одиночество|познакомиться|relationship|love|partner|boyfriend|girlfriend|husband|wife|family|kids|children|friendship|conflict with|had a fight|how to make up|how to talk to|loneliness|meet (someone|people))/i},
+                {intent:'apology',re:/^(извини|прости|извините|простите|sorry|my apologies|my bad|виноват|моя ошибка|my mistake|i was wrong|я был неправ|я ошибся|i (made an )?mistake|forgive me|apologies)/i},
 
                 // ── ТЕХНОЛОГИИ ────────────────────────────────────────────────
-                {intent:'tech_help',re:/(как (пользоваться|настроить|установить|обновить|починить|подключить)|телефон|компьютер|приложение|программа|настройки|wi-fi|интернет|браузер|операционная система|windows|macos|android|ios|linux)/i},
+                {intent:'tech_help',re:/(как (пользоваться|настроить|установить|обновить|починить|подключить)|how to (use|configure|install|update|fix|repair|connect)|телефон|phone|компьютер|computer|приложение|app|программа|software|настройки|settings|wi-?fi|интернет|internet|browser|browser|operating system|windows|macos|android|ios|linux)/i},
 
                 // ── РАЗВЛЕЧЕНИЯ ───────────────────────────────────────────────
                 {intent:'movie_book',re:/(посоветуй (фильм|сериал|книгу|аниме|игру)|хочу (посмотреть|почитать|поиграть)|что посмотреть|что почитать|лучшие фильмы|топ книг|рейтинг|жанр)/i},
@@ -15226,38 +15554,95 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _grokVoiceName = (localStorage.getItem('eiti_grok_voice_name') || 'Rex').toLowerCase();
 
                     // v12.9: Self-awareness — архитектура системы
-                    var _grokSelfInfo = '=== VELANTRIM EITI v' + (window.EITI_VERSION||'?') + ' — АРХИТЕКТУРА ===\n';
-                    _grokSelfInfo += 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
-                    _grokSelfInfo += 'Хранилище: IndexedDB (чаты/заметки/файлы/L2), localStorage (настройки/L3), SQLite WASM (FTS5)\n';
-                    _grokSelfInfo += 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
-                    _grokSelfInfo += 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
-                    _grokSelfInfo += 'Память: L0 RAM→L1 SQLite→L2 IDB дайджесты→L3 localStorage профиль\n';
-                    _grokSelfInfo += 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
-                    _grokSelfInfo += 'KB: база знаний (факты с тегами, FTS5-поиск)\n';
-                    _grokSelfInfo += 'Заметки: IDB store "notes" (title/body/tags)\n';
-                    _grokSelfInfo += 'Файлы: IDB store "files" (импортированные + системные)\n';
+                    // v13.4.6: locale-aware (Grok Voice has no user text yet, so we honour the
+                    // explicit setting; falls back to UI locale if 'auto').
+                    var _gForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+                    var _gLang = (_gForced === 'en' || _gForced === 'ru')
+                        ? _gForced
+                        : (typeof window.eitiGetLocale === 'function' ? window.eitiGetLocale() : 'ru');
+                    var _EN = (_gLang === 'en');
+                    var _grokSelfInfo = '=== VELANTRIM EITI v' + (window.EITI_VERSION||'?') + (_EN ? ' — ARCHITECTURE ===\n' : ' — АРХИТЕКТУРА ===\n');
+                    _grokSelfInfo += _EN
+                        ? 'Type: Single-file PWA (HTML+CSS+JS+SW monolith)\n'
+                        : 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Storage: IndexedDB (chats/notes/files/L2), localStorage (settings/L3), SQLite WASM (FTS5)\n'
+                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/L2), localStorage (настройки/L3), SQLite WASM (FTS5)\n';
+                    _grokSelfInfo += _EN
+                        ? 'AI providers: DeepSeek API (main), Gemini API, Grok Voice (you), WebLLM offline\n'
+                        : 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
+                    _grokSelfInfo += _EN
+                        ? 'Search: BM25+FTS5+Semantic (KB), TextRank (snippets), DuckDuckGo (web)\n'
+                        : 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Memory: L0 RAM→L1 SQLite→L2 IDB digests→L3 localStorage profile\n'
+                        : 'Память: L0 RAM→L1 SQLite→L2 IDB дайджесты→L3 localStorage профиль\n';
+                    _grokSelfInfo += _EN
+                        ? 'Graph: MOSC reasoning graph (nodes/edges/weights)\n'
+                        : 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
+                    _grokSelfInfo += _EN
+                        ? 'KB: knowledge base (facts with tags, FTS5 search)\n'
+                        : 'KB: база знаний (факты с тегами, FTS5-поиск)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Notes: IDB store "notes" (title/body/tags)\n'
+                        : 'Заметки: IDB store "notes" (title/body/tags)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Files: IDB store "files" (imported + system)\n'
+                        : 'Файлы: IDB store "files" (импортированные + системные)\n';
                     try {
                         var _kbS = window._kbMemCache; var _nS = window._idbNotesCache;
-                        _grokSelfInfo += 'Состояние: KB=' + (_kbS?_kbS.length:0) + ' фактов, Заметок=' + (_nS?_nS.length:0) + ', Чат=' + (window.eitiCurrentChatId||'нет') + '\n';
+                        _grokSelfInfo += _EN
+                            ? ('State: KB=' + (_kbS?_kbS.length:0) + ' facts, Notes=' + (_nS?_nS.length:0) + ', Chat=' + (window.eitiCurrentChatId||'none') + '\n')
+                            : ('Состояние: KB=' + (_kbS?_kbS.length:0) + ' фактов, Заметок=' + (_nS?_nS.length:0) + ', Чат=' + (window.eitiCurrentChatId||'нет') + '\n');
                     } catch(e) {}
-                    _grokSelfInfo += 'Команды которые TЫ МОЖЕШЬ использовать:\n';
-                    _grokSelfInfo += '  [MEM_ADD:tag|текст] — сохранить в личную память\n';
-                    _grokSelfInfo += '  [MEM_UPDATE:tag|текст] — обновить личную память\n';
-                    _grokSelfInfo += '  [MEM_DEL:tag|текст] — удалить из личной памяти\n';
-                    _grokSelfInfo += '  [NOTE_WRITE:заголовок|текст] — создать/обновить заметку\n';
-                    _grokSelfInfo += '  [NOTE_APPEND:заголовок|текст] — добавить в заметку\n';
-                    _grokSelfInfo += '  <EITI_FILE:имя.txt>содержимое</EITI_FILE> — создать файл\n';
-                    _grokSelfInfo += 'Команды только через DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n';
-                    _grokSelfInfo += 'Ты (Grok Voice): ПОЛНЫЙ ДОСТУП К ЧТЕНИЮ и ЗАПИСИ заметок/файлов/памяти.\n';
+                    _grokSelfInfo += _EN
+                        ? 'Commands YOU CAN use:\n'
+                        : 'Команды которые TЫ МОЖЕШЬ использовать:\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_ADD:tag|text] — save to personal memory\n'
+                        : '  [MEM_ADD:tag|текст] — сохранить в личную память\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_UPDATE:tag|text] — update personal memory\n'
+                        : '  [MEM_UPDATE:tag|текст] — обновить личную память\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_DEL:tag|text] — delete from personal memory\n'
+                        : '  [MEM_DEL:tag|текст] — удалить из личной памяти\n';
+                    _grokSelfInfo += _EN
+                        ? '  [NOTE_WRITE:title|text] — create/update a note\n'
+                        : '  [NOTE_WRITE:заголовок|текст] — создать/обновить заметку\n';
+                    _grokSelfInfo += _EN
+                        ? '  [NOTE_APPEND:title|text] — append to a note\n'
+                        : '  [NOTE_APPEND:заголовок|текст] — добавить в заметку\n';
+                    _grokSelfInfo += _EN
+                        ? '  <EITI_FILE:name.txt>content</EITI_FILE> — create a file\n'
+                        : '  <EITI_FILE:имя.txt>содержимое</EITI_FILE> — создать файл\n';
+                    _grokSelfInfo += _EN
+                        ? 'Commands available only via DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n'
+                        : 'Команды только через DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n';
+                    _grokSelfInfo += _EN
+                        ? 'You (Grok Voice): FULL READ AND WRITE ACCESS to notes/files/memory.\n'
+                        : 'Ты (Grok Voice): ПОЛНЫЙ ДОСТУП К ЧТЕНИЮ и ЗАПИСИ заметок/файлов/памяти.\n';
+                    if (_EN) {
+                        _grokSelfInfo += 'LANGUAGE: Reply in the user\'s language. If they speak Russian — reply in Russian; if they speak English — reply in English.\n';
+                    } else {
+                        _grokSelfInfo += 'ЯЗЫК: Отвечай на языке пользователя. Если говорит по-русски — отвечай по-русски; если по-английски — по-английски.\n';
+                    }
+                    if (_gForced === 'en') {
+                        _grokSelfInfo = '🌐 LANGUAGE OVERRIDE: Always reply in English regardless of the user\'s speech language.\n\n' + _grokSelfInfo;
+                    } else if (_gForced === 'ru') {
+                        _grokSelfInfo = '🌐 ЯЗЫК: Всегда отвечай на русском независимо от языка речи пользователя.\n\n' + _grokSelfInfo;
+                    }
                     // Добавляем реальное содержимое KB в контекст Grok
                     try {
                         var _kbAll = window._kbMemCache || [];
                         if (_kbAll.length > 0) {
-                            _grokSelfInfo += '\n=== БАЗА ЗНАНИЙ EITI (топ-' + Math.min(_kbAll.length, 80) + ' фактов) ===\n';
+                            _grokSelfInfo += _EN
+                                ? ('\n=== EITI KNOWLEDGE BASE (top-' + Math.min(_kbAll.length, 80) + ' facts) ===\n')
+                                : ('\n=== БАЗА ЗНАНИЙ EITI (топ-' + Math.min(_kbAll.length, 80) + ' фактов) ===\n');
                             _kbAll.slice(0, 80).forEach(function(f, i) {
                                 _grokSelfInfo += (i+1) + '. [' + (f.tag||'–') + '] ' + (f.fact||f.text||'').slice(0, 300) + '\n';
                             });
-                            _grokSelfInfo += '=== КОНЕЦ KB ===';
+                            _grokSelfInfo += _EN ? '=== END OF KB ===' : '=== КОНЕЦ KB ===';
                         }
                     } catch(e) {}
                     // Добавляем MOSC граф в контекст Grok
@@ -15266,21 +15651,25 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         var _moscNodes = _moscAll.nodes || [];
                         var _moscEdges = _moscAll.edges || [];
                         if (_moscNodes.length > 0) {
-                            _grokSelfInfo += '\n=== MOSC ГРАФ (' + _moscNodes.length + ' узлов, ' + _moscEdges.length + ' связей) ===\n';
+                            _grokSelfInfo += _EN
+                                ? ('\n=== MOSC GRAPH (' + _moscNodes.length + ' nodes, ' + _moscEdges.length + ' edges) ===\n')
+                                : ('\n=== MOSC ГРАФ (' + _moscNodes.length + ' узлов, ' + _moscEdges.length + ' связей) ===\n');
                             _moscNodes.slice(0, 50).forEach(function(n) {
                                 _grokSelfInfo += '• ' + (n.id||n.name) + (n.desc ? ': ' + (n.desc||'').slice(0, 150) : '') + '\n';
                             });
-                            _grokSelfInfo += '=== КОНЕЦ MOSC ===';
+                            _grokSelfInfo += _EN ? '=== END OF MOSC ===' : '=== КОНЕЦ MOSC ===';
                         }
                     } catch(e) {}
-                    _grokSelfInfo += '\n=== КОНЕЦ АРХИТЕКТУРЫ ===';
+                    _grokSelfInfo += _EN ? '\n=== END OF ARCHITECTURE ===' : '\n=== КОНЕЦ АРХИТЕКТУРЫ ===';
                     // v12.9.77: добавляем содержимое дневника (RNE) в контекст Grok
                     try {
                         var _rneCtx = (typeof _rneData !== 'undefined') ? _rneData : null;
                         if (_rneCtx && (_rneCtx.goals || _rneCtx.facts || _rneCtx.smartSections)) {
-                            _grokSelfInfo += '\n\n=== 📓 ДНЕВНИК EITI (RNE) ===\n';
+                            _grokSelfInfo += _EN
+                                ? '\n\n=== 📓 EITI JOURNAL (RNE) ===\n'
+                                : '\n\n=== 📓 ДНЕВНИК EITI (RNE) ===\n';
                             if (_rneCtx.smartSections && _rneCtx.smartSections.length) {
-                                _grokSelfInfo += '🧠 Умные разделы:\n';
+                                _grokSelfInfo += _EN ? '🧠 Smart sections:\n' : '🧠 Умные разделы:\n';
                                 _rneCtx.smartSections.forEach(function(s) {
                                     _grokSelfInfo += '  ' + (s.title||'') + ':\n';
                                     (s.items||[]).forEach(function(it){ _grokSelfInfo += '    • ' + it + '\n'; });
@@ -15295,7 +15684,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     items.slice(0,15).forEach(function(it){ _grokSelfInfo += '  • ' + (it.text||'') + '\n'; });
                                 }
                             });
-                            _grokSelfInfo += '=== КОНЕЦ ДНЕВНИКА ===';
+                            _grokSelfInfo += _EN ? '=== END OF JOURNAL ===' : '=== КОНЕЦ ДНЕВНИКА ===';
                         }
                     } catch(e) {}
                     var _grokTools = [
@@ -16633,16 +17022,37 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 // Динамика (время, intent stack, state) — в конце, в отдельном user-prefixed блоке
 
                 // === STATIC PREFIX (кэшируется DeepSeek KV-cache) ===
-                var _sysStatic = EITI_SYSTEM_KNOWLEDGE;
+                // v13.4.6: locale-aware system prompt — picks EN/RU based on user message + reply-lang setting.
+                var _replyLang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                    ? window.eitiGetEffectiveReplyLang(userText)
+                    : 'ru';
+                var _forcedReplyLang = (typeof window.eitiGetAiReplyLang === 'function')
+                    ? window.eitiGetAiReplyLang() : 'auto';
+                var _sysStatic = (typeof window.eitiGetSystemKnowledge === 'function')
+                    ? window.eitiGetSystemKnowledge(userText)
+                    : EITI_SYSTEM_KNOWLEDGE;
+                // Explicit forced-language override (only when user set en/ru, not auto)
+                if (_forcedReplyLang === 'en') {
+                    _sysStatic = '🌐 LANGUAGE OVERRIDE: Always reply in English, regardless of the user\'s message language. Use English for all responses, examples, comments and explanations.\n\n' + _sysStatic;
+                } else if (_forcedReplyLang === 'ru') {
+                    _sysStatic = '🌐 ЯЗЫК: Всегда отвечай на русском, независимо от языка сообщения пользователя. Используй русский для всех ответов, примеров, комментариев и пояснений.\n\n' + _sysStatic;
+                }
                 // v13.3.3: prepend user instructions at TOP for maximum compliance
                 var _instrTop = eitiGetInstructions();
                 if (_instrTop) {
-                    _sysStatic = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _instrTop + '\n\n' + _sysStatic;
+                    var _rulePrefix = (_replyLang === 'en')
+                        ? '🔴 RULE #1 — ALWAYS FOLLOW: '
+                        : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+                    _sysStatic = _rulePrefix + _instrTop + '\n\n' + _sysStatic;
                 }
                 // Заменяем время один раз на округлённое до часа (меняется раз в час → кэш живёт час)
                 var _nowHour = new Date();
                 _nowHour.setMinutes(0, 0, 0);
-                _sysStatic = _sysStatic.replace(/сейчас [^\n]+/g, 'сейчас ' + _nowHour.toLocaleString('ru'));
+                if (_replyLang === 'en') {
+                    _sysStatic = _sysStatic.replace(/now [^\n]+/g, 'now ' + _nowHour.toLocaleString('en'));
+                } else {
+                    _sysStatic = _sysStatic.replace(/сейчас [^\n]+/g, 'сейчас ' + _nowHour.toLocaleString('ru'));
+                }
 
                 // v12.9.62: Sticky File — вставляем файл в статический префикс системного промпта
                 // Это позволяет DeepSeek KV-cache кэшировать файл между запросами
@@ -17264,8 +17674,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                 // ── COGNITIVE MODE — Hyperia-style (v7.4) ───────────────
                 var _cogMode = eitiGetCogMode();
-                if (_CMODE_PROMPTS[_cogMode] && _cogMode !== 'balanced') {
-                    sysContent += '\n\n' + _CMODE_PROMPTS[_cogMode];
+                if (_cogMode !== 'balanced') {
+                    var _cmodePrompt = (typeof window.eitiGetCmodePrompt === 'function')
+                        ? window.eitiGetCmodePrompt(_cogMode, userText)
+                        : _CMODE_PROMPTS[_cogMode];
+                    if (_cmodePrompt) sysContent += '\n\n' + _cmodePrompt;
                 }
 
                 // ── v12.5 FIX: KB контекст — СИНХРОННЫЙ поиск (BM25 + релевантные факты) ──
@@ -27704,6 +28117,21 @@ window.eitiLLMClearAll = async function() {
             websearch:   'РЕЖИМ: WEB SEARCH. Тебе переданы актуальные результаты из интернета. Используй их как основной источник. Дата сегодня: ',
             essence:     'РЕЖИМ: СУТЬ. Отвечай ТОЛЬКО самую суть — 1-3 предложения максимум. Никакого вступления, никаких повторов вопроса, никакой воды. Только главное.'
         };
+        var _CMODE_PROMPTS_EN = {
+            precision:   'MODE: PRECISION. Reply strictly by facts. No assumptions without a "possibly" tag. Minimum creativity, maximum precision. Code must be working.',
+            balanced:    'MODE: BALANCED. Balance of precision and natural conversation.',
+            exploration: 'MODE: EXPLORATION. Think wider, propose hypotheses, unconventional solutions. You may speculate — but tag it as an idea.',
+            websearch:   'MODE: WEB SEARCH. You have been given fresh internet results. Use them as the primary source. Today\'s date: ',
+            essence:     'MODE: ESSENCE. Reply with ONLY the essence — 1–3 sentences max. No preamble, no echoing the question, no fluff. Only the point.'
+        };
+        // Locale-aware accessor for cognitive-mode prompt scaffolding.
+        window.eitiGetCmodePrompt = function(mode, userText) {
+            var lang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+                ? window.eitiGetEffectiveReplyLang(userText || '')
+                : 'ru';
+            var pool = (lang === 'en') ? _CMODE_PROMPTS_EN : _CMODE_PROMPTS;
+            return pool[mode] || '';
+        };
         // v12.9.77: выбор модели DeepSeek
         function eitiGetDsModel() {
             return localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash';
@@ -30693,32 +31121,69 @@ window.eitiLLMClearAll = async function() {
         if (window._eiti_reminders_interval) clearInterval(window._eiti_reminders_interval);
         window._eiti_reminders_interval = setInterval(remindersCheckPending, 30000);
         // Системный промпт: явно описываем встроенную систему напоминаний
-        EITI_SYSTEM_KNOWLEDGE += '\n\n' + [
-            '╔══════════════════════════════════════════════╗',
-            '║   ВСТРОЕННАЯ СИСТЕМА НАПОМИНАНИЙ И CALENDAR  ║',
-            '╚══════════════════════════════════════════════╝',
-            'В VELANTRIM EITI есть ПОЛНОЦЕННАЯ встроенная система напоминаний.',
-            'Браузерные push-уведомления РАБОТАЮТ — разрешение уже запрошено при старте.',
-            '',
-            'КОМАНДА для установки напоминания (добавляй в конец ответа):',
-            '  [REMIND:текст напоминания|unix_timestamp_в_миллисекундах]',
-            '',
-            'Пример: пользователь говорит "напомни в 20:35":',
-            '  → вычисли unix ms для 20:35 сегодня',
-            '  → напиши [REMIND:текст|unix_ms] в конце ответа',
-            '  → приложение автоматически покажет браузерное push-уведомление',
-            '',
-            '⚠️ ЗАПРЕЩЕНО:',
-            '  - Говорить что нет встроенного календаря или уведомлений',
-            '  - Предлагать Google Calendar, внешние сервисы',
-            '  - Говорить "если вы будете онлайн" — уведомления работают через браузер',
-            '',
-            'Как рассчитать unix timestamp:',
-            '  Сегодня: ' + new Date().toLocaleDateString('ru') + ', сейчас: ' + new Date().toLocaleTimeString('ru'),
-            '  Текущий unix ms: ' + Date.now(),
-            '  Формула: дата + время → getTime()',
-            '  Пример "в 20:35 сегодня": ' + (function(){ var d=new Date(); d.setHours(20,35,0,0); return d.getTime(); })()
-        ].join('\n');
+        (function(){
+            var _now = Date.now();
+            var _today835ms = (function(){ var d=new Date(); d.setHours(20,35,0,0); return d.getTime(); })();
+            var _ruText = [
+                '╔══════════════════════════════════════════════╗',
+                '║   ВСТРОЕННАЯ СИСТЕМА НАПОМИНАНИЙ И CALENDAR  ║',
+                '╚══════════════════════════════════════════════╝',
+                'В VELANTRIM EITI есть ПОЛНОЦЕННАЯ встроенная система напоминаний.',
+                'Браузерные push-уведомления РАБОТАЮТ — разрешение уже запрошено при старте.',
+                '',
+                'КОМАНДА для установки напоминания (добавляй в конец ответа):',
+                '  [REMIND:текст напоминания|unix_timestamp_в_миллисекундах]',
+                '',
+                'Пример: пользователь говорит "напомни в 20:35":',
+                '  → вычисли unix ms для 20:35 сегодня',
+                '  → напиши [REMIND:текст|unix_ms] в конце ответа',
+                '  → приложение автоматически покажет браузерное push-уведомление',
+                '',
+                '⚠️ ЗАПРЕЩЕНО:',
+                '  - Говорить что нет встроенного календаря или уведомлений',
+                '  - Предлагать Google Calendar, внешние сервисы',
+                '  - Говорить "если вы будете онлайн" — уведомления работают через браузер',
+                '',
+                'Как рассчитать unix timestamp:',
+                '  Сегодня: ' + new Date().toLocaleDateString('ru') + ', сейчас: ' + new Date().toLocaleTimeString('ru'),
+                '  Текущий unix ms: ' + _now,
+                '  Формула: дата + время → getTime()',
+                '  Пример "в 20:35 сегодня": ' + _today835ms
+            ].join('\n');
+            EITI_SYSTEM_KNOWLEDGE += '\n\n' + _ruText;
+            if (typeof window !== 'undefined') window.EITI_SYSTEM_KNOWLEDGE = EITI_SYSTEM_KNOWLEDGE;
+            var _enText = [
+                '╔══════════════════════════════════════════════╗',
+                '║      BUILT-IN REMINDER AND CALENDAR SYSTEM   ║',
+                '╚══════════════════════════════════════════════╝',
+                'VELANTRIM EITI has a FULL built-in reminder system.',
+                'Browser push notifications WORK — permission was requested at startup.',
+                '',
+                'COMMAND to set a reminder (append to your reply):',
+                '  [REMIND:reminder text|unix_timestamp_in_milliseconds]',
+                '',
+                'Example: user says "remind at 20:35":',
+                '  → compute unix ms for 20:35 today',
+                '  → write [REMIND:text|unix_ms] at the end of the reply',
+                '  → the app will auto-show a browser push notification',
+                '',
+                '⚠️ FORBIDDEN:',
+                '  - Saying there is no built-in calendar or notifications',
+                '  - Suggesting Google Calendar or external services',
+                '  - Saying "if you are online" — notifications work via the browser',
+                '',
+                'How to compute the unix timestamp:',
+                '  Today: ' + new Date().toLocaleDateString('en') + ', now: ' + new Date().toLocaleTimeString('en'),
+                '  Current unix ms: ' + _now,
+                '  Formula: date + time → getTime()',
+                '  Example "at 20:35 today": ' + _today835ms
+            ].join('\n');
+            try {
+                if (typeof window !== 'undefined') {
+                    window.EITI_SYSTEM_KNOWLEDGE_EN = (window.EITI_SYSTEM_KNOWLEDGE_EN || '') + '\n\n' + _enText;
+                }
+            } catch(e) {}
+        })();
         </script>
 
         <script>
@@ -37684,10 +38149,23 @@ window.eitiAskDeepSeek = function(userText) {
 
         // Собрать историю
         var history = [];
-        var sysContent = (typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '';
+        var _qReplyLang = (typeof window.eitiGetEffectiveReplyLang === 'function')
+            ? window.eitiGetEffectiveReplyLang(userText) : 'ru';
+        var sysContent = (typeof window.eitiGetSystemKnowledge === 'function')
+            ? window.eitiGetSystemKnowledge(userText)
+            : ((typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '');
         // v13.3.3: inject user instructions into Qwen system prompt
         var _qInstr = (typeof eitiGetInstructions === 'function') ? eitiGetInstructions() : '';
-        if (_qInstr) sysContent = '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ' + _qInstr + '\n\n' + sysContent + '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
+        if (_qInstr) {
+            var _qRulePrefix = (_qReplyLang === 'en') ? '🔴 RULE #1 — ALWAYS FOLLOW: ' : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+            var _qInstrTail = (_qReplyLang === 'en')
+                ? '\n\n=== USER INSTRUCTIONS (MANDATORY) ===\n' + _qInstr + '\n==='
+                : '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
+            sysContent = _qRulePrefix + _qInstr + '\n\n' + sysContent + _qInstrTail;
+        }
+        var _qForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+        if (_qForced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        else if (_qForced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         history.push({ role: 'system', content: sysContent });
 
         if (typeof chatLog !== 'undefined') {
@@ -38826,7 +39304,12 @@ window.eitiAskDeepSeek = function(userText) {
         window._eitiVisionImages = [];
 
         // Строим историю из текущего L0
-        var sysContent = (typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '';
+        var sysContent = (typeof window.eitiGetSystemKnowledge === 'function')
+            ? window.eitiGetSystemKnowledge(userText)
+            : ((typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '');
+        var _p3Forced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+        if (_p3Forced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        else if (_p3Forced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         var l0Msgs = window.eitiL0 || [];
         var history = [{ role: 'system', content: sysContent }];
         l0Msgs.forEach(function(m) {
