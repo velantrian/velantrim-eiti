@@ -12078,7 +12078,17 @@
 
             var escapeHtml = eitiEsc;
 
-            if (chatLog.length === 0) addMessage('Привет! Я ваш AI-помощник. Чем могу помочь?', false);
+            if (chatLog.length === 0) {
+                // Pick greeting based on AI reply language: forced en/ru wins, else UI locale.
+                var _greetForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+                var _greetLang = (_greetForced === 'en' || _greetForced === 'ru')
+                    ? _greetForced
+                    : (typeof window.eitiGetLocale === 'function' ? window.eitiGetLocale() : 'ru');
+                var _greetText = (_greetLang === 'en')
+                    ? 'Hi! I am your AI assistant. How can I help?'
+                    : 'Привет! Я ваш AI-помощник. Чем могу помочь?';
+                addMessage(_greetText, false);
+            }
             
             // ✅ FIX: send.onclick устанавливается в eitiPatchSendButton()
             // Здесь НЕ вешаем обработчик чтобы не получить двойной ответ
@@ -15544,38 +15554,95 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _grokVoiceName = (localStorage.getItem('eiti_grok_voice_name') || 'Rex').toLowerCase();
 
                     // v12.9: Self-awareness — архитектура системы
-                    var _grokSelfInfo = '=== VELANTRIM EITI v' + (window.EITI_VERSION||'?') + ' — АРХИТЕКТУРА ===\n';
-                    _grokSelfInfo += 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
-                    _grokSelfInfo += 'Хранилище: IndexedDB (чаты/заметки/файлы/L2), localStorage (настройки/L3), SQLite WASM (FTS5)\n';
-                    _grokSelfInfo += 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
-                    _grokSelfInfo += 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
-                    _grokSelfInfo += 'Память: L0 RAM→L1 SQLite→L2 IDB дайджесты→L3 localStorage профиль\n';
-                    _grokSelfInfo += 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
-                    _grokSelfInfo += 'KB: база знаний (факты с тегами, FTS5-поиск)\n';
-                    _grokSelfInfo += 'Заметки: IDB store "notes" (title/body/tags)\n';
-                    _grokSelfInfo += 'Файлы: IDB store "files" (импортированные + системные)\n';
+                    // v13.4.6: locale-aware (Grok Voice has no user text yet, so we honour the
+                    // explicit setting; falls back to UI locale if 'auto').
+                    var _gForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
+                    var _gLang = (_gForced === 'en' || _gForced === 'ru')
+                        ? _gForced
+                        : (typeof window.eitiGetLocale === 'function' ? window.eitiGetLocale() : 'ru');
+                    var _EN = (_gLang === 'en');
+                    var _grokSelfInfo = '=== VELANTRIM EITI v' + (window.EITI_VERSION||'?') + (_EN ? ' — ARCHITECTURE ===\n' : ' — АРХИТЕКТУРА ===\n');
+                    _grokSelfInfo += _EN
+                        ? 'Type: Single-file PWA (HTML+CSS+JS+SW monolith)\n'
+                        : 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Storage: IndexedDB (chats/notes/files/L2), localStorage (settings/L3), SQLite WASM (FTS5)\n'
+                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/L2), localStorage (настройки/L3), SQLite WASM (FTS5)\n';
+                    _grokSelfInfo += _EN
+                        ? 'AI providers: DeepSeek API (main), Gemini API, Grok Voice (you), WebLLM offline\n'
+                        : 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
+                    _grokSelfInfo += _EN
+                        ? 'Search: BM25+FTS5+Semantic (KB), TextRank (snippets), DuckDuckGo (web)\n'
+                        : 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Memory: L0 RAM→L1 SQLite→L2 IDB digests→L3 localStorage profile\n'
+                        : 'Память: L0 RAM→L1 SQLite→L2 IDB дайджесты→L3 localStorage профиль\n';
+                    _grokSelfInfo += _EN
+                        ? 'Graph: MOSC reasoning graph (nodes/edges/weights)\n'
+                        : 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
+                    _grokSelfInfo += _EN
+                        ? 'KB: knowledge base (facts with tags, FTS5 search)\n'
+                        : 'KB: база знаний (факты с тегами, FTS5-поиск)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Notes: IDB store "notes" (title/body/tags)\n'
+                        : 'Заметки: IDB store "notes" (title/body/tags)\n';
+                    _grokSelfInfo += _EN
+                        ? 'Files: IDB store "files" (imported + system)\n'
+                        : 'Файлы: IDB store "files" (импортированные + системные)\n';
                     try {
                         var _kbS = window._kbMemCache; var _nS = window._idbNotesCache;
-                        _grokSelfInfo += 'Состояние: KB=' + (_kbS?_kbS.length:0) + ' фактов, Заметок=' + (_nS?_nS.length:0) + ', Чат=' + (window.eitiCurrentChatId||'нет') + '\n';
+                        _grokSelfInfo += _EN
+                            ? ('State: KB=' + (_kbS?_kbS.length:0) + ' facts, Notes=' + (_nS?_nS.length:0) + ', Chat=' + (window.eitiCurrentChatId||'none') + '\n')
+                            : ('Состояние: KB=' + (_kbS?_kbS.length:0) + ' фактов, Заметок=' + (_nS?_nS.length:0) + ', Чат=' + (window.eitiCurrentChatId||'нет') + '\n');
                     } catch(e) {}
-                    _grokSelfInfo += 'Команды которые TЫ МОЖЕШЬ использовать:\n';
-                    _grokSelfInfo += '  [MEM_ADD:tag|текст] — сохранить в личную память\n';
-                    _grokSelfInfo += '  [MEM_UPDATE:tag|текст] — обновить личную память\n';
-                    _grokSelfInfo += '  [MEM_DEL:tag|текст] — удалить из личной памяти\n';
-                    _grokSelfInfo += '  [NOTE_WRITE:заголовок|текст] — создать/обновить заметку\n';
-                    _grokSelfInfo += '  [NOTE_APPEND:заголовок|текст] — добавить в заметку\n';
-                    _grokSelfInfo += '  <EITI_FILE:имя.txt>содержимое</EITI_FILE> — создать файл\n';
-                    _grokSelfInfo += 'Команды только через DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n';
-                    _grokSelfInfo += 'Ты (Grok Voice): ПОЛНЫЙ ДОСТУП К ЧТЕНИЮ и ЗАПИСИ заметок/файлов/памяти.\n';
+                    _grokSelfInfo += _EN
+                        ? 'Commands YOU CAN use:\n'
+                        : 'Команды которые TЫ МОЖЕШЬ использовать:\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_ADD:tag|text] — save to personal memory\n'
+                        : '  [MEM_ADD:tag|текст] — сохранить в личную память\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_UPDATE:tag|text] — update personal memory\n'
+                        : '  [MEM_UPDATE:tag|текст] — обновить личную память\n';
+                    _grokSelfInfo += _EN
+                        ? '  [MEM_DEL:tag|text] — delete from personal memory\n'
+                        : '  [MEM_DEL:tag|текст] — удалить из личной памяти\n';
+                    _grokSelfInfo += _EN
+                        ? '  [NOTE_WRITE:title|text] — create/update a note\n'
+                        : '  [NOTE_WRITE:заголовок|текст] — создать/обновить заметку\n';
+                    _grokSelfInfo += _EN
+                        ? '  [NOTE_APPEND:title|text] — append to a note\n'
+                        : '  [NOTE_APPEND:заголовок|текст] — добавить в заметку\n';
+                    _grokSelfInfo += _EN
+                        ? '  <EITI_FILE:name.txt>content</EITI_FILE> — create a file\n'
+                        : '  <EITI_FILE:имя.txt>содержимое</EITI_FILE> — создать файл\n';
+                    _grokSelfInfo += _EN
+                        ? 'Commands available only via DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n'
+                        : 'Команды только через DeepSeek: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, JS_EXEC\n';
+                    _grokSelfInfo += _EN
+                        ? 'You (Grok Voice): FULL READ AND WRITE ACCESS to notes/files/memory.\n'
+                        : 'Ты (Grok Voice): ПОЛНЫЙ ДОСТУП К ЧТЕНИЮ и ЗАПИСИ заметок/файлов/памяти.\n';
+                    if (_EN) {
+                        _grokSelfInfo += 'LANGUAGE: Reply in the user\'s language. If they speak Russian — reply in Russian; if they speak English — reply in English.\n';
+                    } else {
+                        _grokSelfInfo += 'ЯЗЫК: Отвечай на языке пользователя. Если говорит по-русски — отвечай по-русски; если по-английски — по-английски.\n';
+                    }
+                    if (_gForced === 'en') {
+                        _grokSelfInfo = '🌐 LANGUAGE OVERRIDE: Always reply in English regardless of the user\'s speech language.\n\n' + _grokSelfInfo;
+                    } else if (_gForced === 'ru') {
+                        _grokSelfInfo = '🌐 ЯЗЫК: Всегда отвечай на русском независимо от языка речи пользователя.\n\n' + _grokSelfInfo;
+                    }
                     // Добавляем реальное содержимое KB в контекст Grok
                     try {
                         var _kbAll = window._kbMemCache || [];
                         if (_kbAll.length > 0) {
-                            _grokSelfInfo += '\n=== БАЗА ЗНАНИЙ EITI (топ-' + Math.min(_kbAll.length, 80) + ' фактов) ===\n';
+                            _grokSelfInfo += _EN
+                                ? ('\n=== EITI KNOWLEDGE BASE (top-' + Math.min(_kbAll.length, 80) + ' facts) ===\n')
+                                : ('\n=== БАЗА ЗНАНИЙ EITI (топ-' + Math.min(_kbAll.length, 80) + ' фактов) ===\n');
                             _kbAll.slice(0, 80).forEach(function(f, i) {
                                 _grokSelfInfo += (i+1) + '. [' + (f.tag||'–') + '] ' + (f.fact||f.text||'').slice(0, 300) + '\n';
                             });
-                            _grokSelfInfo += '=== КОНЕЦ KB ===';
+                            _grokSelfInfo += _EN ? '=== END OF KB ===' : '=== КОНЕЦ KB ===';
                         }
                     } catch(e) {}
                     // Добавляем MOSC граф в контекст Grok
@@ -15584,21 +15651,25 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         var _moscNodes = _moscAll.nodes || [];
                         var _moscEdges = _moscAll.edges || [];
                         if (_moscNodes.length > 0) {
-                            _grokSelfInfo += '\n=== MOSC ГРАФ (' + _moscNodes.length + ' узлов, ' + _moscEdges.length + ' связей) ===\n';
+                            _grokSelfInfo += _EN
+                                ? ('\n=== MOSC GRAPH (' + _moscNodes.length + ' nodes, ' + _moscEdges.length + ' edges) ===\n')
+                                : ('\n=== MOSC ГРАФ (' + _moscNodes.length + ' узлов, ' + _moscEdges.length + ' связей) ===\n');
                             _moscNodes.slice(0, 50).forEach(function(n) {
                                 _grokSelfInfo += '• ' + (n.id||n.name) + (n.desc ? ': ' + (n.desc||'').slice(0, 150) : '') + '\n';
                             });
-                            _grokSelfInfo += '=== КОНЕЦ MOSC ===';
+                            _grokSelfInfo += _EN ? '=== END OF MOSC ===' : '=== КОНЕЦ MOSC ===';
                         }
                     } catch(e) {}
-                    _grokSelfInfo += '\n=== КОНЕЦ АРХИТЕКТУРЫ ===';
+                    _grokSelfInfo += _EN ? '\n=== END OF ARCHITECTURE ===' : '\n=== КОНЕЦ АРХИТЕКТУРЫ ===';
                     // v12.9.77: добавляем содержимое дневника (RNE) в контекст Grok
                     try {
                         var _rneCtx = (typeof _rneData !== 'undefined') ? _rneData : null;
                         if (_rneCtx && (_rneCtx.goals || _rneCtx.facts || _rneCtx.smartSections)) {
-                            _grokSelfInfo += '\n\n=== 📓 ДНЕВНИК EITI (RNE) ===\n';
+                            _grokSelfInfo += _EN
+                                ? '\n\n=== 📓 EITI JOURNAL (RNE) ===\n'
+                                : '\n\n=== 📓 ДНЕВНИК EITI (RNE) ===\n';
                             if (_rneCtx.smartSections && _rneCtx.smartSections.length) {
-                                _grokSelfInfo += '🧠 Умные разделы:\n';
+                                _grokSelfInfo += _EN ? '🧠 Smart sections:\n' : '🧠 Умные разделы:\n';
                                 _rneCtx.smartSections.forEach(function(s) {
                                     _grokSelfInfo += '  ' + (s.title||'') + ':\n';
                                     (s.items||[]).forEach(function(it){ _grokSelfInfo += '    • ' + it + '\n'; });
@@ -15613,7 +15684,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     items.slice(0,15).forEach(function(it){ _grokSelfInfo += '  • ' + (it.text||'') + '\n'; });
                                 }
                             });
-                            _grokSelfInfo += '=== КОНЕЦ ДНЕВНИКА ===';
+                            _grokSelfInfo += _EN ? '=== END OF JOURNAL ===' : '=== КОНЕЦ ДНЕВНИКА ===';
                         }
                     } catch(e) {}
                     var _grokTools = [
