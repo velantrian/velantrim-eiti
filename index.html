@@ -165,6 +165,9 @@
                 'Язык: Русский': 'Language: Русский',
                 'Language: English': 'Language: English',
                 'UI · меню · тосты. KB и заметки не переводятся.': 'UI · menu · toasts. KB and notes are not translated.',
+                'Язык ответов AI': 'AI reply language',
+                'Авто': 'Auto',
+                'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
                 // === Settings groups ===
                 'Внешний вид': 'Appearance',
                 '🤖 DeepSeek AI ⚡ Google Gemini': '🤖 DeepSeek AI ⚡ Google Gemini',
@@ -2005,6 +2008,68 @@
         window.eitiSetLocale = window.EITI_I18N.setLocale;
         window.eitiGetLocale = window.EITI_I18N.getLocale;
         window.eitiApplyI18n = window.EITI_I18N.applyDOM;
+
+        // ─────────────────────────────────────────────────────────────────
+        // AI reply language — независимо от UI-локали.
+        // Хранится в localStorage.eiti_ai_reply_lang: 'auto' | 'en' | 'ru'.
+        // По умолчанию 'auto' (детект по тексту сообщения пользователя).
+        // ─────────────────────────────────────────────────────────────────
+        window.eitiGetAiReplyLang = function() {
+            try {
+                var v = localStorage.getItem('eiti_ai_reply_lang');
+                if (v === 'en' || v === 'ru' || v === 'auto') return v;
+            } catch(e) {}
+            return 'auto';
+        };
+        window.eitiSetAiReplyLang = function(v) {
+            if (v !== 'auto' && v !== 'en' && v !== 'ru') return;
+            try { localStorage.setItem('eiti_ai_reply_lang', v); } catch(e) {}
+            try { if (typeof window.eitiUpdateAiReplyLangUI === 'function') window.eitiUpdateAiReplyLangUI(); } catch(e) {}
+            try {
+                if (typeof window.showToast === 'function') {
+                    var labels = { auto: 'Auto · Автоопределение', en: 'English', ru: 'Русский' };
+                    window.showToast('🤖 AI reply: ' + labels[v], 1400);
+                }
+            } catch(e) {}
+        };
+        // Heuristic language detection: count Cyrillic vs Latin letters.
+        // Returns 'ru' | 'en'. Used only when reply-lang setting is 'auto'.
+        window.eitiDetectMessageLang = function(text) {
+            if (!text || typeof text !== 'string') return 'ru';
+            var cyr = (text.match(/[Ѐ-ӿ]/g) || []).length;
+            var lat = (text.match(/[A-Za-z]/g) || []).length;
+            if (cyr === 0 && lat === 0) return window.eitiGetLocale() || 'ru';
+            // Cyrillic dominant if it has at least as many letters as Latin
+            return cyr >= lat ? 'ru' : 'en';
+        };
+        // Effective reply language for a given user message.
+        // If setting is 'auto' → detect from text; else honor explicit setting.
+        // Falls back to UI locale if nothing else is known.
+        window.eitiGetEffectiveReplyLang = function(userText) {
+            var s = window.eitiGetAiReplyLang();
+            if (s === 'en' || s === 'ru') return s;
+            return window.eitiDetectMessageLang(userText || '');
+        };
+
+        // Подсветка активной кнопки переключателя AI reply language
+        window.eitiUpdateAiReplyLangUI = function() {
+            try {
+                var v = window.eitiGetAiReplyLang();
+                var active = 'linear-gradient(145deg,var(--accent-color),#c9a700)';
+                var activeColor = '#000';
+                var inactive = 'var(--secondary-color)';
+                var inactiveColor = 'var(--text-color)';
+                ['auto','en','ru'].forEach(function(opt) {
+                    var btn = document.getElementById('eiti-ai-reply-' + opt + '-btn');
+                    if (!btn) return;
+                    btn.style.background = (v === opt) ? active : inactive;
+                    btn.style.color = (v === opt) ? activeColor : inactiveColor;
+                    btn.style.borderColor = (v === opt) ? 'var(--accent-color)' : 'var(--border-color)';
+                });
+            } catch(e) {}
+        };
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.eitiUpdateAiReplyLangUI, 100); });
+
         // Подсветка активной кнопки переключателя языка
         window.eitiUpdateLangSwitcherUI = function() {
             try {
@@ -5319,6 +5384,31 @@
                             </div>
                             <div style="font-size:11px;opacity:0.5;line-height:1.5;">
                                 <span data-i18n="UI · меню · тосты. KB и заметки не переводятся.">UI · меню · тосты. KB и заметки не переводятся.</span>
+                            </div>
+
+                            <!-- ═══ AI reply language (v13.4.6) ═══ -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">
+                                <div style="font-size:12px;opacity:0.6;margin-bottom:8px;" data-i18n="Язык ответов AI">Язык ответов AI</div>
+                                <div style="display:flex;gap:6px;">
+                                    <button id="eiti-ai-reply-auto-btn" type="button" onclick="eitiSetAiReplyLang('auto')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🪄</span>
+                                        <span data-i18n="Авто">Авто</span>
+                                    </button>
+                                    <button id="eiti-ai-reply-ru-btn" type="button" onclick="eitiSetAiReplyLang('ru')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🇷🇺</span>
+                                        <span>RU</span>
+                                    </button>
+                                    <button id="eiti-ai-reply-en-btn" type="button" onclick="eitiSetAiReplyLang('en')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🇬🇧</span>
+                                        <span>EN</span>
+                                    </button>
+                                </div>
+                                <div style="font-size:11px;opacity:0.5;line-height:1.5;margin-top:6px;">
+                                    <span data-i18n="Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.">Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.</span>
+                                </div>
                             </div>
                         </div>
                     </div>
