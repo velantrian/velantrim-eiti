@@ -27658,6 +27658,133 @@ window.eitiLLMClearAll = async function() {
             };
         };
 
+        // ═══════════════════════════════════════════════════════════════════
+        // T7 (v14.0) — TextRank summariser (pure JS, no dependencies).
+        //
+        // Sentence graph + PageRank → top-N most central sentences in the
+        // original text order. Used by:
+        //   • L2 consolidation: eitiConsolidateSession() → top 5 sentences
+        //   • Ingestion: files > 5000 chars → top 10 before store_fact
+        //   • Stingy Context: pre-LLM compression of long context blocks
+        //
+        // Trilingual stop-word set (RU + EN + DE) so the algorithm doesn't
+        // get confused by filler in any of our supported UI languages.
+        // ═══════════════════════════════════════════════════════════════════
+        var EITI_TEXTRANK_STOP = new Set([
+            // RU
+            'и','в','на','с','со','что','это','эта','этот','эти','по','к','из',
+            'за','не','как','или','но','для','от','до','же','бы','ли','а','то',
+            'был','была','были','быть','есть','нет','да','о','об','при','без',
+            // EN
+            'the','a','an','of','to','in','is','it','was','for','are','with',
+            'and','or','but','that','this','these','those','from','as','at',
+            // DE
+            'und','die','der','das','ist','ein','eine','mit','von','zu','den',
+            'dem','des','sich','sie','wir','ihr','auch','noch','schon','sehr'
+        ]);
+
+        // Split text into sentences. Keeps the simple [.!?] split per ТЗ.
+        // Trim and drop empties; one-word sentences are kept but will rank
+        // low naturally because their similarity to longer ones is small.
+        window.eitiTextRankSplit = function(text) {
+            if (!text || typeof text !== 'string') return [];
+            return text
+                .split(/(?<=[.!?])\s+/)
+                .map(function(s){ return s.trim(); })
+                .filter(function(s){ return s.length > 0; });
+        };
+
+        // Tokenise: lowercased Unicode word-runs ≥ 3 chars, stop-words removed.
+        // Same tokenizer style as T6 faithfulness for consistency.
+        window.eitiTextRankTokenize = function(text) {
+            if (!text || typeof text !== 'string') return [];
+            var matches = text.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || [];
+            return matches.filter(function(w){ return !EITI_TEXTRANK_STOP.has(w); });
+        };
+
+        // Main entry point. Returns top-N sentences in original order.
+        //
+        //   eitiTextRank("long passage. with sentences.", 5)
+        //     → ['first kept sentence.', 'second kept sentence.', ...]
+        //
+        // Algorithm:
+        //   1. split into sentences
+        //   2. tokenise each → set of content words
+        //   3. similarity matrix sim[i][j] = |A∩B| / (log|A|+log|B|)
+        //      (Mihalcea & Tarau 2004, log denominator to normalise length)
+        //   4. PageRank 15 iters, damping 0.85
+        //   5. pick top-N scores, return in their original sentence order
+        window.eitiTextRank = function(text, topN) {
+            topN = topN || 5;
+            var sentences = window.eitiTextRankSplit(text);
+            if (sentences.length === 0) return [];
+            if (sentences.length <= topN) return sentences;
+
+            var tokens = sentences.map(function(s){ return new Set(window.eitiTextRankTokenize(s)); });
+
+            // Build similarity matrix.
+            var n = sentences.length;
+            var sim = [];
+            for (var i = 0; i < n; i++) sim.push(new Array(n).fill(0));
+            for (var a = 0; a < n; a++) {
+                var sa = tokens[a];
+                if (sa.size === 0) continue;
+                var logA = Math.log(sa.size + 1);
+                for (var b = a + 1; b < n; b++) {
+                    var sb = tokens[b];
+                    if (sb.size === 0) continue;
+                    var logB = Math.log(sb.size + 1);
+                    var denom = logA + logB;
+                    if (denom <= 0) continue;
+                    var overlap = 0;
+                    sa.forEach(function(w){ if (sb.has(w)) overlap++; });
+                    if (overlap === 0) continue;
+                    var s = overlap / denom;
+                    sim[a][b] = s;
+                    sim[b][a] = s;
+                }
+            }
+
+            // Row sums (for normalisation in PageRank update).
+            var rowSum = new Array(n).fill(0);
+            for (var r = 0; r < n; r++) {
+                for (var c = 0; c < n; c++) rowSum[r] += sim[r][c];
+            }
+
+            // PageRank with damping 0.85, 15 iterations.
+            var score = new Array(n).fill(1);
+            var damping = 0.85;
+            var iterations = 15;
+            for (var it = 0; it < iterations; it++) {
+                var next = new Array(n).fill(1 - damping);
+                for (var j = 0; j < n; j++) {
+                    for (var k = 0; k < n; k++) {
+                        if (j === k) continue;
+                        if (rowSum[k] > 0 && sim[k][j] > 0) {
+                            next[j] += damping * score[k] * (sim[k][j] / rowSum[k]);
+                        }
+                    }
+                }
+                score = next;
+            }
+
+            // Top-N indices by score, then sort by original order.
+            var indexed = score.map(function(s, idx){ return { s: s, idx: idx }; });
+            indexed.sort(function(a, b){ return b.s - a.s; });
+            var chosen = indexed.slice(0, topN).map(function(x){ return x.idx; });
+            chosen.sort(function(a, b){ return a - b; });
+            return chosen.map(function(idx){ return sentences[idx]; });
+        };
+
+        // Convenience: compress text to ratio (e.g. 0.2 = ~20% of sentences).
+        // Falls back to topN if explicit ratio gives <2 sentences.
+        window.eitiTextRankCompress = function(text, ratio) {
+            ratio = (typeof ratio === 'number') ? ratio : 0.2;
+            var all = window.eitiTextRankSplit(text);
+            var topN = Math.max(2, Math.round(all.length * ratio));
+            return window.eitiTextRank(text, topN).join(' ');
+        };
+
         // ── Топ N узлов по весу (для промпта) ───────────────────────
         function pkgGetTopNodes(n) {
             if (!_pkgCache) return [];
