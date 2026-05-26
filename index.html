@@ -27313,6 +27313,85 @@ window.eitiLLMClearAll = async function() {
             }, PKG_DECAY_DAILY_MS);
         };
 
+        // ═══════════════════════════════════════════════════════════════════
+        // T6 — Output faithfulness: TF-IDF overlap between an AI answer and
+        // the facts it was supposedly grounded in. Returns a score in [0..1]:
+        // 1 = every content word in the answer also appears in the cited
+        // facts; 0 = no overlap at all. ТЗ threshold: <0.3 means the answer
+        // is weakly grounded — the Reasoning Trace UI (T5) surfaces a
+        // warning in that case.
+        //
+        // Notes vs. ТЗ snippet:
+        // - JS `\w` is ASCII-only; the literal `\b\w{3,}\b` from ТЗ tokenises
+        //   to nothing on Cyrillic content. We use `[\p{L}\p{N}_]{3,}/gu`
+        //   with Unicode property classes so RU / EN / DE all tokenise.
+        // - Stop-word set extended with EN and DE high-frequency words so
+        //   bilingual / trilingual answers don't get artificially boosted by
+        //   filler ("the", "and", "der", "die" etc.).
+        // ═══════════════════════════════════════════════════════════════════
+        window.EITI_FAITHFULNESS_THRESHOLD = 0.3;
+        var _EITI_STOP_WORDS = new Set([
+            // RU
+            'и','в','на','с','со','что','это','эта','этот','эти','по','к','из','за','не','как',
+            'для','от','до','же','бы','ли','или','а','но','то','же','тут','там','уже','еще','ещё',
+            'был','была','были','быть','есть','нет','да','о','об','при','без','над','под','между',
+            // EN
+            'the','and','for','that','this','these','those','with','from','into','onto','your','their','our','his','her','its',
+            'are','was','were','been','being','have','has','had','will','would','could','should','can','may','might',
+            'but','not','any','all','some','one','two','more','than','then','also','only','very','just','too','out',
+            // DE
+            'der','die','das','und','oder','aber','wenn','dann','auch','noch','schon','sehr','mehr','sein','ist','war',
+            'eine','einer','einen','einem','eines','wir','ihr','sie','sich','dem','den','des','mit','von','aus','bei','für'
+        ]);
+
+        window.eitiFaithfulnessTokenize = function(text) {
+            if (!text || typeof text !== 'string') return [];
+            // Unicode letter+digit runs of length ≥ 3, lowercased, stop-words removed.
+            var matches = text.toLowerCase().match(/[\p{L}\p{N}_]{3,}/gu) || [];
+            return matches.filter(function(w){ return !_EITI_STOP_WORDS.has(w); });
+        };
+
+        window.eitiFaithfulness = function(answer, facts) {
+            var answerTokens = new Set(window.eitiFaithfulnessTokenize(answer));
+            if (answerTokens.size === 0) return 0;
+            if (!Array.isArray(facts) || facts.length === 0) return 0;
+            var factTokens = new Set();
+            for (var i = 0; i < facts.length; i++) {
+                // Accept either {claim} (ТЗ) or {answer} (our KB format) or raw string.
+                var f = facts[i];
+                var src;
+                if (typeof f === 'string') src = f;
+                else if (f && typeof f.claim === 'string')  src = f.claim;
+                else if (f && typeof f.answer === 'string') src = f.answer;
+                else if (f && typeof f.fact === 'string')   src = f.fact;
+                else src = '';
+                window.eitiFaithfulnessTokenize(src).forEach(function(t){ factTokens.add(t); });
+            }
+            if (factTokens.size === 0) return 0;
+            var hits = 0;
+            answerTokens.forEach(function(t){ if (factTokens.has(t)) hits++; });
+            return hits / answerTokens.size;
+        };
+
+        // Convenience: returns a structured verdict for the Reasoning Trace UI.
+        window.eitiFaithfulnessVerdict = function(answer, facts) {
+            var score = window.eitiFaithfulness(answer, facts);
+            return {
+                score: score,
+                threshold: window.EITI_FAITHFULNESS_THRESHOLD,
+                weak: score < window.EITI_FAITHFULNESS_THRESHOLD,
+                answerTokens: window.eitiFaithfulnessTokenize(answer).length,
+                factTokens: (function(){
+                    var s = new Set();
+                    (facts||[]).forEach(function(f){
+                        var src = (typeof f === 'string') ? f : (f && (f.claim || f.answer || f.fact)) || '';
+                        window.eitiFaithfulnessTokenize(src).forEach(function(t){ s.add(t); });
+                    });
+                    return s.size;
+                })()
+            };
+        };
+
         // ── Топ N узлов по весу (для промпта) ───────────────────────
         function pkgGetTopNodes(n) {
             if (!_pkgCache) return [];
