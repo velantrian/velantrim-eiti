@@ -11937,6 +11937,13 @@
                     if (displayText.length > 300) displayText = displayText.slice(0, 300) + '… [скрыто]';
                 }
 
+                // T5: 🔍 Trace button — shown for AI messages that have a captured trace.
+                var traceBtnHtml = '';
+                if (m.role !== 'user' && window._eitiTraces && window._eitiTraces.has(m.id)) {
+                    traceBtnHtml = '<button class="msg-btn eiti-trace-btn" title="Показать reasoning trace"'
+                        + ' onclick="window.eitiTraceToggle(\'' + m.id + '\', this)"'
+                        + ' style="font-size:10px;opacity:0.55;">🔍 Trace</button>';
+                }
                 msg.innerHTML = `
                     <div class="message-row">
                         <div class="message-body">
@@ -11944,6 +11951,7 @@
                             ${fileChipHtml}
                             <div class="${m.role === 'user' ? 'msg-text-display' : ''}">${(m.role === 'user') ? escapeHtml(displayText).replace(/\n/g,'<br>') : eitiRenderMarkdown(m.text)}</div>
                             <div class="message-time">${time}</div>
+                            ${traceBtnHtml}
                         </div>
                         <div class="message-controls">
                             ${m.role !== 'user' ? '<button class="msg-btn tts-btn" title="Озвучить / Пауза / Продолжить" data-act="speak">🔊</button>' : ''}
@@ -12088,6 +12096,17 @@
                     text,
                     ts: Date.now()
                 };
+                // T5: open a reasoning-trace slot on each user message; the AI reply
+                // that follows binds onto it. Finalise (faithfulness scoring) when
+                // the AI message body is known.
+                try {
+                    if (isUser && typeof window.eitiTraceStart === 'function') {
+                        window.eitiTraceStart(text);
+                    } else if (!isUser) {
+                        if (typeof window.eitiTraceFinalize === 'function') window.eitiTraceFinalize(text);
+                        if (typeof window.eitiTraceBind === 'function') window.eitiTraceBind(m.id);
+                    }
+                } catch(e) {}
                 if (persist) {
                     chatLog.push(m);
                     saveChat();
@@ -20761,16 +20780,33 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 d.className = 'message incoming';
                 var t = new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
                 var msgId = 'ir_' + Math.random().toString(16).slice(2);
+                d.dataset.msgid = msgId;
+                // T5: finalise the active trace against this reply text, bind it
+                // to the synthetic msgId, and render the 🔍 button when a trace
+                // exists for this message.
+                var _plainPreview = (html || '').replace(/<[^>]+>/g, '');
+                var _traceBtnHtml = '';
+                try {
+                    if (typeof window.eitiTraceFinalize === 'function') window.eitiTraceFinalize(_plainPreview);
+                    if (typeof window.eitiTraceBind === 'function') window.eitiTraceBind(msgId);
+                    if (window._eitiTraces && window._eitiTraces.has(msgId)) {
+                        _traceBtnHtml = '<button class="msg-btn eiti-trace-btn" title="Показать reasoning trace"'
+                            + ' onclick="window.eitiTraceToggle(\'' + msgId + '\', this)"'
+                            + ' style="font-size:10px;opacity:0.55;">🔍 Trace</button>';
+                    }
+                } catch(e) {}
                 d.innerHTML = '<div class="message-row"><div class="message-body" style="-webkit-user-select:text!important;user-select:text!important;">' +
                     '<div class="message-sender" style="-webkit-user-select:text!important;user-select:text!important;">' + _senderLabel + '</div>' +
                     '<div id="' + msgId + '-text" style="-webkit-user-select:text!important;user-select:text!important;line-height:1.55;">' + html + '</div>' +
-                    '<div class="message-time">' + t + '</div></div>' +
+                    '<div class="message-time">' + t + '</div>' +
+                    _traceBtnHtml +
+                    '</div>' +
                     '<div class="message-controls">' +
                     '<button class="msg-btn tts-btn" title="Озвучить">🔊</button>' +
                     '<button class="msg-btn" title="Копировать">📋</button>' +
                     '</div></div>';
                 var plain = d.querySelector('#' + msgId + '-text').textContent;
-                var btns = d.querySelectorAll('.msg-btn');
+                var btns = d.querySelectorAll('.msg-btn:not(.eiti-trace-btn)');
                 btns[0].onclick = function(){ toggleSpeech(msgId, plain); };
                 btns[1].onclick = function(){ copyText(plain).then(function(){ showToast('Скопировано'); }); };
                 msgs.appendChild(d);
@@ -20811,6 +20847,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var m = { id: Math.random().toString(16).slice(2), role:'user', text:txt, ts:Date.now() };
                 chatLog.push(m); if (chatLog.length > 500) chatLog = chatLog.slice(-400);
                 saveChat();
+                // T5: open a reasoning-trace slot — the reply path will bind to it.
+                try { if (typeof window.eitiTraceStart === 'function') window.eitiTraceStart(txt); } catch(e) {}
                 var d = document.createElement('div');
                 d.className = 'message outgoing';
                 d.dataset.msgid = m.id;
@@ -21475,8 +21513,25 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         window._eitiLastTopic = txt;
                         // T3: register the recall — bumps stability per LTP/LTD and
                         // refreshes last_accessed so this fact resists decay.
+                        var _recallResult = null;
                         if (typeof window.eitiOnFactRecall === 'function' && _activeKB[ki].id) {
-                            try { window.eitiOnFactRecall(_activeKB[ki].id); } catch(e){}
+                            try { _recallResult = window.eitiOnFactRecall(_activeKB[ki].id); } catch(e){}
+                        }
+                        // T5: feed the matched fact (+ its retention from T3) into the
+                        // active reasoning trace so the 🔍 Trace panel can show it.
+                        if (typeof window.eitiTraceAddFact === 'function') {
+                            try {
+                                var _factObj = (typeof eitiKBLoad === 'function')
+                                    ? eitiKBLoad().find(function(x){ return x.id === _activeKB[ki].id; }) : null;
+                                window.eitiTraceAddFact({
+                                    factId: _activeKB[ki].id,
+                                    claim: _activeKB[ki].a,
+                                    epistemic_state: _factObj ? _factObj.epistemic_state : 'Observed',
+                                    confidence: _factObj && typeof _factObj.confidence === 'number' ? _factObj.confidence : null,
+                                    retention: _recallResult ? _recallResult.retention : null
+                                });
+                                window.eitiTraceAppend({ classified_as: 'kb_intent' });
+                            } catch(e){}
                         }
                         _intentReply(_activeKB[ki].a, '🧠 KB');
                         return true;
@@ -24398,6 +24453,18 @@ window.eitiLLMClearAll = async function() {
             var messages = document.getElementById('messages');
             var ai = { id: Math.random().toString(16).slice(2), role: 'assistant', text: processed, ts: Date.now(), provider: localStorage.getItem('eiti_ai_provider') || 'ai' };
             chatLog.push(ai); saveChat();
+            // T5: finalise the active trace against this reply text and bind it
+            // to the AI message id so the 🔍 button can be rendered below.
+            var _traceBtnHtmlReply = '';
+            try {
+                if (typeof window.eitiTraceFinalize === 'function') window.eitiTraceFinalize(processed);
+                if (typeof window.eitiTraceBind === 'function') window.eitiTraceBind(ai.id);
+                if (window._eitiTraces && window._eitiTraces.has(ai.id)) {
+                    _traceBtnHtmlReply = '<button class="msg-btn eiti-trace-btn" title="Показать reasoning trace"'
+                        + ' onclick="window.eitiTraceToggle(\'' + ai.id + '\', this)"'
+                        + ' style="font-size:10px;opacity:0.55;">🔍 Trace</button>';
+                }
+            } catch(e) {}
             var div = document.createElement('div');
             div.className = 'message incoming';
             div.dataset.msgid = ai.id;
@@ -24423,12 +24490,14 @@ window.eitiLLMClearAll = async function() {
                 '<div>' + safe + '</div>' +
                 badgeHtml +
                 '<div class="message-time">' + time + '</div>' +
+                _traceBtnHtmlReply +
                 '</div><div class="message-controls">' +
                 '<button class="msg-btn tts-btn" title="Озвучить">🔊</button>' +
                 '<button class="msg-btn" title="Копировать">📋</button>' +
                 '</div></div>';
-            div.querySelectorAll('.msg-btn')[0].onclick = function() { toggleSpeech(ai.id, processed); };
-            div.querySelectorAll('.msg-btn')[1].onclick = function() { copyText(processed).then(function(){ showToast('Скопировано'); }); };
+            var _replyBtns = div.querySelectorAll('.msg-btn:not(.eiti-trace-btn)');
+            _replyBtns[0].onclick = function() { toggleSpeech(ai.id, processed); };
+            _replyBtns[1].onclick = function() { copyText(processed).then(function(){ showToast('Скопировано'); }); };
             // Sticky bottom controls for long messages
             setTimeout(function() {
                 var body = div.querySelector('.message-body');
@@ -27371,6 +27440,151 @@ window.eitiLLMClearAll = async function() {
             var hits = 0;
             answerTokens.forEach(function(t){ if (factTokens.has(t)) hits++; });
             return hits / answerTokens.size;
+        };
+
+        // ═══════════════════════════════════════════════════════════════════
+        // T5 — Reasoning Trace.
+        // Per-message reasoning record + collapsible UI panel under each AI
+        // reply. Records what we know: which user query produced it, which
+        // facts were used, their ESM state + retention, and the faithfulness
+        // verdict (T6). Fields that aren't wired yet (classifier label, L1/L2
+        // hits, answer-confidence) stay null and are surfaced as "—" in the
+        // panel — explicit "unknown" beats hidden zero.
+        // ═══════════════════════════════════════════════════════════════════
+        window._eitiTraces = window._eitiTraces || new Map();
+        // The currently-building trace. Set when user sends a message; the
+        // AI reply path adopts it by id when the reply is created.
+        window._eitiActiveTrace = null;
+
+        window.eitiTraceStart = function(query) {
+            var t = {
+                msgId: null,                 // bound at AI-reply time
+                query: query || '',
+                classified_as: null,
+                l1_hits: 0, l2_hits: 0, l3_hits: 0,
+                facts_used: [],
+                facts_discarded: [],
+                faithfulness_score: null,
+                answer_confidence: null,
+                at: Date.now()
+            };
+            window._eitiActiveTrace = t;
+            return t;
+        };
+        window.eitiTraceBind = function(msgId) {
+            var t = window._eitiActiveTrace;
+            if (!t || !msgId) return null;
+            t.msgId = msgId;
+            window._eitiTraces.set(msgId, t);
+            return t;
+        };
+        window.eitiTraceAppend = function(patch) {
+            var t = window._eitiActiveTrace;
+            if (!t || !patch) return null;
+            Object.keys(patch).forEach(function(k){ t[k] = patch[k]; });
+            return t;
+        };
+        window.eitiTraceAddFact = function(fact) {
+            var t = window._eitiActiveTrace;
+            if (!t || !fact) return null;
+            t.facts_used.push(fact);
+            t.l3_hits = t.facts_used.length;
+            return t;
+        };
+        window.eitiTraceDiscardFact = function(factId, reason) {
+            var t = window._eitiActiveTrace;
+            if (!t || !factId) return null;
+            t.facts_discarded.push({ factId: String(factId), reason: reason || 'unspecified' });
+            return t;
+        };
+        window.eitiTraceFinalize = function(answer) {
+            var t = window._eitiActiveTrace;
+            if (!t) return null;
+            if (Array.isArray(t.facts_used) && t.facts_used.length > 0 && answer) {
+                try {
+                    var verdict = window.eitiFaithfulnessVerdict(answer, t.facts_used);
+                    t.faithfulness_score = verdict.score;
+                    t.faithfulness_weak = verdict.weak;
+                } catch(e) {}
+            }
+            return t;
+        };
+        window.eitiTraceGet = function(msgId) {
+            return window._eitiTraces.get(msgId) || null;
+        };
+
+        // Render the collapsible trace panel HTML for a given trace object.
+        window.eitiTraceRenderHTML = function(t) {
+            if (!t) return '';
+            var col = window.EITI_ESM_COLORS || {};
+            var line = function(label, value) {
+                return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">'
+                    + '<span style="opacity:0.6;">' + label + '</span>'
+                    + '<span style="font-weight:600;">' + value + '</span>'
+                    + '</div>';
+            };
+            var html = '<div style="font-size:11px;line-height:1.4;">';
+            html += line('Запрос', '"' + (t.query || '—').slice(0, 80) + '"');
+            html += line('Классификация', t.classified_as || '—');
+            html += line('Hits L1/L2/L3', t.l1_hits + ' / ' + t.l2_hits + ' / ' + t.l3_hits);
+            if (typeof t.faithfulness_score === 'number') {
+                var pct = Math.round(t.faithfulness_score * 100);
+                var faithStr = pct + '%' + (t.faithfulness_weak ? ' ⚠️' : ' ✅');
+                html += line('Faithfulness', faithStr);
+                if (t.faithfulness_weak) {
+                    html += '<div style="margin:6px 0;padding:6px 8px;background:rgba(220,80,80,0.15);border-left:3px solid #c44;border-radius:4px;color:#f88;font-size:11px;">'
+                        + '⚠️ Ответ слабо опирается на сохранённые факты'
+                        + '</div>';
+                }
+            } else {
+                html += line('Faithfulness', '—');
+            }
+            if (typeof t.answer_confidence === 'number') {
+                html += line('Confidence', Math.round(t.answer_confidence * 100) + '%');
+            }
+            if (t.facts_used && t.facts_used.length) {
+                html += '<div style="margin-top:8px;font-size:11px;opacity:0.7;">Использованные факты (' + t.facts_used.length + '):</div>';
+                html += '<div style="max-height:180px;overflow-y:auto;margin-top:4px;">';
+                t.facts_used.slice(0, 12).forEach(function(f) {
+                    var st = f.epistemic_state || 'Observed';
+                    var c = col[st] || { bg:'#5a5a5a', fg:'#fff', icon:'👁' };
+                    var ret = (typeof f.retention === 'number') ? ' · r=' + f.retention.toFixed(2) : '';
+                    var conf = (typeof f.confidence === 'number') ? ' · c=' + f.confidence.toFixed(2) : '';
+                    var label = (f.claim || f.answer || f.fact || f.factId || '').toString().slice(0, 60);
+                    html += '<div style="padding:4px 6px;background:rgba(255,255,255,0.03);border-radius:5px;margin:3px 0;font-size:11px;">'
+                        + '<span style="display:inline-block;padding:1px 5px;border-radius:5px;background:' + c.bg + ';color:' + c.fg + ';font-size:9px;font-weight:700;margin-right:5px;">' + c.icon + ' ' + st + '</span>'
+                        + eitiEsc(label) + ret + conf
+                        + '</div>';
+                });
+                html += '</div>';
+            }
+            if (t.facts_discarded && t.facts_discarded.length) {
+                html += '<div style="margin-top:8px;font-size:11px;opacity:0.6;">Отброшено (' + t.facts_discarded.length + '): ';
+                html += t.facts_discarded.map(function(d){ return d.reason; }).join(', ');
+                html += '</div>';
+            }
+            html += '</div>';
+            return html;
+        };
+
+        // Toggle handler attached to the 🔍 Trace button.
+        window.eitiTraceToggle = function(msgId, btn) {
+            var msgEl = btn.closest('.message');
+            if (!msgEl) return;
+            var existing = msgEl.querySelector('.eiti-trace-panel');
+            if (existing) {
+                existing.remove();
+                btn.textContent = '🔍 Trace';
+                return;
+            }
+            var t = window.eitiTraceGet(msgId);
+            if (!t) return;
+            var panel = document.createElement('div');
+            panel.className = 'eiti-trace-panel';
+            panel.style.cssText = 'margin-top:8px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,215,0,0.18);';
+            panel.innerHTML = window.eitiTraceRenderHTML(t);
+            btn.parentElement.appendChild(panel);
+            btn.textContent = '🔍 Trace ▲';
         };
 
         // Convenience: returns a structured verdict for the Reasoning Trace UI.
@@ -36150,6 +36364,14 @@ async function _initSQL() {
         // at lines 14809 / 29915 actually evaluate truthy. They were previously
         // dead because _db was module-private.
         window._db = _db;
+        // Pre-existing latent bug: several call sites OUTSIDE this IIFE reference
+        // the bare identifier `_fts5Available`. While SQL was dead (sql-wasm.js
+        // parse error), `_db` was null and those guards short-circuited before
+        // reaching it. Once we fixed SQL in PR #26 those sites started throwing
+        // ReferenceError. Expose a window mirror to satisfy the guard reads.
+        // The local IIFE var keeps being the source of truth — we mirror after
+        // every assignment in the init paths above.
+        window._fts5Available = _fts5Available;
         // Обновляем badge в «О приложении»
         setTimeout(function() {
             var badge = document.getElementById('eiti-sql-status-badge');
