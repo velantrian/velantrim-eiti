@@ -173,6 +173,8 @@
                 '🔐 Целостность памяти': '🔐 Memory integrity',
                 'Журнал событий L3-фактов хеширован цепочкой SHA-256 — любая попытка задним числом изменить запись разорвёт цепочку.': 'L3 fact events are SHA-256 chain-hashed — any retroactive edit will break the chain.',
                 'Проверить целостность памяти': 'Verify memory integrity',
+                '🕒 Pending Layer': '🕒 Pending Layer',
+                'Факты ожидающие подтверждения. Подтвердить → переход к Supported. Отклонить → Deprecated.': 'Facts awaiting verification. Approve → transition to Supported. Reject → Deprecated.',
                 'Язык ответов AI': 'AI reply language',
                 'Авто': 'Auto',
                 'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
@@ -6156,6 +6158,21 @@
                                 <span data-i18n="Проверить целостность памяти">Проверить целостность памяти</span>
                             </button>
                             <div id="esm-audit-status" style="font-size:11px;opacity:0.55;line-height:1.5;"></div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ 🕒 Pending Layer (T4 v14.0) ═══ -->
+                    <div class="settings-group" id="pending-layer-group">
+                        <div class="settings-title" data-i18n="🕒 Pending Layer">🕒 Pending Layer</div>
+                        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                            <div style="font-size:12px;opacity:0.6;line-height:1.5;" data-i18n="Факты ожидающие подтверждения. Подтвердить → переход к Supported. Отклонить → Deprecated.">
+                                Факты ожидающие подтверждения. Подтвердить → переход к Supported. Отклонить → Deprecated.
+                            </div>
+                            <button type="button" onclick="window.eitiRefreshPendingUI && window.eitiRefreshPendingUI()"
+                                style="padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">
+                                🔄 Обновить
+                            </button>
+                            <div id="pending-list" style="max-height:280px;overflow-y:auto;font-size:12px;"></div>
                         </div>
                     </div>
 
@@ -36282,6 +36299,152 @@ window.eitiRetractFact = async function(factId, reason) {
     }
     return { factId: String(factId), from: from, to: 'Retracted', reason: reason || null };
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T4 (v14.0) — Truth Gate + L3 promotion path.
+//
+// The gate that stands between Pending (Observed/Hypothesized) and canon
+// (L3, Validated). T9 enforced flow consults it before letting an AI answer
+// through; eitiPromoteToL3 is the manual / programmatic graduation path.
+// ═══════════════════════════════════════════════════════════════════════════
+window.EITI_ALLOWED_STATES   = ['Validated', 'Supported', 'ImmutableCore'];
+window.EITI_PENDING_STATES   = ['Observed', 'Hypothesized'];
+window.EITI_CONF_FLOOR       = 0.35;
+window.EITI_RETENTION_FLOOR  = 0.20;
+
+// Pure gate. Returns { passed, reason }.
+//   passed=false → answer should be blocked / Pending UI should warn.
+//   passed=true  → the supplied facts pass the verification floor.
+// Caller is responsible for deciding what "passed=true" enables.
+window.eitiTruthGate = function(facts) {
+    if (!facts || facts.length === 0) {
+        return { passed: false, reason: '⚠️ Нет фактов в памяти по этой теме' };
+    }
+    var valid = facts.filter(function(f){
+        return window.EITI_ALLOWED_STATES.indexOf(f.epistemic_state) !== -1;
+    });
+    if (valid.length === 0) {
+        return { passed: false, reason: '⚠️ Все факты в статусе Pending — не верифицированы' };
+    }
+    var sum = 0;
+    valid.forEach(function(f){ sum += (typeof f.confidence === 'number') ? f.confidence : 0.5; });
+    var avg = sum / valid.length;
+    if (avg < window.EITI_CONF_FLOOR) {
+        return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%' };
+    }
+    return { passed: true, reason: null };
+};
+
+// Manual / programmatic promotion: takes a Pending/Supported fact and tries
+// to push it into L3 canon. Runs the gate against the single fact and only
+// promotes on pass. Audit log captures every attempted promotion.
+window.eitiPromoteToL3 = async function(factId) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) {
+        var nf = new Error('Fact not found: ' + factId);
+        nf.code = 'fact_not_found'; throw nf;
+    }
+    var allowed = ['Supported', 'Validated'];
+    if (allowed.indexOf(fact.epistemic_state) === -1) {
+        var bad = new Error('Promote requires Supported|Validated, got ' + fact.epistemic_state);
+        bad.code = 'wrong_state'; throw bad;
+    }
+    var gate = window.eitiTruthGate([fact]);
+    if (!gate.passed) {
+        if (typeof window.eitiLogEvent === 'function') {
+            await window.eitiLogEvent(factId, 'promote_rejected', { reason: gate.reason });
+        }
+        return { promoted: false, reason: gate.reason };
+    }
+    // Promote: memory_layer L3, epistemic_state Validated (idempotent if already).
+    fact.memory_layer = 'L3';
+    if (fact.epistemic_state !== 'Validated') fact.epistemic_state = 'Validated';
+    var allFacts = eitiKBLoad();
+    eitiKBSave(allFacts);
+    if (window._db && window.eitiSQLReady) {
+        try {
+            window._db.run("UPDATE kb_idx SET memory_layer='L3', epistemic_state='Validated' WHERE id=?", [String(factId)]);
+            if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+        } catch(e) {}
+    }
+    if (typeof window.eitiLogEvent === 'function') {
+        await window.eitiLogEvent(factId, 'promoted_to_l3', {
+            confidence: fact.confidence,
+            source: fact.source || 'manual'
+        });
+    }
+    return { promoted: true, factId: String(factId) };
+};
+
+// Convenience for the Pending UI: approve a single Pending fact. Observed
+// goes to Hypothesized first (matches the transition matrix), then to
+// Supported. Validated comes only via Truth Gate / promote.
+window.eitiPendingApprove = async function(factId) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) throw Object.assign(new Error('Fact not found'), { code: 'fact_not_found' });
+    if (fact.epistemic_state === 'Observed') {
+        await window.eitiESMTransition(factId, 'Hypothesized');
+        await window.eitiESMTransition(factId, 'Supported');
+    } else if (fact.epistemic_state === 'Hypothesized') {
+        await window.eitiESMTransition(factId, 'Supported');
+    } else {
+        var bad = new Error('Not in a Pending state: ' + fact.epistemic_state);
+        bad.code = 'wrong_state'; throw bad;
+    }
+    return window.eitiKBLoad().find(function(f){ return f.id === factId; });
+};
+
+window.eitiPendingReject = async function(factId) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) throw Object.assign(new Error('Fact not found'), { code: 'fact_not_found' });
+    if (window.EITI_PENDING_STATES.indexOf(fact.epistemic_state) === -1) {
+        var bad = new Error('Not in a Pending state: ' + fact.epistemic_state);
+        bad.code = 'wrong_state'; throw bad;
+    }
+    await window.eitiESMTransition(factId, 'Deprecated');
+    return window.eitiKBLoad().find(function(f){ return f.id === factId; });
+};
+
+// UI: render the Pending list inside Settings → Pending Layer group.
+window.eitiRefreshPendingUI = function() {
+    var listEl = document.getElementById('pending-list');
+    if (!listEl) return;
+    var facts = (typeof eitiKBLoad === 'function') ? eitiKBLoad() : [];
+    var pending = facts.filter(function(f){
+        return window.EITI_PENDING_STATES.indexOf(f.epistemic_state) !== -1;
+    });
+    if (pending.length === 0) {
+        listEl.innerHTML = '<div style="opacity:0.4;text-align:center;padding:14px;">Очередь пуста</div>';
+        return;
+    }
+    var col = window.EITI_ESM_COLORS || {};
+    listEl.innerHTML = pending.slice(0, 50).map(function(f){
+        var st = f.epistemic_state || 'Observed';
+        var c = col[st] || { bg:'#888', fg:'#fff', icon:'⚪' };
+        var trigs = (f.triggers || []).join(', ').slice(0, 60);
+        var answer = (f.answer || '').slice(0, 100);
+        var conf = (typeof f.confidence === 'number') ? Math.round(f.confidence * 100) + '%' : '—';
+        var jsId = String(f.id).replace(/'/g, "\\'");
+        return '<div style="padding:8px;border-radius:8px;background:rgba(255,255,255,0.03);margin:6px 0;border-left:3px solid ' + c.bg + ';">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
+            +   '<span style="display:inline-block;padding:1px 6px;border-radius:6px;background:' + c.bg + ';color:' + c.fg + ';font-size:10px;font-weight:700;">' + c.icon + ' ' + st + '</span>'
+            +   '<span style="opacity:0.55;font-size:10px;">conf ' + conf + '</span>'
+            + '</div>'
+            + '<div style="font-size:11px;opacity:0.55;margin-top:4px;">🔍 ' + eitiEsc(trigs) + '</div>'
+            + '<div style="font-size:12px;line-height:1.4;margin-top:2px;">' + eitiEsc(answer) + '</div>'
+            + '<div style="display:flex;gap:4px;margin-top:6px;">'
+            +   '<button onclick="window.eitiPendingApprove(\'' + jsId + '\').then(window.eitiRefreshPendingUI).catch(function(e){showToast(e.message);})" '
+            +     'style="flex:1;padding:6px;border-radius:6px;border:1px solid #27ae60;background:rgba(39,174,96,0.15);color:#5dd58c;font-size:11px;font-weight:600;cursor:pointer;">✅ Supported</button>'
+            +   '<button onclick="window.eitiPendingReject(\'' + jsId + '\').then(window.eitiRefreshPendingUI).catch(function(e){showToast(e.message);})" '
+            +     'style="flex:1;padding:6px;border-radius:6px;border:1px solid #7f8c8d;background:rgba(127,140,141,0.15);color:#aaa;font-size:11px;font-weight:600;cursor:pointer;">🗑️ Deprecate</button>'
+            + '</div>'
+            + '</div>';
+    }).join('');
+};
+// Auto-refresh on first display + after any ESM transition.
+document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ if (typeof window.eitiRefreshPendingUI === 'function') window.eitiRefreshPendingUI(); }, 2500);
+});
 
 // Lookup a fact by id in the in-memory KB cache (which mirrors IDB).
 function _eitiFindFactById(factId) {
