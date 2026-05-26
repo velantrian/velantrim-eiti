@@ -36446,6 +36446,147 @@ document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){ if (typeof window.eitiRefreshPendingUI === 'function') window.eitiRefreshPendingUI(); }, 2500);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T6 (v14.0) — Fractal Memory Router with Recursive Retrieval.
+//
+// Two-phase retrieval over the 5-level fractal hierarchy:
+//   domain → concept → mechanism → evidence → principle
+//
+//   1. Classify the user query into a STARTING level (intent heuristic).
+//   2. Retrieve from that level. If average confidence of retrieved facts
+//      is below `confidenceThreshold`, descend to the next level and
+//      retrieve again. Stop on confidence, maxDepth, or "principle" floor.
+//
+// Result is deduped, capped at maxFacts, and includes a retrieval_path so
+// T5/T9 trace UI can show the path the router walked.
+// ═══════════════════════════════════════════════════════════════════════════
+var _FRACTAL_NEXT = {
+    domain:    'concept',
+    concept:   'mechanism',
+    mechanism: 'evidence',
+    evidence:  'principle',
+    principle: null     // floor
+};
+
+// Pure classifier — query → starting fractal level. Multilingual triggers
+// for RU / EN / DE, lowercased compare. Defaults to 'concept' which is
+// the safest level (most facts live there).
+window.eitiClassifyQueryLevel = function(query) {
+    if (!query || typeof query !== 'string') return 'concept';
+    var q = query.toLowerCase().trim();
+    // Evidence: "prove" / "source" / "where did you get"
+    if (/^(докажи|источник|откуда|пруф|prove|source|evidence|where (do|did) you|quelle|beweis|woher)/.test(q)) return 'evidence';
+    // Mechanism: how/why
+    if (/^(почему|зачем|why|warum|weshalb|how come)/.test(q))               return 'mechanism';
+    if (/^(как|how|wie|каким образом|in welcher weise)/.test(q))            return 'mechanism';
+    // Principle: explicit "principle/law/rule" mention anywhere
+    if (/\b(принцип|закон|правило|принципы|принципов|principle|rule|law|prinzip|gesetz|regel)\b/.test(q)) return 'principle';
+    // Domain hint: "what field" / "branch of science"
+    if (/^(какая (область|сфера|дисциплина)|what (field|domain|branch)|welches gebiet)/.test(q)) return 'domain';
+    // Concept: "what is" / "define"
+    if (/^(что такое|кто такой|кто такая|объясни|расскажи про|what is|who is|define|definition|tell me about|was ist|wer ist|definiere)/.test(q)) return 'concept';
+    return 'concept';
+};
+
+// BM25-lite ranker over the in-memory KB. Cheap and fully offline; not as
+// strong as a real BM25 + IDF but good enough for the router's "is this
+// good enough to stop?" heuristic. Returns facts sorted by score desc.
+function _eitiRouterRank(query, facts) {
+    if (!facts.length) return [];
+    var qTokens = window.eitiFaithfulnessTokenize ? window.eitiFaithfulnessTokenize(query) : query.toLowerCase().split(/\s+/);
+    if (qTokens.length === 0) return [];
+    var qSet = new Set(qTokens);
+    return facts.map(function(f){
+        var hay = ((f.answer || '') + ' ' + (f.triggers || []).join(' '));
+        var hTokens = window.eitiFaithfulnessTokenize ? window.eitiFaithfulnessTokenize(hay) : hay.toLowerCase().split(/\s+/);
+        var hits = 0;
+        hTokens.forEach(function(t){ if (qSet.has(t)) hits++; });
+        return { fact: f, score: hits };
+    })
+    .filter(function(x){ return x.score > 0; })
+    .sort(function(a, b){ return b.score - a.score; })
+    .map(function(x){ return x.fact; });
+}
+
+// Retrieve facts at a single fractal level. Only canon (L3) and only the
+// gate-approved epistemic states — Pending facts are not yet eligible to
+// answer queries.
+function _eitiRetrieveAtLevel(query, level, maxPerLevel) {
+    if (typeof eitiKBLoad !== 'function') return [];
+    var allowed = window.EITI_ALLOWED_STATES || ['Validated', 'Supported', 'ImmutableCore'];
+    var pool = eitiKBLoad().filter(function(f){
+        if ((f.fractal_level || 'concept') !== level) return false;
+        if ((f.memory_layer  || 'L1')      !== 'L3')  return false;
+        return allowed.indexOf(f.epistemic_state) !== -1;
+    });
+    var ranked = _eitiRouterRank(query, pool);
+    return ranked.slice(0, maxPerLevel || 5);
+}
+
+// Main router. Walks the fractal hierarchy until average confidence of
+// the retrieved set meets the threshold, or we hit maxDepth, or we fall
+// off the bottom (principle level).
+//
+//   eitiRecursiveRetrieval('как работает фотосинтез', {
+//       maxDepth: 4, confidenceThreshold: 0.72, maxFacts: 10
+//   }) → {
+//       facts:           Fact[],
+//       startLevel:      string,
+//       retrieval_path:  ['domain:0_facts', 'concept:3_facts', ...],
+//       depth:           int,
+//       stopped_because: 'threshold' | 'maxDepth' | 'floor' | 'no_results'
+//   }
+window.eitiRecursiveRetrieval = function(query, options) {
+    options = options || {};
+    var maxDepth = (typeof options.maxDepth === 'number') ? options.maxDepth : 4;
+    var threshold = (typeof options.confidenceThreshold === 'number') ? options.confidenceThreshold : 0.72;
+    var maxFacts = (typeof options.maxFacts === 'number') ? options.maxFacts : 10;
+
+    var startLevel = window.eitiClassifyQueryLevel(query);
+    var current = startLevel;
+    var depth = 0;
+    var results = [];
+    var path = [];
+    var stoppedBecause = 'maxDepth';
+
+    while (current && depth < maxDepth) {
+        var batch = _eitiRetrieveAtLevel(query, current, Math.max(3, maxFacts));
+        path.push(current + ':' + batch.length + '_facts');
+        results = results.concat(batch);
+        if (batch.length > 0) {
+            var sum = 0, cnt = 0;
+            batch.forEach(function(f){
+                if (typeof f.confidence === 'number') { sum += f.confidence; cnt++; }
+            });
+            var avg = cnt > 0 ? sum / cnt : 0;
+            if (avg >= threshold) { stoppedBecause = 'threshold'; break; }
+        }
+        var next = _FRACTAL_NEXT[current];
+        if (!next) { stoppedBecause = 'floor'; break; }
+        current = next;
+        depth++;
+    }
+    if (depth >= maxDepth) stoppedBecause = 'maxDepth';
+    if (results.length === 0) stoppedBecause = 'no_results';
+
+    // Dedup by id, preserve order of first appearance, cap at maxFacts.
+    var seen = new Set();
+    var dedup = [];
+    for (var i = 0; i < results.length && dedup.length < maxFacts; i++) {
+        var id = String(results[i].id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        dedup.push(results[i]);
+    }
+    return {
+        facts: dedup,
+        startLevel: startLevel,
+        retrieval_path: path,
+        depth: depth + 1,
+        stopped_because: stoppedBecause
+    };
+};
+
 // Lookup a fact by id in the in-memory KB cache (which mirrors IDB).
 function _eitiFindFactById(factId) {
     if (typeof eitiKBLoad !== 'function') return null;
