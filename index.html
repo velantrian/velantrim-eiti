@@ -175,6 +175,8 @@
                 'Проверить целостность памяти': 'Verify memory integrity',
                 '🕒 Pending Layer': '🕒 Pending Layer',
                 'Факты ожидающие подтверждения. Подтвердить → переход к Supported. Отклонить → Deprecated.': 'Facts awaiting verification. Approve → transition to Supported. Reject → Deprecated.',
+                '🧠 Память L3': '🧠 Memory L3',
+                'Просмотр канонической памяти L3 по эпистемическим состояниям. Можно переводить факты вручную.': 'Browse canonical L3 memory by epistemic state. Manual transitions allowed.',
                 'Язык ответов AI': 'AI reply language',
                 'Авто': 'Auto',
                 'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
@@ -6173,6 +6175,20 @@
                                 🔄 Обновить
                             </button>
                             <div id="pending-list" style="max-height:280px;overflow-y:auto;font-size:12px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ 🧠 Память L3 (T12 v14.0) — L3 Viewer ═══ -->
+                    <div class="settings-group" id="l3-viewer-group">
+                        <div class="settings-title" data-i18n="🧠 Память L3">🧠 Память L3</div>
+                        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                            <div style="font-size:12px;opacity:0.6;line-height:1.5;" data-i18n="Просмотр канонической памяти L3 по эпистемическим состояниям. Можно переводить факты вручную.">
+                                Просмотр канонической памяти L3 по эпистемическим состояниям. Можно переводить факты вручную.
+                            </div>
+                            <div id="l3-viewer-tabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+                            <div id="l3-viewer-stats" style="font-size:11px;opacity:0.5;text-align:center;"></div>
+                            <div id="l3-viewer-list" style="max-height:360px;overflow-y:auto;font-size:12px;"></div>
+                            <div id="l3-viewer-history" style="display:none;font-size:11px;background:rgba(0,0,0,0.25);border-radius:8px;padding:10px;max-height:240px;overflow-y:auto;"></div>
                         </div>
                     </div>
 
@@ -36494,7 +36510,165 @@ window.eitiRefreshPendingUI = function() {
 // Auto-refresh on first display + after any ESM transition.
 document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){ if (typeof window.eitiRefreshPendingUI === 'function') window.eitiRefreshPendingUI(); }, 2500);
+    setTimeout(function(){ if (typeof window.eitiRefreshL3Viewer === 'function') window.eitiRefreshL3Viewer(); }, 2600);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T12 (v14.0) — L3 Viewer.
+//
+// Tabbed inspector for the canonical memory. Tabs:
+//   ✅ Validated · 💭 Pending · ❌ Contradicted · 🗑️ Deprecated · ⛔ Retracted
+// For each fact: state badge + meta (level, layer, conf, retention,
+// stability) + actions (→ Contradicted / → Deprecated / 🔍 История).
+// History pulls all events from audit_log WHERE fact_id = the card's id.
+// ═══════════════════════════════════════════════════════════════════════════
+var _L3_VIEWER_TAB = 'Validated';
+var _L3_TABS = [
+    { id: 'Validated',    label: '✅ Validated'   },
+    { id: 'Pending',      label: '💭 Pending'     },  // virtual: Observed + Hypothesized
+    { id: 'Supported',    label: '🟡 Supported'   },
+    { id: 'ImmutableCore',label: '🔒 Core'        },
+    { id: 'Contradicted', label: '❌ Contradicted'},
+    { id: 'Deprecated',   label: '🗑️ Deprecated' },
+    { id: 'Retracted',    label: '⛔ Retracted'   }
+];
+
+window.eitiL3SwitchTab = function(tabId) {
+    _L3_VIEWER_TAB = tabId;
+    window.eitiRefreshL3Viewer();
+};
+
+window.eitiRefreshL3Viewer = function() {
+    var tabsEl  = document.getElementById('l3-viewer-tabs');
+    var listEl  = document.getElementById('l3-viewer-list');
+    var statsEl = document.getElementById('l3-viewer-stats');
+    if (!tabsEl || !listEl) return;
+    var facts = (typeof eitiKBLoad === 'function') ? eitiKBLoad() : [];
+    var col   = window.EITI_ESM_COLORS || {};
+
+    // Tab pills
+    tabsEl.innerHTML = _L3_TABS.map(function(tab) {
+        var bucket = facts.filter(function(f){
+            if (tab.id === 'Pending') return ['Observed','Hypothesized'].indexOf(f.epistemic_state) !== -1;
+            return f.epistemic_state === tab.id;
+        });
+        var active = tab.id === _L3_VIEWER_TAB;
+        var bg = active ? 'linear-gradient(145deg,var(--accent-color),#c9a700)' : 'var(--secondary-color)';
+        var fg = active ? '#000' : 'var(--text-color)';
+        var border = active ? 'var(--accent-color)' : 'var(--border-color)';
+        var safeId = String(tab.id).replace(/'/g, "\\'");
+        return '<button type="button" onclick="window.eitiL3SwitchTab(\'' + safeId + '\')"'
+            + ' style="flex:0 1 auto;padding:6px 10px;border-radius:8px;border:1px solid ' + border
+            + ';background:' + bg + ';color:' + fg + ';font-size:11px;font-weight:600;cursor:pointer;">'
+            + tab.label + ' <span style="opacity:0.6;font-weight:400;">' + bucket.length + '</span>'
+            + '</button>';
+    }).join('');
+
+    // Bucket for current tab
+    var bucket = facts.filter(function(f){
+        if (_L3_VIEWER_TAB === 'Pending') return ['Observed','Hypothesized'].indexOf(f.epistemic_state) !== -1;
+        return f.epistemic_state === _L3_VIEWER_TAB;
+    });
+
+    if (statsEl) statsEl.innerHTML = 'Найдено: <b>' + bucket.length + '</b> фактов';
+
+    if (bucket.length === 0) {
+        listEl.innerHTML = '<div style="opacity:0.4;text-align:center;padding:14px;">Пусто в этой категории</div>';
+        return;
+    }
+
+    listEl.innerHTML = bucket.slice(0, 100).map(function(f) {
+        var st = f.epistemic_state || 'Observed';
+        var c = col[st] || { bg:'#888', fg:'#fff', icon:'⚪' };
+        var trigs = (f.triggers || []).join(', ').slice(0, 60);
+        var answer = (f.answer || '').slice(0, 180);
+        var conf = (typeof f.confidence === 'number') ? Math.round(f.confidence * 100) + '%' : '—';
+        var stab = (typeof f.stability  === 'number') ? f.stability.toFixed(2) : '—';
+        var ret  = '—';
+        if (f.last_accessed && typeof f.stability === 'number' && typeof window.fsrsRetention === 'function') {
+            var days = (Date.now() - new Date(f.last_accessed).getTime()) / 86400000;
+            ret = Math.round(window.fsrsRetention(days, f.stability) * 100) + '%';
+        }
+        var lvl = f.fractal_level || 'concept';
+        var lay = f.memory_layer  || 'L1';
+        var cat = f.category || '—';
+        var jsId = String(f.id).replace(/'/g, "\\'");
+
+        var actions = '';
+        if (st === 'Observed' || st === 'Hypothesized') {
+            actions = '<button onclick="window.eitiPendingApprove(\'' + jsId + '\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #27ae60;background:rgba(39,174,96,0.15);color:#5dd58c;font-size:10px;cursor:pointer;">✅ Supported</button>'
+                + '<button onclick="window.eitiPendingReject(\'' + jsId + '\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #7f8c8d;background:rgba(127,140,141,0.15);color:#aaa;font-size:10px;cursor:pointer;">🗑️ Deprecate</button>';
+        } else if (st === 'Supported') {
+            actions = '<button onclick="window.eitiPromoteToL3(\'' + jsId + '\').then(function(r){if(r.promoted)showToast(\'✅ Promoted to L3\'); else showToast(r.reason);window.eitiRefreshL3Viewer();}).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #2980b9;background:rgba(41,128,185,0.15);color:#5dade2;font-size:10px;cursor:pointer;">⬆️ → L3</button>'
+                + '<button onclick="window.eitiESMTransition(\'' + jsId + '\', \'Contradicted\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #e74c3c;background:rgba(231,76,60,0.15);color:#f5a09a;font-size:10px;cursor:pointer;">❌ Contradicted</button>';
+        } else if (st === 'Validated') {
+            actions = '<button onclick="window.eitiESMTransition(\'' + jsId + '\', \'Contradicted\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #e74c3c;background:rgba(231,76,60,0.15);color:#f5a09a;font-size:10px;cursor:pointer;">❌ Contradicted</button>'
+                + '<button onclick="window.eitiESMTransition(\'' + jsId + '\', \'Deprecated\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #7f8c8d;background:rgba(127,140,141,0.15);color:#aaa;font-size:10px;cursor:pointer;">🗑️ Deprecate</button>';
+        } else if (st === 'Contradicted') {
+            actions = '<button onclick="window.eitiESMTransition(\'' + jsId + '\', \'Hypothesized\').then(window.eitiRefreshL3Viewer).catch(function(e){showToast(e.message);})" '
+                + 'style="padding:5px 8px;border-radius:6px;border:1px solid #9b59b6;background:rgba(155,89,182,0.15);color:#c39bd3;font-size:10px;cursor:pointer;">💭 Re-Hypothesize</button>';
+        }
+        actions += '<button onclick="window.eitiShowFactHistory(\'' + jsId + '\')" '
+            + 'style="padding:5px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:10px;cursor:pointer;">🔍 История</button>';
+
+        return '<div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);margin:6px 0;border-left:3px solid ' + c.bg + ';">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;">'
+            +   '<span style="display:inline-block;padding:1px 6px;border-radius:6px;background:' + c.bg + ';color:' + c.fg + ';font-size:10px;font-weight:700;">' + c.icon + ' ' + st + '</span>'
+            +   '<span style="opacity:0.55;font-size:10px;">' + lvl + ' · ' + lay + ' · ' + cat + '</span>'
+            + '</div>'
+            + '<div style="font-size:11px;opacity:0.55;">🔍 ' + eitiEsc(trigs) + '</div>'
+            + '<div style="font-size:12px;line-height:1.4;margin-top:2px;">' + eitiEsc(answer) + '</div>'
+            + '<div style="font-size:10px;opacity:0.55;margin-top:4px;">conf ' + conf + ' · stab ' + stab + ' · retention ' + ret + '</div>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">' + actions + '</div>'
+            + '</div>';
+    }).join('');
+};
+
+// Show audit_log history for a single fact in the L3 viewer pane.
+window.eitiShowFactHistory = function(factId) {
+    var histEl = document.getElementById('l3-viewer-history');
+    if (!histEl) return;
+    if (!window._db || !window.eitiSQLReady) {
+        histEl.style.display = 'block';
+        histEl.innerHTML = '<div style="opacity:0.4;text-align:center;">SQLite не готов</div>';
+        return;
+    }
+    var rows;
+    try {
+        rows = window._db.exec(
+            'SELECT id, event, payload, at FROM audit_log WHERE fact_id = ? ORDER BY id DESC LIMIT 50',
+            [String(factId)]
+        );
+    } catch(e) {
+        histEl.style.display = 'block';
+        histEl.innerHTML = '<div style="color:#f88;">Ошибка чтения: ' + eitiEsc(e.message) + '</div>';
+        return;
+    }
+    histEl.style.display = 'block';
+    var entries = (rows[0] && rows[0].values) || [];
+    if (entries.length === 0) {
+        histEl.innerHTML = '<div style="opacity:0.55;">📜 История пуста для <code>' + eitiEsc(factId) + '</code></div>'
+            + '<button onclick="document.getElementById(\'l3-viewer-history\').style.display=\'none\'" style="margin-top:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--text-color);font-size:10px;cursor:pointer;">Закрыть</button>';
+        return;
+    }
+    histEl.innerHTML = '<div style="font-size:11px;opacity:0.7;margin-bottom:6px;">📜 История <code>' + eitiEsc(factId) + '</code> · ' + entries.length + ' событий</div>'
+        + entries.map(function(r) {
+            var date = (r[3] || '').slice(0, 19).replace('T', ' ');
+            var payload = r[2] || '';
+            return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
+                + '<span style="opacity:0.5;">' + date + '</span> · '
+                + '<b>' + eitiEsc(r[1] || '?') + '</b><br>'
+                + '<span style="opacity:0.55;font-family:monospace;font-size:10px;">' + eitiEsc(payload.slice(0, 200)) + '</span>'
+                + '</div>';
+        }).join('')
+        + '<button onclick="document.getElementById(\'l3-viewer-history\').style.display=\'none\'" style="margin-top:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--text-color);font-size:10px;cursor:pointer;">Закрыть</button>';
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // T6 (v14.0) — Fractal Memory Router with Recursive Retrieval.
