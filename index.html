@@ -14454,8 +14454,12 @@
                     if (typeof eitiLemmaInitIDB === 'function') eitiLemmaInitIDB();
                     // v12.9.2: загружаем L3 кэш личного профиля
                     if (typeof _l3LoadCache === 'function') _l3LoadCache();
-                    // v12.9.40: загружаем PKG граф и запускаем decay
+                    // v12.9.40: загружаем PKG граф и запускаем decay (узлов)
                     if (typeof pkgLoadAndDecay === 'function') pkgLoadAndDecay();
+                    // T4: schedule daily Hebbian LTD sweep over PKG edges (first tick in 45s).
+                    if (typeof window.eitiStartHebbianDecayScheduler === 'function') {
+                        window.eitiStartHebbianDecayScheduler();
+                    }
                     // v13.x: загружаем VB паттерны из IDB (или мигрируем из LS)
                     if (typeof _vbLoadAndMigrate === 'function') _vbLoadAndMigrate();
                     resolve(); };
@@ -27220,7 +27224,16 @@ window.eitiLLMClearAll = async function() {
             } catch(e) {}
         }
 
-        // ── Усилить ребро между двумя концептами ────────────────────
+        // ── T4 — Hebbian LTP/LTD on PKG edges ───────────────────────
+        // LTP on co-mention: strength = min(strength * 1.05, 10.0); ltp_count++
+        // LTD daily sweep:   strength = max(strength * 0.99,  0.1); ltd_count++
+        var PKG_LTP_MULTIPLIER = 1.05;
+        var PKG_LTD_MULTIPLIER = 0.99;
+        var PKG_MAX_STRENGTH   = 10.0;
+        var PKG_MIN_STRENGTH   = 0.1;
+        var PKG_DECAY_DAILY_MS = 24 * 60 * 60 * 1000;
+
+        // ── Усилить ребро между двумя концептами (Hebbian LTP) ─────
         function pkgUpdateEdge(conceptA, conceptB) {
             if (!eitiDb) return;
             var a = conceptA.trim().toLowerCase();
@@ -27232,12 +27245,22 @@ window.eitiLLMClearAll = async function() {
             if (_pkgEdgesCache === null) _pkgEdgesCache = {};
             var existing = _pkgEdgesCache[edgeId];
             var edge;
+            var now = Date.now();
             if (existing) {
                 edge = existing;
-                edge.strength = parseFloat((edge.strength + 1).toFixed(2));
-                edge.lastSeen = Date.now();
+                // Lazy migration: pre-T4 edges lack ltp_count / ltd_count.
+                if (typeof edge.ltp_count !== 'number') edge.ltp_count = 0;
+                if (typeof edge.ltd_count !== 'number') edge.ltd_count = 0;
+                edge.strength = Math.min(edge.strength * PKG_LTP_MULTIPLIER, PKG_MAX_STRENGTH);
+                edge.strength = parseFloat(edge.strength.toFixed(3));
+                edge.ltp_count++;
+                edge.lastSeen = now;
             } else {
-                edge = { id: edgeId, a: parts[0], b: parts[1], strength: 1, created: Date.now(), lastSeen: Date.now() };
+                edge = {
+                    id: edgeId, a: parts[0], b: parts[1],
+                    strength: 1.0, ltp_count: 1, ltd_count: 0,
+                    created: now, lastSeen: now
+                };
             }
             _pkgEdgesCache[edgeId] = edge;
             try {
@@ -27245,6 +27268,50 @@ window.eitiLLMClearAll = async function() {
                 tx.objectStore('pkg_edges').put(edge);
             } catch(e) {}
         }
+
+        // Public name from ТЗ — alias of pkgUpdateEdge.
+        window.eitiHebbianActivate = function(a, b) { return pkgUpdateEdge(a, b); };
+
+        // ── Daily Hebbian decay across ALL edges ───────────────────
+        // Mirrors the activate rule on the other side: every edge gets
+        // strength *= 0.99 (floored at 0.1), and ltd_count is bumped so
+        // we can see the balance of strengthening vs. weakening per pair.
+        window.eitiHebbianDecay = function() {
+            if (!_pkgEdgesCache || !eitiDb) return { swept: 0 };
+            var swept = 0;
+            var toPersist = [];
+            Object.values(_pkgEdgesCache).forEach(function(edge) {
+                if (typeof edge.ltp_count !== 'number') edge.ltp_count = 0;
+                if (typeof edge.ltd_count !== 'number') edge.ltd_count = 0;
+                edge.strength = Math.max(edge.strength * PKG_LTD_MULTIPLIER, PKG_MIN_STRENGTH);
+                edge.strength = parseFloat(edge.strength.toFixed(3));
+                edge.ltd_count++;
+                swept++;
+                toPersist.push(edge);
+            });
+            if (toPersist.length > 0) {
+                try {
+                    var tx = eitiDb.transaction('pkg_edges', 'readwrite');
+                    var store = tx.objectStore('pkg_edges');
+                    toPersist.forEach(function(e){ store.put(e); });
+                } catch(e) {}
+            }
+            return { swept: swept };
+        };
+
+        // Schedule the daily decay. Guard against double-init.
+        window._eitiHebbianDecayHandle = window._eitiHebbianDecayHandle || null;
+        window.eitiStartHebbianDecayScheduler = function() {
+            if (window._eitiHebbianDecayHandle) return;
+            // Run once shortly after boot in case the last decay was >1 day ago,
+            // then once per day after that.
+            setTimeout(function(){
+                try { window.eitiHebbianDecay(); } catch(e){}
+            }, 45000);
+            window._eitiHebbianDecayHandle = setInterval(function(){
+                try { window.eitiHebbianDecay(); } catch(e){}
+            }, PKG_DECAY_DAILY_MS);
+        };
 
         // ── Топ N узлов по весу (для промпта) ───────────────────────
         function pkgGetTopNodes(n) {
@@ -27705,15 +27772,27 @@ window.eitiLLMClearAll = async function() {
                     }).join('');
                 }
             }
-            // Edges list
+            // Edges list — T4: thickness proportional to strength, ltp/ltd counters shown
             if (edgesEl) {
                 if (!edges.length) { edgesEl.innerHTML = '<div style="opacity:0.4;text-align:center;padding:12px;">Связей пока нет</div>'; }
                 else {
                     var sortedE = edges.slice().sort(function(a,b){return b.strength-a.strength;}).slice(0,20);
                     edgesEl.innerHTML = sortedE.map(function(e) {
-                        return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;">'
-                            + '🔗 <b>' + e.a + '</b> ↔ <b>' + e.b + '</b>'
-                            + '<span style="opacity:0.5;margin-left:8px;">сила: ' + e.strength.toFixed(1) + '</span>'
+                        // Thickness 1-8 px mapped from strength [PKG_MIN_STRENGTH..PKG_MAX_STRENGTH].
+                        var s = e.strength || 0;
+                        var thickness = Math.max(1, Math.round((s / PKG_MAX_STRENGTH) * 8));
+                        var pct = Math.round((s / PKG_MAX_STRENGTH) * 100);
+                        var ltp = e.ltp_count || 0, ltd = e.ltd_count || 0;
+                        return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;">'
+                            + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+                            +   '<span>🔗 <b>' + e.a + '</b> ↔ <b>' + e.b + '</b></span>'
+                            +   '<span style="opacity:0.55;font-size:11px;">'
+                            +     'сила: <b>' + s.toFixed(2) + '</b>'
+                            +     ' · <span title="LTP (потенциация)">↑' + ltp + '</span>'
+                            +     ' · <span title="LTD (депрессия)">↓' + ltd + '</span>'
+                            +   '</span>'
+                            + '</div>'
+                            + '<div style="margin-top:4px;height:' + thickness + 'px;background:linear-gradient(90deg,#4a8a4a 0%,#7bc77b ' + pct + '%,rgba(255,255,255,0.04) ' + pct + '%);border-radius:' + Math.ceil(thickness/2) + 'px;"></div>'
                             + '</div>';
                     }).join('');
                 }
