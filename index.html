@@ -26898,9 +26898,9 @@ window.eitiLLMClearAll = async function() {
             var _newFactId = 'kb_u'+Date.now();
             facts.push({ id:_newFactId, triggers:triggers, answer:ans.trim(), category:cat.trim()||'other', ts: Date.now(), epistemic_state: 'Observed' });
             eitiKBSave(facts);
-            // T1+T2: write fact_create event to the hash-chain audit log.
+            // T1+T2: write fact_created event to the hash-chain audit log.
             if (typeof window.eitiLogEvent === 'function') {
-                window.eitiLogEvent(_newFactId, 'fact_create', {
+                window.eitiLogEvent(_newFactId, 'fact_created', {
                     triggers: triggers, answer: ans.trim(), category: cat.trim()||'other'
                 });
             }
@@ -27625,6 +27625,36 @@ window.eitiLLMClearAll = async function() {
                     });
                     return s.size;
                 })()
+            };
+        };
+
+        // ── T8 (v14.0): Guardian — semantic-overlap gate for AI answers ───
+        // Wraps eitiFaithfulness with the {approved, score, warn} shape that
+        // T9 enforced flow and T10 trace UI expect.
+        //
+        //   approved:
+        //     true  → render the answer normally
+        //     false → answer should be blocked or flagged (caller decides)
+        //   warn:
+        //     true  → score < 0.30 AND facts.length > 0
+        //             (the model didn't use the available grounding)
+        //
+        // When facts is empty we treat the gate as "approved" with warn=false
+        // — there's nothing to compare against, so faithfulness is undefined,
+        // not a violation. The empty-facts case is the responsibility of the
+        // Truth Gate (T4), not the Guardian.
+        window.EITI_GUARDIAN_THRESHOLD = 0.30;
+        window.eitiGuardian = function(answer, facts) {
+            var factsArr = Array.isArray(facts) ? facts : [];
+            var score = window.eitiFaithfulness(answer, factsArr);
+            var hasFacts = factsArr.length > 0;
+            var threshold = window.EITI_GUARDIAN_THRESHOLD;
+            var approved = !hasFacts || score >= threshold;
+            return {
+                approved: approved,
+                score: score,
+                warn: hasFacts && score < threshold,
+                threshold: threshold
             };
         };
 
@@ -36187,7 +36217,8 @@ window.eitiOnFactRecall = function(factId) {
     if (r > _DECAY_RECALL_LTP_THRESHOLD)      newStability = stability * 1.5;
     else if (r < _DECAY_RECALL_LTD_THRESHOLD) newStability = stability * 0.5;
     // Clamp to a reasonable range — runaway growth would just slow decay forever.
-    newStability = Math.min(Math.max(newStability, 0.1), 1000);
+    // v14.0 T5: clamp [0.1, 100] per ТЗ (was [0.1, 1000] in v13).
+    newStability = Math.min(Math.max(newStability, 0.1), 100);
     f.stability = newStability;
     f.last_accessed = nowIso;
     eitiKBSave(facts);
