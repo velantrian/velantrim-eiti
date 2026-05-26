@@ -177,6 +177,8 @@
                 'Факты ожидающие подтверждения. Подтвердить → переход к Supported. Отклонить → Deprecated.': 'Facts awaiting verification. Approve → transition to Supported. Reject → Deprecated.',
                 '🧠 Память L3': '🧠 Memory L3',
                 'Просмотр канонической памяти L3 по эпистемическим состояниям. Можно переводить факты вручную.': 'Browse canonical L3 memory by epistemic state. Manual transitions allowed.',
+                '🔒 Строгий режим памяти': '🔒 Strict Memory Mode',
+                'Если ВКЛ — AI отвечает только когда в L3 есть проверенные факты по теме. Иначе показывается «нет фактов». По умолчанию ВЫКЛ.': 'When ON — AI only answers if L3 has verified facts on the topic. Otherwise shows "no facts". OFF by default.',
                 'Язык ответов AI': 'AI reply language',
                 'Авто': 'Auto',
                 'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
@@ -2044,6 +2046,45 @@
                 }
             } catch(e) {}
         };
+
+        // v14.0 follow-up: Strict Memory Mode (opt-in Truth Gate enforcement).
+        // OFF (default) → wrapper just forwards to provider, like pre-v14.
+        // ON              → wrapper runs retrieval + Truth Gate before the
+        //                   provider; if no canon facts cover the topic, the
+        //                   gate-block message is shown in chat instead of the
+        //                   AI hallucinating an answer.
+        // Toggle lives in Settings → Pending Layer group.
+        window.eitiGetStrictMemoryMode = function() {
+            try { return localStorage.getItem('eiti_strict_memory_mode') === '1'; }
+            catch(e) { return false; }
+        };
+        window.eitiSetStrictMemoryMode = function(on) {
+            try { localStorage.setItem('eiti_strict_memory_mode', on ? '1' : '0'); } catch(e){}
+            try { if (typeof window.eitiUpdateStrictModeUI === 'function') window.eitiUpdateStrictModeUI(); } catch(e){}
+            try {
+                if (typeof window.showToast === 'function') {
+                    var lang = (typeof window.eitiGetLocale === 'function') ? window.eitiGetLocale() : 'ru';
+                    var msg = on
+                        ? (lang === 'en' ? '🔒 Strict Memory: ON — AI answers only from canon'
+                                         : '🔒 Строгий режим: ВКЛ — AI отвечает только из канона')
+                        : (lang === 'en' ? '🔓 Strict Memory: OFF — AI answers normally'
+                                         : '🔓 Строгий режим: ВЫКЛ — AI отвечает как обычно');
+                    window.showToast(msg, 1800);
+                }
+            } catch(e){}
+        };
+        window.eitiUpdateStrictModeUI = function() {
+            var btn = document.getElementById('eiti-strict-mode-btn');
+            if (!btn) return;
+            var on = window.eitiGetStrictMemoryMode();
+            btn.style.background = on ? 'linear-gradient(145deg,var(--accent-color),#c9a700)' : 'var(--secondary-color)';
+            btn.style.color = on ? '#000' : 'var(--text-color)';
+            btn.style.borderColor = on ? 'var(--accent-color)' : 'var(--border-color)';
+            btn.textContent = on ? '🔒 ON' : '🔓 OFF';
+        };
+        document.addEventListener('DOMContentLoaded', function(){
+            setTimeout(function(){ if (typeof window.eitiUpdateStrictModeUI === 'function') window.eitiUpdateStrictModeUI(); }, 200);
+        });
         // Heuristic language detection: count Cyrillic vs Latin letters.
         // Returns 'ru' | 'en'. Used only when reply-lang setting is 'auto'.
         window.eitiDetectMessageLang = function(text) {
@@ -6174,6 +6215,18 @@
                                 style="padding:8px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">
                                 🔄 Обновить
                             </button>
+
+                            <!-- Strict Memory Mode toggle — opt-in Truth Gate enforcement -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                                <div style="flex:1;">
+                                    <div style="font-size:12px;font-weight:600;" data-i18n="🔒 Строгий режим памяти">🔒 Строгий режим памяти</div>
+                                    <div style="font-size:11px;opacity:0.55;line-height:1.4;margin-top:2px;" data-i18n="Если ВКЛ — AI отвечает только когда в L3 есть проверенные факты по теме. Иначе показывается «нет фактов». По умолчанию ВЫКЛ.">Если ВКЛ — AI отвечает только когда в L3 есть проверенные факты по теме. Иначе показывается «нет фактов». По умолчанию ВЫКЛ.</div>
+                                </div>
+                                <button id="eiti-strict-mode-btn" type="button"
+                                    onclick="window.eitiSetStrictMemoryMode(!window.eitiGetStrictMemoryMode())"
+                                    style="padding:8px 14px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;min-width:78px;">🔓 OFF</button>
+                            </div>
+
                             <div id="pending-list" style="max-height:280px;overflow-y:auto;font-size:12px;"></div>
                         </div>
                     </div>
@@ -41694,19 +41747,83 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         return Math.max(0, (Date.now() - new Date(iso).getTime()) / 86400000);
     }
 
+    // Localised gate-block / fallback reasons. UI locale picks the language.
+    function _i18nMsg(en, ru) {
+        var loc = (typeof window.eitiGetLocale === 'function') ? window.eitiGetLocale() : 'ru';
+        return loc === 'en' ? en : ru;
+    }
+    function _localiseGateReason(reason) {
+        if (!reason || typeof reason !== 'string') return reason;
+        if (reason.indexOf('Нет фактов в памяти') !== -1)
+            return _i18nMsg('⚠️ No facts in memory on this topic', '⚠️ Нет фактов в памяти по этой теме');
+        if (reason.indexOf('Pending') !== -1)
+            return _i18nMsg('⚠️ All facts are still Pending — not yet verified', '⚠️ Все факты в статусе Pending — не верифицированы');
+        if (reason.indexOf('Низкая уверенность') !== -1) {
+            var pct = (reason.match(/\d+/) || [''])[0];
+            return _i18nMsg('⚠️ Low confidence: ' + pct + '%', '⚠️ Низкая уверенность: ' + pct + '%');
+        }
+        return reason;
+    }
+    // Renders the wrapper's resolved string into the chat as a normal assistant
+    // bubble. Used for gate-block messages AND for early-return warnings from
+    // providers (e.g. "Настройте API ключ"), since those paths never created a
+    // liveDiv and would otherwise be invisible.
+    function _renderIntoChat(text) {
+        if (!text) return;
+        try {
+            if (typeof window.eitiReceiveReply === 'function') {
+                window.eitiReceiveReply(String(text));
+                return true;
+            }
+        } catch(e) { console.warn('[v14 T9] render via eitiReceiveReply failed:', e); }
+        return false;
+    }
+
     window.eitiAskDeepSeek = async function(userText) {
         var trace = window._eitiActiveTrace;
-        // If trace wasn't pre-started by the user-msg path, start it now.
         if (!trace && typeof window.eitiTraceStart === 'function') {
             trace = window.eitiTraceStart(userText);
         }
+        var strictOn = (typeof window.eitiGetStrictMemoryMode === 'function')
+            ? window.eitiGetStrictMemoryMode() : false;
+
+        // Count incoming-bubbles before we hand off so we can detect whether
+        // the downstream chain rendered anything (streaming path) or returned
+        // a short warning that never made it to the DOM (early-return path).
+        function _incomingCount() {
+            try { return document.querySelectorAll('#messages .message.incoming').length; }
+            catch(e) { return 0; }
+        }
+
+        // ─── Strict mode OFF: pass-through with fallback render ───────
+        // This is the new default. Provider gets called like in v13.
+        // If it returns a short warning-like string (e.g. "Настройте API
+        // ключ") and didn't render a live bubble, we explicitly render it
+        // so the user actually sees the fallback instead of silence.
+        if (!strictOn) {
+            var beforeOff = _incomingCount();
+            var replyOff;
+            try {
+                replyOff = await _origAsk_v14(userText);
+            } catch(e) {
+                _renderIntoChat(_i18nMsg('❌ AI provider error: ', '❌ Ошибка AI-провайдера: ') + (e.message || e));
+                throw e;
+            }
+            var afterOff = _incomingCount();
+            // If downstream didn't render (early-return path), render explicitly.
+            if (afterOff === beforeOff && typeof replyOff === 'string' && replyOff.trim()) {
+                _renderIntoChat(replyOff);
+            }
+            return replyOff;
+        }
+
+        // ─── Strict mode ON: original v14 enforced flow ─────────────
         if (!trace) {
-            // Fallback: if tracing is broken for any reason, fail open —
-            // call the AI without enforcement. Mirrors v13 behaviour.
+            // Fail-open if tracing broke for any reason.
             return _origAsk_v14(userText);
         }
 
-        // ── 1. Recursive retrieval ────────────────────────────
+        // 1. Recursive retrieval
         var retrieval = { facts: [], startLevel: null, retrieval_path: [] };
         try {
             if (typeof window.eitiRecursiveRetrieval === 'function') {
@@ -41716,19 +41833,15 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             }
         } catch(e) { console.warn('[v14 T9] retrieval failed:', e); }
 
-        // ── 2. Truth Gate over allowed-state facts ────────────
+        // 2. Truth Gate over allowed-state facts
         var allowed = window.EITI_ALLOWED_STATES || ['Validated', 'Supported', 'ImmutableCore'];
-        var allowedFacts = retrieval.facts.filter(function(f){
-            return allowed.indexOf(f.epistemic_state) !== -1;
-        });
-        var discardedFacts = retrieval.facts.filter(function(f){
-            return allowed.indexOf(f.epistemic_state) === -1;
-        });
+        var allowedFacts = retrieval.facts.filter(function(f){ return allowed.indexOf(f.epistemic_state) !== -1; });
+        var discardedFacts = retrieval.facts.filter(function(f){ return allowed.indexOf(f.epistemic_state) === -1; });
         var gate = (typeof window.eitiTruthGate === 'function')
             ? window.eitiTruthGate(allowedFacts)
             : { passed: true, reason: null };
 
-        // ── 3. Populate trace ─────────────────────────────────
+        // 3. Populate trace
         trace.query_type = (typeof window.eitiClassifyQueryLevel === 'function')
             ? window.eitiClassifyQueryLevel(userText) : null;
         trace.classified_as = trace.classified_as || trace.query_type;
@@ -41737,47 +41850,50 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         trace.l3_hits = allowedFacts.length;
         trace.facts_used = allowedFacts.map(function(f){
             return {
-                factId: f.id,
-                claim: f.answer || '',
-                epistemic_state: f.epistemic_state,
-                confidence: f.confidence,
+                factId: f.id, claim: f.answer || '',
+                epistemic_state: f.epistemic_state, confidence: f.confidence,
                 fractal_level: f.fractal_level,
                 retention: (typeof window.fsrsRetention === 'function' && f.last_accessed && typeof f.stability === 'number')
-                    ? window.fsrsRetention(daysSince(f.last_accessed), f.stability)
-                    : null
+                    ? window.fsrsRetention(daysSince(f.last_accessed), f.stability) : null
             };
         });
         trace.facts_discarded = discardedFacts.map(function(f){
-            return {
-                factId: f.id,
-                claim: (f.answer || '').slice(0, 80),
-                reason: f.epistemic_state || 'unknown'
-            };
+            return { factId: f.id, claim: (f.answer || '').slice(0, 80), reason: f.epistemic_state || 'unknown' };
         });
         trace.truth_gate_passed = gate.passed;
         trace.truth_gate_reason = gate.reason;
 
-        // ── 4. Gate blocked? Resolve with gate.reason, no AI call ──
+        // 4. Gate blocked? Render the localised reason and skip the provider.
         if (!gate.passed) {
+            var blockMsg = _localiseGateReason(gate.reason)
+                || _i18nMsg('⚠️ Answer blocked by Truth Gate', '⚠️ Ответ заблокирован Truth Gate');
             trace.answer_allowed = false;
-            trace.answer_blocked = gate.reason;
+            trace.answer_blocked = blockMsg;
             if (typeof window.eitiLogEvent === 'function') {
                 try { await window.eitiLogEvent(null, 'answer_blocked', { reason: gate.reason, query: userText.slice(0, 100) }); } catch(e){}
             }
-            return gate.reason || '⚠️ Ответ заблокирован Truth Gate';
+            _renderIntoChat(blockMsg);
+            return blockMsg;
         }
 
-        // ── 5. Call original chain — provider answers ──────────
+        // 5. Call original chain
+        var beforeOn = _incomingCount();
         var reply;
         try {
             reply = await _origAsk_v14(userText);
         } catch(e) {
             trace.answer_allowed = false;
             trace.answer_blocked = 'Provider error: ' + (e.message || e);
+            _renderIntoChat(_i18nMsg('❌ AI provider error: ', '❌ Ошибка AI-провайдера: ') + (e.message || e));
             throw e;
         }
+        var afterOn = _incomingCount();
+        if (afterOn === beforeOn && typeof reply === 'string' && reply.trim()) {
+            // Provider early-returned without rendering — show the fallback warning.
+            _renderIntoChat(reply);
+        }
 
-        // ── 6. Guardian — semantic overlap check ──────────────
+        // 6. Guardian
         if (typeof window.eitiGuardian === 'function' && allowedFacts.length > 0) {
             try {
                 var verdict = window.eitiGuardian(String(reply || ''), trace.facts_used);
@@ -41791,17 +41907,13 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
                 }
             } catch(e) { console.warn('[v14 T9] guardian failed:', e); }
         }
-
         trace.answer_allowed = true;
         if (typeof window.eitiLogEvent === 'function') {
             try { await window.eitiLogEvent(null, 'answer_generated', {
-                query_type: trace.query_type,
-                fractal_start: trace.fractal_start,
-                facts_used: trace.facts_used.length,
-                faithfulness: trace.guardian_score
+                query_type: trace.query_type, fractal_start: trace.fractal_start,
+                facts_used: trace.facts_used.length, faithfulness: trace.guardian_score
             }); } catch(e){}
         }
-
         return reply;
     };
 
