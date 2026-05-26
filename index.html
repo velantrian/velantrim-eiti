@@ -24671,6 +24671,11 @@ window.eitiLLMClearAll = async function() {
                         var fmigrated = window.eitiFsrsMigrateFacts();
                         if (fmigrated > 0) console.info('[FSRS] backfilled stability/last_accessed on ' + fmigrated + ' facts');
                     }
+                    // v14.0 T1: tag pre-v14 facts with fractal_level='concept', memory_layer='L3'.
+                    if (typeof window.eitiFractalMigrateFacts === 'function') {
+                        var fcmigrated = window.eitiFractalMigrateFacts();
+                        if (fcmigrated > 0) console.info('[v14 T1] backfilled fractal columns on ' + fcmigrated + ' facts');
+                    }
                     // T3: start the hourly decay sweeper (first tick in 30s, then 1h).
                     if (typeof window.eitiStartDecayScheduler === 'function') window.eitiStartDecayScheduler();
                     eitiKBRenderStats();
@@ -26896,7 +26901,24 @@ window.eitiLLMClearAll = async function() {
             var _prevManualCatCnt = Object.keys(_prevManualCats).length;
             var _prevManualFactCnt = facts.length;
             var _newFactId = 'kb_u'+Date.now();
-            facts.push({ id:_newFactId, triggers:triggers, answer:ans.trim(), category:cat.trim()||'other', ts: Date.now(), epistemic_state: 'Observed' });
+            // v14.0 T1: user-added facts enter at L1 (working memory) with
+            // fractal_level='concept' (the safest default of the 5 levels).
+            // They graduate to L3 via T4 Truth Gate after enough recall and
+            // confidence. Old behaviour wrote directly to canon — no longer
+            // allowed under the strict L0→L1→L2→Pending→Gate→L3 path.
+            facts.push({
+                id: _newFactId,
+                triggers: triggers,
+                answer: ans.trim(),
+                category: cat.trim() || 'other',
+                ts: Date.now(),
+                epistemic_state: 'Observed',
+                memory_layer: 'L1',
+                fractal_level: 'concept',
+                compression_level: 0,
+                guardian_verified: 0,
+                parent_fact_id: null
+            });
             eitiKBSave(facts);
             // T1+T2: write fact_created event to the hash-chain audit log.
             if (typeof window.eitiLogEvent === 'function') {
@@ -35910,15 +35932,20 @@ function _createSchema() {
             updated   INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS kb_idx (
-            id              TEXT PRIMARY KEY,
-            triggers        TEXT DEFAULT '',
-            answer          TEXT DEFAULT '',
-            truth_status    TEXT DEFAULT 'accepted',
-            confidence      REAL DEFAULT 0.8,
-            created         INTEGER DEFAULT 0,
-            epistemic_state TEXT DEFAULT 'Observed',
-            stability       REAL DEFAULT 1.0,
-            last_accessed   TEXT
+            id                TEXT PRIMARY KEY,
+            triggers          TEXT DEFAULT '',
+            answer            TEXT DEFAULT '',
+            truth_status      TEXT DEFAULT 'accepted',
+            confidence        REAL DEFAULT 0.8,
+            created           INTEGER DEFAULT 0,
+            epistemic_state   TEXT DEFAULT 'Observed',
+            stability         REAL DEFAULT 1.0,
+            last_accessed     TEXT,
+            fractal_level     TEXT DEFAULT 'concept',
+            parent_fact_id    TEXT DEFAULT NULL,
+            compression_level INTEGER DEFAULT 0,
+            memory_layer      TEXT DEFAULT 'L1',
+            guardian_verified INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS attention_scores (
             node_id      TEXT PRIMARY KEY,
@@ -36323,6 +36350,26 @@ window.eitiFsrsMigrateFacts = function() {
     return touched;
 };
 
+// v14.0 T1: migrate IDB-side fact objects to include fractal memory fields.
+// Pre-v14 facts get treated as canon: memory_layer='L3', epistemic_state
+// stays as it was (Observed if never set). New facts created via post-v14
+// UI start at memory_layer='L1' and graduate to L3 through T4 Truth Gate.
+window.eitiFractalMigrateFacts = function() {
+    if (typeof eitiKBLoad !== 'function') return 0;
+    var facts = eitiKBLoad();
+    var touched = 0;
+    for (var i = 0; i < facts.length; i++) {
+        var f = facts[i];
+        if (!f.fractal_level) { f.fractal_level = 'concept'; touched++; }
+        if (!f.memory_layer)  { f.memory_layer  = 'L3';      touched++; }
+        if (typeof f.compression_level !== 'number') { f.compression_level = 0; touched++; }
+        if (typeof f.guardian_verified !== 'number') { f.guardian_verified = 0; touched++; }
+        if (f.parent_fact_id === undefined) { f.parent_fact_id = null; touched++; }
+    }
+    if (touched > 0 && typeof eitiKBSave === 'function') eitiKBSave(facts);
+    return touched;
+};
+
 // Called whenever a fact is actually retrieved & used (KB intent match,
 // retrieval-time RAG injection, etc.). Updates stability per LTP/LTD rule
 // and stamps last_accessed. Cheap — no IDB round-trip in hot path; cache
@@ -36530,6 +36577,23 @@ async function _initSQL() {
                     _db.run("UPDATE kb_idx SET stability=1.0 WHERE stability IS NULL");
                     _db.run("UPDATE kb_idx SET last_accessed=? WHERE last_accessed IS NULL", [new Date().toISOString()]);
                 } catch(e9) {}
+                // v14.0 T1 migration: fractal memory + memory layer columns.
+                // ALTER TABLE throws "duplicate column" on re-run; swallow each.
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN fractal_level TEXT DEFAULT 'concept'"); } catch(e10) {}
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN parent_fact_id TEXT DEFAULT NULL"); } catch(e11) {}
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN compression_level INTEGER DEFAULT 0"); } catch(e12) {}
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN memory_layer TEXT DEFAULT 'L1'"); } catch(e13) {}
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN guardian_verified INTEGER DEFAULT 0"); } catch(e14) {}
+                // Backfill rows that were created before v14:
+                //   - fractal_level: default to 'concept' (most generic of the 5 levels).
+                //   - memory_layer: existing facts treated as canon → 'L3'. New facts
+                //     created via post-v14 UI start at 'L1' and graduate via T4 Truth Gate.
+                //   - guardian_verified: 0 by default; rises to 1 when guardian approves.
+                try {
+                    _db.run("UPDATE kb_idx SET fractal_level='concept' WHERE fractal_level IS NULL");
+                    _db.run("UPDATE kb_idx SET memory_layer='L3' WHERE memory_layer IS NULL");
+                    _db.run("UPDATE kb_idx SET guardian_verified=0 WHERE guardian_verified IS NULL");
+                } catch(e15) {}
             } catch(e) {
                 _db = new SQL.Database();
                 _createSchema();
