@@ -20388,13 +20388,14 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             return eitiKBLoadAsync();
         }
 
-        // Строим EITI_KB в формате [{re, a}] для интент-роутера из динамической KB
+        // Строим EITI_KB в формате [{re, a, id}] для интент-роутера из динамической KB.
+        // id добавлен для T3: позволяет вызвать eitiOnFactRecall на матче.
         function eitiKBGetActive() {
             if (_kbActiveCache !== null) return _kbActiveCache;
             var facts = eitiKBLoad();
             _kbActiveCache = facts.map(function(f) {
                 var pattern = f.triggers.map(function(t){ return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }).join('|');
-                try { return { re: new RegExp(pattern, 'i'), a: f.answer }; }
+                try { return { re: new RegExp(pattern, 'i'), a: f.answer, id: f.id }; }
                 catch(e) { return null; }
             }).filter(Boolean);
             return _kbActiveCache;
@@ -21468,6 +21469,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 for (var ki = 0; ki < _activeKB.length; ki++) {
                     if (_activeKB[ki].re.test(txt)) {
                         window._eitiLastTopic = txt;
+                        // T3: register the recall — bumps stability per LTP/LTD and
+                        // refreshes last_accessed so this fact resists decay.
+                        if (typeof window.eitiOnFactRecall === 'function' && _activeKB[ki].id) {
+                            try { window.eitiOnFactRecall(_activeKB[ki].id); } catch(e){}
+                        }
                         _intentReply(_activeKB[ki].a, '🧠 KB');
                         return true;
                     }
@@ -24565,6 +24571,13 @@ window.eitiLLMClearAll = async function() {
                         var migrated = window.eitiESMMigrateFacts();
                         if (migrated > 0) console.info('[ESM] backfilled epistemic_state on ' + migrated + ' facts');
                     }
+                    // T3: tag pre-T3 facts with stability=1.0 and last_accessed=fact.ts||now.
+                    if (typeof window.eitiFsrsMigrateFacts === 'function') {
+                        var fmigrated = window.eitiFsrsMigrateFacts();
+                        if (fmigrated > 0) console.info('[FSRS] backfilled stability/last_accessed on ' + fmigrated + ' facts');
+                    }
+                    // T3: start the hourly decay sweeper (first tick in 30s, then 1h).
+                    if (typeof window.eitiStartDecayScheduler === 'function') window.eitiStartDecayScheduler();
                     eitiKBRenderStats();
                 });
                 eitiRenderReason();
@@ -35352,7 +35365,9 @@ function _createSchema() {
             truth_status    TEXT DEFAULT 'accepted',
             confidence      REAL DEFAULT 0.8,
             created         INTEGER DEFAULT 0,
-            epistemic_state TEXT DEFAULT 'Observed'
+            epistemic_state TEXT DEFAULT 'Observed',
+            stability       REAL DEFAULT 1.0,
+            last_accessed   TEXT
         );
         CREATE TABLE IF NOT EXISTS attention_scores (
             node_id      TEXT PRIMARY KEY,
@@ -35705,6 +35720,139 @@ window.eitiESMMigrateFacts = function() {
     return touched;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T3 — FSRS-style decay for L3 facts.
+//
+// Retention r(d, s) = (1 + (19/81) * d / max(s, 0.1))^(-0.5)
+//   d = days since last access
+//   s = stability (Hebbian-ish — multiplied up by recall, down by neglect)
+//
+// On recall:
+//   r > 0.8 → LTP (long-term potentiation): stability *= 1.5
+//   r < 0.4 → LTD (long-term depression):   stability *= 0.5
+//   else      stability unchanged
+//   always:   last_accessed = now
+//
+// Hourly sweep eitiDecayTick():
+//   For each fact with retention < 0.2, transition to 'Deprecated' via the
+//   ESM machine. Skips facts already in terminal states (ImmutableCore,
+//   Contradicted, Deprecated) — ImmutableCore is permanent by definition,
+//   the other two are no-ops.
+// ═══════════════════════════════════════════════════════════════════════════
+var _DECAY_TICK_INTERVAL_MS = 60 * 60 * 1000;            // 1 hour
+var _DECAY_RECALL_LTP_THRESHOLD = 0.8;
+var _DECAY_RECALL_LTD_THRESHOLD = 0.4;
+var _DECAY_DEPRECATE_THRESHOLD  = 0.2;
+var _DECAY_TERMINAL_STATES = ['ImmutableCore', 'Contradicted', 'Deprecated'];
+
+window.fsrsRetention = function(daysSince, stability) {
+    var s = Math.max(stability, 0.1);
+    var d = Math.max(daysSince, 0);
+    return Math.pow(1 + (19 / 81) * (d / s), -0.5);
+};
+
+// Migrate existing facts: stability=1.0 if missing, last_accessed defaults
+// to fact.ts (creation time) if available else now. Idempotent.
+window.eitiFsrsMigrateFacts = function() {
+    if (typeof eitiKBLoad !== 'function') return 0;
+    var facts = eitiKBLoad();
+    var touched = 0;
+    var nowIso = new Date().toISOString();
+    for (var i = 0; i < facts.length; i++) {
+        var f = facts[i];
+        if (typeof f.stability !== 'number') { f.stability = 1.0; touched++; }
+        if (!f.last_accessed) {
+            f.last_accessed = (typeof f.ts === 'number' && f.ts > 0)
+                ? new Date(f.ts).toISOString()
+                : nowIso;
+            touched++;
+        }
+    }
+    if (touched > 0 && typeof eitiKBSave === 'function') eitiKBSave(facts);
+    return touched;
+};
+
+// Called whenever a fact is actually retrieved & used (KB intent match,
+// retrieval-time RAG injection, etc.). Updates stability per LTP/LTD rule
+// and stamps last_accessed. Cheap — no IDB round-trip in hot path; cache
+// is mutated and eitiKBSave debounces persistence.
+window.eitiOnFactRecall = function(factId) {
+    if (factId == null) return null;
+    var facts = (typeof eitiKBLoad === 'function') ? eitiKBLoad() : [];
+    var f = null;
+    for (var i = 0; i < facts.length; i++) {
+        if (String(facts[i].id) === String(factId)) { f = facts[i]; break; }
+    }
+    if (!f) return null;
+    var nowIso = new Date().toISOString();
+    var lastIso = f.last_accessed || nowIso;
+    var daysSince = (Date.now() - new Date(lastIso).getTime()) / 86400000;
+    var stability = (typeof f.stability === 'number') ? f.stability : 1.0;
+    var r = window.fsrsRetention(daysSince, stability);
+    var newStability = stability;
+    if (r > _DECAY_RECALL_LTP_THRESHOLD)      newStability = stability * 1.5;
+    else if (r < _DECAY_RECALL_LTD_THRESHOLD) newStability = stability * 0.5;
+    // Clamp to a reasonable range — runaway growth would just slow decay forever.
+    newStability = Math.min(Math.max(newStability, 0.1), 1000);
+    f.stability = newStability;
+    f.last_accessed = nowIso;
+    eitiKBSave(facts);
+    // Mirror to kb_idx (no-op for facts not yet reindexed into SQL — harmless).
+    if (window._db && window.eitiSQLReady) {
+        try {
+            window._db.run('UPDATE kb_idx SET stability=?, last_accessed=? WHERE id=?',
+                           [newStability, nowIso, String(factId)]);
+            if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+        } catch(e) { /* swallow */ }
+    }
+    return { factId: String(factId), retention: r, stability: newStability, at: nowIso };
+};
+
+// Hourly sweep. Async because eitiESMTransition writes to the audit chain
+// asynchronously. Sequential transitions avoid hammering the mutex.
+window.eitiDecayTick = async function() {
+    if (typeof eitiKBLoad !== 'function') return { swept: 0, deprecated: 0 };
+    var facts = eitiKBLoad();
+    var nowMs = Date.now();
+    var swept = 0, deprecated = 0;
+    for (var i = 0; i < facts.length; i++) {
+        var f = facts[i];
+        swept++;
+        // Skip facts already in terminal states — ImmutableCore by definition,
+        // and the other two would just no-op the ESM transition.
+        if (_DECAY_TERMINAL_STATES.indexOf(f.epistemic_state || 'Observed') !== -1) continue;
+        var lastIso = f.last_accessed || (f.ts ? new Date(f.ts).toISOString() : new Date().toISOString());
+        var daysSince = (nowMs - new Date(lastIso).getTime()) / 86400000;
+        var stability = (typeof f.stability === 'number') ? f.stability : 1.0;
+        var r = window.fsrsRetention(daysSince, stability);
+        if (r < _DECAY_DEPRECATE_THRESHOLD) {
+            try {
+                await window.eitiESMTransition(f.id, 'Deprecated');
+                deprecated++;
+            } catch (e) {
+                console.warn('[ESM decay] could not deprecate', f.id, e.code || e.message);
+            }
+        }
+    }
+    if (deprecated > 0) console.info('[ESM decay] swept ' + swept + ' facts, deprecated ' + deprecated);
+    return { swept: swept, deprecated: deprecated };
+};
+
+// Schedule the hourly tick. Guard against double-init across reloads of the
+// inline scripts and against running before the SQL/KB caches are ready.
+window._eitiDecayTickHandle = window._eitiDecayTickHandle || null;
+window.eitiStartDecayScheduler = function() {
+    if (window._eitiDecayTickHandle) return;
+    // First tick: shortly after boot so we don't compete with init churn,
+    // but soon enough that long-stale facts get deprecated promptly.
+    setTimeout(function(){
+        if (typeof window.eitiDecayTick === 'function') window.eitiDecayTick();
+    }, 30000);
+    window._eitiDecayTickHandle = setInterval(function(){
+        if (typeof window.eitiDecayTick === 'function') window.eitiDecayTick();
+    }, _DECAY_TICK_INTERVAL_MS);
+};
+
 // v11.8 FIX: дебаунс _persistSQL — раньше вызывалась при каждом eitiAttentionTouch,
 // что приводило к полной сериализации SQLite DB (O(размер БД)) при каждом сообщении в чате.
 // Теперь: максимум 1 запись в 2 секунды. При непрерывных вызовах — принудительный flush через 5 сек.
@@ -35822,6 +35970,14 @@ async function _initSQL() {
                 try {
                     _db.run("UPDATE kb_idx SET epistemic_state='Observed' WHERE epistemic_state IS NULL");
                 } catch(e6) { /* table absent — fine */ }
+                // T3 migration: FSRS decay columns. Backfill last_accessed to now()
+                // so the first decay sweep doesn't immediately Deprecate every old fact.
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN stability REAL DEFAULT 1.0"); } catch(e7) {}
+                try { _db.run("ALTER TABLE kb_idx ADD COLUMN last_accessed TEXT"); } catch(e8) {}
+                try {
+                    _db.run("UPDATE kb_idx SET stability=1.0 WHERE stability IS NULL");
+                    _db.run("UPDATE kb_idx SET last_accessed=? WHERE last_accessed IS NULL", [new Date().toISOString()]);
+                } catch(e9) {}
             } catch(e) {
                 _db = new SQL.Database();
                 _createSchema();
