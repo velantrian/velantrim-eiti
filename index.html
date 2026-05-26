@@ -147,7 +147,12 @@
         //   В JS: T('Сохранено') / T('Найдено {n} результатов', {n: 5})
         // ───────────────────────────────────────────────────────────────
         window.EITI_I18N = (function() {
-            var DICT = { en: {
+            var DICT = {
+                // T7: German scaffold. Empty until EITI_DE_i18n_patch.js merges
+                // entries via window.EITI_I18N.addDict('de', {...}). Until then,
+                // T() falls back to the Russian source string for every key.
+                de: {},
+                en: {
                 // === Tabs ===
                 'Чат': 'Chat',
                 'Дневник': 'Journal',
@@ -1774,7 +1779,7 @@
             var state = { locale: 'ru' };
             try {
                 var saved = localStorage.getItem('eiti_locale');
-                if (saved === 'ru' || saved === 'en') state.locale = saved;
+                if (saved === 'ru' || saved === 'en' || saved === 'de') state.locale = saved;
             } catch(e) {}
 
             function T(key, vars) {
@@ -1915,13 +1920,13 @@
                 try { walkAndTranslateAttrs(root.body || root, loc); } catch(e) {}
             }
             function setLocale(loc) {
-                if (loc !== 'ru' && loc !== 'en') return;
+                if (loc !== 'ru' && loc !== 'en' && loc !== 'de') return;
                 state.locale = loc;
                 try { localStorage.setItem('eiti_locale', loc); } catch(e) {}
                 try { document.documentElement.lang = loc; } catch(e) {}
                 try {
                     if (document.body && document.body.classList) {
-                        document.body.classList.remove('lang-ru','lang-en');
+                        document.body.classList.remove('lang-ru','lang-en','lang-de');
                         document.body.classList.add('lang-' + loc);
                     }
                 } catch(e) {}
@@ -2093,6 +2098,12 @@
                     enBtn.style.color = (loc === 'en') ? activeColor : inactiveColor;
                     enBtn.style.borderColor = (loc === 'en') ? 'var(--accent-color)' : 'var(--border-color)';
                 }
+                var deBtn = document.getElementById('eiti-lang-de-btn');
+                if (deBtn) {
+                    deBtn.style.background = (loc === 'de') ? active : inactive;
+                    deBtn.style.color = (loc === 'de') ? activeColor : inactiveColor;
+                    deBtn.style.borderColor = (loc === 'de') ? 'var(--accent-color)' : 'var(--border-color)';
+                }
             } catch(e) {}
         };
         document.addEventListener('DOMContentLoaded', function(){ setTimeout(window.eitiUpdateLangSwitcherUI, 100); });
@@ -2111,6 +2122,12 @@
          относительно inline-скриптов. defer выполняется строго после парсинга DOM и
          до DOMContentLoaded, что соответствует guard-логике внутри _initSQL. -->
     <script src="./sql-wasm.js" defer></script>
+    <!-- T7: optional German i18n patch. File is not required — if absent the
+         404 is harmless, DE locale falls back to RU source strings until the
+         patch lands. The patch should call:
+           window.EITI_I18N.addDict('de', { 'Чат': 'Chat', 'Дневник': 'Tagebuch', ... });
+    -->
+    <script src="./EITI_DE_i18n_patch.js" defer onerror="this.remove()"></script>
     <!-- PDF.js CDN — для парсинга PDF файлов в браузере (v12.9.50) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -5373,16 +5390,21 @@
                         <div class="settings-title" data-i18n="🌐 Язык / Language">🌐 Язык / Language</div>
                         <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
                             <div style="font-size:12px;opacity:0.6;" data-i18n="Язык интерфейса">Язык интерфейса</div>
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:6px;">
                                 <button id="eiti-lang-ru-btn" type="button" onclick="eitiSetLocale('ru')"
-                                    style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                                    <span style="font-size:18px;">🇷🇺</span>
+                                    style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <span style="font-size:16px;">🇷🇺</span>
                                     <span>Русский</span>
                                 </button>
                                 <button id="eiti-lang-en-btn" type="button" onclick="eitiSetLocale('en')"
-                                    style="flex:1;padding:12px 8px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-                                    <span style="font-size:18px;">🇬🇧</span>
+                                    style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <span style="font-size:16px;">🇬🇧</span>
                                     <span>English</span>
+                                </button>
+                                <button id="eiti-lang-de-btn" type="button" onclick="eitiSetLocale('de')"
+                                    style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <span style="font-size:16px;">🇩🇪</span>
+                                    <span>Deutsch</span>
                                 </button>
                             </div>
                             <div style="font-size:11px;opacity:0.5;line-height:1.5;">
