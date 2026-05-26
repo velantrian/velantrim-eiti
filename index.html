@@ -35452,43 +35452,74 @@ function _eitiCanonicalJSON(value) {
     return '{' + parts.join(',') + '}';
 }
 
-window.eitiLogEvent = async function(factId, event, payload) {
-    if (!_db) {
-        console.warn('[EITI AUDIT] SQL DB not ready, event dropped:', event);
-        return null;
-    }
-    try {
-        var rows = _db.exec('SELECT entry_hash FROM audit_log ORDER BY id DESC LIMIT 1');
-        var prev = _AUDIT_ZERO;
-        if (rows.length && rows[0].values.length) {
-            prev = rows[0].values[0][0] || _AUDIT_ZERO;
+// Mutex via promise-chain. Each eitiLogEvent call awaits the previous one's
+// settlement before reading prev_hash, so concurrent calls cannot fork the
+// chain by both observing the same predecessor. Without this, two events
+// fired without await would produce two rows with identical prev_hash and
+// eitiVerifyAuditChain would later flag valid data as tampered.
+var _auditWriteTail = Promise.resolve();
+
+window.eitiLogEvent = function(factId, event, payload) {
+    var task = function() {
+        if (!_db) {
+            console.warn('[EITI AUDIT] SQL DB not ready, event dropped:', event);
+            return Promise.resolve(null);
         }
-        var at = new Date().toISOString();
-        var canonical = _eitiCanonicalJSON({
-            factId: factId == null ? null : String(factId),
-            event: String(event || ''),
-            payload: payload == null ? null : payload,
-            at: at
-        });
-        var entry_hash = await _eitiSHA256Hex(prev + canonical);
-        var stmt = _db.prepare(
-            'INSERT INTO audit_log (fact_id, event, payload, at, prev_hash, entry_hash) VALUES (?,?,?,?,?,?)'
-        );
-        stmt.run([
-            factId == null ? null : String(factId),
-            String(event || ''),
-            typeof payload === 'string' ? payload : JSON.stringify(payload == null ? null : payload),
-            at,
-            prev,
-            entry_hash
-        ]);
-        stmt.free();
-        if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
-        return { entry_hash: entry_hash, prev_hash: prev, at: at };
-    } catch (e) {
-        console.warn('[EITI AUDIT] eitiLogEvent failed:', e);
-        return null;
-    }
+        return (async function() {
+            try {
+                var rows = _db.exec('SELECT entry_hash FROM audit_log ORDER BY id DESC LIMIT 1');
+                var prev = _AUDIT_ZERO;
+                if (rows.length && rows[0].values.length) {
+                    prev = rows[0].values[0][0] || _AUDIT_ZERO;
+                }
+                var at = new Date().toISOString();
+                // Normalise payload through JSON round-trip so the value hashed
+                // here is identical to the value reconstructed at verification
+                // time. Without normalisation, a string payload that happens
+                // to parse as JSON (e.g. '{"a":1}' or '"123"') would be hashed
+                // as a string on write but as an object/number on verify,
+                // producing false entry_hash_mismatch alarms for valid rows.
+                var normalisedPayload;
+                var storedPayload;
+                if (payload == null) {
+                    normalisedPayload = null;
+                    storedPayload = JSON.stringify(null); // 'null'
+                } else {
+                    storedPayload = JSON.stringify(payload);
+                    normalisedPayload = JSON.parse(storedPayload);
+                }
+                var canonical = _eitiCanonicalJSON({
+                    factId: factId == null ? null : String(factId),
+                    event: String(event || ''),
+                    payload: normalisedPayload,
+                    at: at
+                });
+                var entry_hash = await _eitiSHA256Hex(prev + canonical);
+                var stmt = _db.prepare(
+                    'INSERT INTO audit_log (fact_id, event, payload, at, prev_hash, entry_hash) VALUES (?,?,?,?,?,?)'
+                );
+                stmt.run([
+                    factId == null ? null : String(factId),
+                    String(event || ''),
+                    storedPayload,
+                    at,
+                    prev,
+                    entry_hash
+                ]);
+                stmt.free();
+                if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+                return { entry_hash: entry_hash, prev_hash: prev, at: at };
+            } catch (e) {
+                console.warn('[EITI AUDIT] eitiLogEvent failed:', e);
+                return null;
+            }
+        })();
+    };
+    // Chain onto the previous write. Use a .then so an upstream rejection
+    // doesn't poison the tail — but the inner task itself already swallows.
+    var next = _auditWriteTail.then(task, task);
+    _auditWriteTail = next.catch(function(){ /* swallow to keep chain alive */ });
+    return next;
 };
 
 window.eitiVerifyAuditChain = async function() {
@@ -35511,9 +35542,15 @@ window.eitiVerifyAuditChain = async function() {
         if (prev_hash !== expectedPrev) {
             return { ok: false, broken_at_id: id, reason: 'prev_hash_mismatch', total: values.length };
         }
+        // payload is always stored as JSON.stringify(payload) by eitiLogEvent,
+        // so parse it back unconditionally. A parse failure here means the
+        // row was hand-edited with a non-JSON value — fail closed.
         var payload;
-        try { payload = payloadRaw == null ? null : JSON.parse(payloadRaw); }
-        catch(_e) { payload = payloadRaw; }
+        try {
+            payload = payloadRaw == null ? null : JSON.parse(payloadRaw);
+        } catch (_e) {
+            return { ok: false, broken_at_id: id, reason: 'payload_not_json', total: values.length };
+        }
         var canonical = _eitiCanonicalJSON({
             factId: fact_id,
             event: event,
@@ -35647,6 +35684,12 @@ async function _initSQL() {
                     try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS chat_history_fts USING fts5(id UNINDEXED, chat_id UNINDEXED, role, content, tokenize='unicode61')"); } catch(e2b) {} // fallback если trigram не поддерживается
                 }
                 try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(id UNINDEXED, title, body, tokenize='unicode61')"); } catch(e3) {}
+                // T2 migration: existing pre-T2 snapshots lack audit_log — create on load.
+                // Without this, eitiLogEvent silently catches "no such table" and drops events
+                // for every user with a saved DB.
+                try {
+                    _db.run("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_id TEXT, event TEXT, payload TEXT, at TEXT, prev_hash TEXT, entry_hash TEXT)");
+                } catch(e4) { console.warn('[EITI SQL] audit_log migration failed:', e4); }
             } catch(e) {
                 _db = new SQL.Database();
                 _createSchema();
