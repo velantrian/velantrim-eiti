@@ -27534,12 +27534,26 @@ window.eitiLLMClearAll = async function() {
             var t = {
                 msgId: null,                 // bound at AI-reply time
                 query: query || '',
+                timestamp: new Date().toISOString(),
+                // v13 fields (kept for back-compat with old trace UI)
                 classified_as: null,
                 l1_hits: 0, l2_hits: 0, l3_hits: 0,
                 facts_used: [],
                 facts_discarded: [],
                 faithfulness_score: null,
                 answer_confidence: null,
+                // v14 T9 fields — populated by the enforced-flow wrapper
+                query_type:        null,   // alias of classified_as for v14 TRACE
+                fractal_start:     null,
+                retrieval_path:    [],
+                memory_layers:     { L0: 0, L1: 0, L2: 0, L3: 0 },
+                truth_gate_passed: null,
+                truth_gate_reason: null,
+                guardian_score:    null,
+                guardian_warn:     null,
+                faithfulness:      null,
+                answer_allowed:    null,
+                answer_blocked:    null,
                 at: Date.now()
             };
             window._eitiActiveTrace = t;
@@ -27588,6 +27602,10 @@ window.eitiLLMClearAll = async function() {
         };
 
         // Render the collapsible trace panel HTML for a given trace object.
+        // v14 T10: expanded panel with query type, fractal start, retrieval
+        // path, Truth Gate verdict, Guardian verdict, plus the original
+        // facts_used / facts_discarded blocks. Blocked answers get a red
+        // banner explaining which gate refused.
         window.eitiTraceRenderHTML = function(t) {
             if (!t) return '';
             var col = window.EITI_ESM_COLORS || {};
@@ -27598,10 +27616,40 @@ window.eitiLLMClearAll = async function() {
                     + '</div>';
             };
             var html = '<div style="font-size:11px;line-height:1.4;">';
-            html += line('Запрос', '"' + (t.query || '—').slice(0, 80) + '"');
-            html += line('Классификация', t.classified_as || '—');
+            // Blocked banner — appears at the top so it can't be missed.
+            if (t.answer_allowed === false && t.answer_blocked) {
+                html += '<div style="margin:0 0 8px 0;padding:8px 10px;background:rgba(255,80,80,0.12);border-left:3px solid #e74c3c;border-radius:4px;color:#ff9a9a;font-size:11px;line-height:1.5;">'
+                    + '🚫 ' + eitiEsc(String(t.answer_blocked))
+                    + '</div>';
+            }
+            html += line('🕐 ' + 'Запрос', '"' + (t.query || '—').slice(0, 80) + '"');
+            // v14 fields take precedence over v13 fallback
+            var qType = t.query_type || t.classified_as || '—';
+            html += line('Тип запроса', qType);
+            if (t.fractal_start) {
+                var pathStr = (t.retrieval_path && t.retrieval_path.length)
+                    ? (t.fractal_start + ' → ' + t.retrieval_path.length + ' уровней')
+                    : t.fractal_start;
+                html += line('🌌 ' + 'Уровень поиска', pathStr);
+            }
             html += line('Hits L1/L2/L3', t.l1_hits + ' / ' + t.l2_hits + ' / ' + t.l3_hits);
-            if (typeof t.faithfulness_score === 'number') {
+            // Truth Gate verdict (v14)
+            if (t.truth_gate_passed !== null && t.truth_gate_passed !== undefined) {
+                var gateVerdict = t.truth_gate_passed ? '✅ ' + 'пройден' : '❌ ' + 'заблокирован';
+                html += line('🔒 ' + 'Truth Gate', gateVerdict);
+            }
+            // Guardian verdict (v14)
+            if (typeof t.guardian_score === 'number') {
+                var gPct = Math.round(t.guardian_score * 100);
+                var gVerdict = (t.guardian_warn ? '⚠️ ' : '✅ ') + gPct + '%';
+                html += line('🛡️ ' + 'Guardian', gVerdict);
+                if (t.guardian_warn) {
+                    html += '<div style="margin:6px 0;padding:6px 8px;background:rgba(255,180,0,0.1);border-left:3px solid #f39c12;border-radius:4px;color:#ffc857;font-size:11px;">'
+                        + '⚠️ Ответ слабо опирается на сохранённые факты'
+                        + '</div>';
+                }
+            } else if (typeof t.faithfulness_score === 'number') {
+                // v13 fallback if v14 wasn't wired for this message
                 var pct = Math.round(t.faithfulness_score * 100);
                 var faithStr = pct + '%' + (t.faithfulness_weak ? ' ⚠️' : ' ✅');
                 html += line('Faithfulness', faithStr);
@@ -27610,18 +27658,16 @@ window.eitiLLMClearAll = async function() {
                         + '⚠️ Ответ слабо опирается на сохранённые факты'
                         + '</div>';
                 }
-            } else {
-                html += line('Faithfulness', '—');
             }
             if (typeof t.answer_confidence === 'number') {
                 html += line('Confidence', Math.round(t.answer_confidence * 100) + '%');
             }
             if (t.facts_used && t.facts_used.length) {
-                html += '<div style="margin-top:8px;font-size:11px;opacity:0.7;">Использованные факты (' + t.facts_used.length + '):</div>';
+                html += '<div style="margin-top:8px;font-size:10px;opacity:0.55;letter-spacing:0.5px;text-transform:uppercase;">✅ Использованные факты (' + t.facts_used.length + ')</div>';
                 html += '<div style="max-height:180px;overflow-y:auto;margin-top:4px;">';
                 t.facts_used.slice(0, 12).forEach(function(f) {
                     var st = f.epistemic_state || 'Observed';
-                    var c = col[st] || { bg:'#5a5a5a', fg:'#fff', icon:'👁' };
+                    var c = col[st] || { bg:'#5a5a5a', fg:'#fff', icon:'⚪' };
                     var ret = (typeof f.retention === 'number') ? ' · r=' + f.retention.toFixed(2) : '';
                     var conf = (typeof f.confidence === 'number') ? ' · c=' + f.confidence.toFixed(2) : '';
                     var label = (f.claim || f.answer || f.fact || f.factId || '').toString().slice(0, 60);
@@ -27633,8 +27679,12 @@ window.eitiLLMClearAll = async function() {
                 html += '</div>';
             }
             if (t.facts_discarded && t.facts_discarded.length) {
-                html += '<div style="margin-top:8px;font-size:11px;opacity:0.6;">Отброшено (' + t.facts_discarded.length + '): ';
-                html += t.facts_discarded.map(function(d){ return d.reason; }).join(', ');
+                html += '<div style="margin-top:8px;font-size:10px;opacity:0.45;letter-spacing:0.5px;text-transform:uppercase;">🗑️ Отброшено (' + t.facts_discarded.length + ')</div>';
+                html += '<div style="font-size:11px;opacity:0.55;margin-top:2px;">';
+                html += t.facts_discarded.slice(0, 6).map(function(d){
+                    var label = (d.claim || d.answer || d.fact || d.factId || '?').toString().slice(0, 40);
+                    return '· ' + eitiEsc(label) + ' (' + eitiEsc(d.reason || '?') + ')';
+                }).join('<br>');
                 html += '</div>';
             }
             html += '</div>';
@@ -41432,5 +41482,158 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     }, true);
 })();
 </script>
+
+<script>
+// ═════════════════════════════════════════════════════════════════════════
+// v14.0 T9 — Enforced reasoning flow (wraps eitiAskDeepSeek).
+//
+// PRINCIPLE: no TRACE → no answer.
+//
+// Before the AI call:
+//   1. eitiRecursiveRetrieval(query)             → facts + retrieval_path
+//   2. eitiTruthGate(facts.filter(Allowed))      → verdict
+//   3. populate the active trace
+//   4. if !verdict.passed → resolve with gate.reason as the "AI reply".
+//      The model never gets called, the chat shows the gate explanation
+//      instead, and the trace records answer_allowed=false / blocked=reason.
+//
+// After the AI call:
+//   5. eitiGuardian(reply, facts_used)           → faithfulness, warn
+//   6. finalise the trace (score, warn, allowed=true)
+//   7. eitiLogEvent('response', 'answer_generated', trace)
+//
+// The wrapper sits AFTER existing wrappers (qwen + p3) so retrieval /
+// gate / guardian run against whatever the downstream chain produces.
+// Wrapping last means we see the final post-processed reply.
+// ═════════════════════════════════════════════════════════════════════════
+(function v14EnforcedFlowWrapper() {
+    'use strict';
+
+    var _origAsk_v14 = window.eitiAskDeepSeek;
+    if (typeof _origAsk_v14 !== 'function') {
+        console.warn('[v14 T9] no eitiAskDeepSeek to wrap — enforced flow inactive');
+        return;
+    }
+
+    function daysSince(iso) {
+        if (!iso) return 0;
+        return Math.max(0, (Date.now() - new Date(iso).getTime()) / 86400000);
+    }
+
+    window.eitiAskDeepSeek = async function(userText) {
+        var trace = window._eitiActiveTrace;
+        // If trace wasn't pre-started by the user-msg path, start it now.
+        if (!trace && typeof window.eitiTraceStart === 'function') {
+            trace = window.eitiTraceStart(userText);
+        }
+        if (!trace) {
+            // Fallback: if tracing is broken for any reason, fail open —
+            // call the AI without enforcement. Mirrors v13 behaviour.
+            return _origAsk_v14(userText);
+        }
+
+        // ── 1. Recursive retrieval ────────────────────────────
+        var retrieval = { facts: [], startLevel: null, retrieval_path: [] };
+        try {
+            if (typeof window.eitiRecursiveRetrieval === 'function') {
+                retrieval = window.eitiRecursiveRetrieval(userText, {
+                    maxDepth: 4, confidenceThreshold: 0.72, maxFacts: 10
+                });
+            }
+        } catch(e) { console.warn('[v14 T9] retrieval failed:', e); }
+
+        // ── 2. Truth Gate over allowed-state facts ────────────
+        var allowed = window.EITI_ALLOWED_STATES || ['Validated', 'Supported', 'ImmutableCore'];
+        var allowedFacts = retrieval.facts.filter(function(f){
+            return allowed.indexOf(f.epistemic_state) !== -1;
+        });
+        var discardedFacts = retrieval.facts.filter(function(f){
+            return allowed.indexOf(f.epistemic_state) === -1;
+        });
+        var gate = (typeof window.eitiTruthGate === 'function')
+            ? window.eitiTruthGate(allowedFacts)
+            : { passed: true, reason: null };
+
+        // ── 3. Populate trace ─────────────────────────────────
+        trace.query_type = (typeof window.eitiClassifyQueryLevel === 'function')
+            ? window.eitiClassifyQueryLevel(userText) : null;
+        trace.classified_as = trace.classified_as || trace.query_type;
+        trace.fractal_start = retrieval.startLevel;
+        trace.retrieval_path = retrieval.retrieval_path || [];
+        trace.l3_hits = allowedFacts.length;
+        trace.facts_used = allowedFacts.map(function(f){
+            return {
+                factId: f.id,
+                claim: f.answer || '',
+                epistemic_state: f.epistemic_state,
+                confidence: f.confidence,
+                fractal_level: f.fractal_level,
+                retention: (typeof window.fsrsRetention === 'function' && f.last_accessed && typeof f.stability === 'number')
+                    ? window.fsrsRetention(daysSince(f.last_accessed), f.stability)
+                    : null
+            };
+        });
+        trace.facts_discarded = discardedFacts.map(function(f){
+            return {
+                factId: f.id,
+                claim: (f.answer || '').slice(0, 80),
+                reason: f.epistemic_state || 'unknown'
+            };
+        });
+        trace.truth_gate_passed = gate.passed;
+        trace.truth_gate_reason = gate.reason;
+
+        // ── 4. Gate blocked? Resolve with gate.reason, no AI call ──
+        if (!gate.passed) {
+            trace.answer_allowed = false;
+            trace.answer_blocked = gate.reason;
+            if (typeof window.eitiLogEvent === 'function') {
+                try { await window.eitiLogEvent(null, 'answer_blocked', { reason: gate.reason, query: userText.slice(0, 100) }); } catch(e){}
+            }
+            return gate.reason || '⚠️ Ответ заблокирован Truth Gate';
+        }
+
+        // ── 5. Call original chain — provider answers ──────────
+        var reply;
+        try {
+            reply = await _origAsk_v14(userText);
+        } catch(e) {
+            trace.answer_allowed = false;
+            trace.answer_blocked = 'Provider error: ' + (e.message || e);
+            throw e;
+        }
+
+        // ── 6. Guardian — semantic overlap check ──────────────
+        if (typeof window.eitiGuardian === 'function' && allowedFacts.length > 0) {
+            try {
+                var verdict = window.eitiGuardian(String(reply || ''), trace.facts_used);
+                trace.guardian_score = verdict.score;
+                trace.guardian_warn  = verdict.warn;
+                trace.faithfulness   = verdict.score;
+                trace.faithfulness_score = verdict.score;
+                trace.faithfulness_weak  = verdict.warn;
+                if (verdict.approved && typeof window.eitiLogEvent === 'function') {
+                    try { await window.eitiLogEvent(null, 'guardian_approved', { score: verdict.score, facts: allowedFacts.length }); } catch(e){}
+                }
+            } catch(e) { console.warn('[v14 T9] guardian failed:', e); }
+        }
+
+        trace.answer_allowed = true;
+        if (typeof window.eitiLogEvent === 'function') {
+            try { await window.eitiLogEvent(null, 'answer_generated', {
+                query_type: trace.query_type,
+                fractal_start: trace.fractal_start,
+                facts_used: trace.facts_used.length,
+                faithfulness: trace.guardian_score
+            }); } catch(e){}
+        }
+
+        return reply;
+    };
+
+    console.info('[v14 T9] enforced flow wrapper installed');
+})();
+</script>
+
 </body>
 </html>
