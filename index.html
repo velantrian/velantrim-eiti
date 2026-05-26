@@ -24559,7 +24559,14 @@ window.eitiLLMClearAll = async function() {
                 // Cognitive mode UI
                 eitiRenderCogMode();
                 if (typeof _eitiUpdateDDGCard === 'function') _eitiUpdateDDGCard();
-                eitiKBLoadAsync().then(function(){ eitiKBRenderStats(); });
+                eitiKBLoadAsync().then(function(){
+                    // T1: tag pre-T1 facts with default epistemic_state 'Observed'.
+                    if (typeof window.eitiESMMigrateFacts === 'function') {
+                        var migrated = window.eitiESMMigrateFacts();
+                        if (migrated > 0) console.info('[ESM] backfilled epistemic_state on ' + migrated + ' facts');
+                    }
+                    eitiKBRenderStats();
+                });
                 eitiRenderReason();
                 eitiRenderOnlyAI();
                 eitiRenderNotifSettings();
@@ -26733,8 +26740,13 @@ window.eitiLLMClearAll = async function() {
                                 var catFacts = facts.filter(function(f){ return (f.category||'other') === c; });
                                 inner.innerHTML = catFacts.map(function(f) {
                                     var trigs = (f.triggers||[]).join(', ');
+                                    // T1: ESM badge — colour-coded epistemic state per fact.
+                                    var st = f.epistemic_state || 'Observed';
+                                    var col = (window.EITI_ESM_COLORS && window.EITI_ESM_COLORS[st]) || { bg:'#5a5a5a', fg:'#fff', icon:'👁' };
+                                    var badge = '<span title="ESM: ' + st + '" style="display:inline-block;padding:1px 7px;border-radius:8px;background:' + col.bg + ';color:' + col.fg + ';font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;">'
+                                        + col.icon + ' ' + st + '</span>';
                                     return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;line-height:1.5;">'
-                                        + '<div style="color:rgba(255,215,0,0.55);font-size:11px;margin-bottom:3px;">🔍 ' + trigs.slice(0,70) + (trigs.length>70?'…':'') + '</div>'
+                                        + '<div style="color:rgba(255,215,0,0.55);font-size:11px;margin-bottom:3px;">🔍 ' + trigs.slice(0,70) + (trigs.length>70?'…':'') + badge + '</div>'
                                         + '<div style="line-height:1.4;">' + (f.answer||'').slice(0,150) + (f.answer&&f.answer.length>150?'…':'') + '</div>'
                                         + '</div>';
                                 }).join('') || '<div style="padding:10px;opacity:0.4;text-align:center;">Пусто</div>';
@@ -26775,8 +26787,15 @@ window.eitiLLMClearAll = async function() {
             facts.forEach(function(f){ _prevManualCats[f.category||'other']=1; });
             var _prevManualCatCnt = Object.keys(_prevManualCats).length;
             var _prevManualFactCnt = facts.length;
-            facts.push({ id:'kb_u'+Date.now(), triggers:triggers, answer:ans.trim(), category:cat.trim()||'other', ts: Date.now() });
+            var _newFactId = 'kb_u'+Date.now();
+            facts.push({ id:_newFactId, triggers:triggers, answer:ans.trim(), category:cat.trim()||'other', ts: Date.now(), epistemic_state: 'Observed' });
             eitiKBSave(facts);
+            // T1+T2: write fact_create event to the hash-chain audit log.
+            if (typeof window.eitiLogEvent === 'function') {
+                window.eitiLogEvent(_newFactId, 'fact_create', {
+                    triggers: triggers, answer: ans.trim(), category: cat.trim()||'other'
+                });
+            }
             var _newManualCats = {};
             eitiKBLoad().forEach(function(f){ _newManualCats[f.category||'other']=1; });
             var _newManualCatCnt = Object.keys(_newManualCats).length;
@@ -35327,12 +35346,13 @@ function _createSchema() {
             updated   INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS kb_idx (
-            id           TEXT PRIMARY KEY,
-            triggers     TEXT DEFAULT '',
-            answer       TEXT DEFAULT '',
-            truth_status TEXT DEFAULT 'accepted',
-            confidence   REAL DEFAULT 0.8,
-            created      INTEGER DEFAULT 0
+            id              TEXT PRIMARY KEY,
+            triggers        TEXT DEFAULT '',
+            answer          TEXT DEFAULT '',
+            truth_status    TEXT DEFAULT 'accepted',
+            confidence      REAL DEFAULT 0.8,
+            created         INTEGER DEFAULT 0,
+            epistemic_state TEXT DEFAULT 'Observed'
         );
         CREATE TABLE IF NOT EXISTS attention_scores (
             node_id      TEXT PRIMARY KEY,
@@ -35581,6 +35601,110 @@ window.eitiVerifyAuditChainUI = async function() {
     return res;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T1 — ESM (Epistemic State Machine) 8-state for L3 facts.
+//
+// States flow:
+//   Observed → Hypothesized → Supported → Validated → ImmutableCore
+//                                                  → Contradicted
+//                                       → Deprecated
+// Plus terminal states: ImmutableCore (cannot leave), Contradicted, Deprecated.
+//
+// Forbidden by design: jump straight into ImmutableCore (must pass through
+// Validated), and any departure from ImmutableCore.
+// ═══════════════════════════════════════════════════════════════════════════
+window.EITI_ESM_STATES = ['Observed', 'Hypothesized', 'Supported', 'Validated', 'ImmutableCore', 'Contradicted', 'Deprecated'];
+
+// Allowed forward transitions. ImmutableCore / Contradicted / Deprecated have
+// no outgoing edges — they are terminal. Everything not listed is rejected.
+var _ESM_TRANSITIONS = {
+    Observed:      ['Hypothesized', 'Deprecated'],
+    Hypothesized:  ['Supported',    'Deprecated', 'Contradicted'],
+    Supported:     ['Validated',    'Deprecated', 'Contradicted'],
+    Validated:     ['ImmutableCore', 'Contradicted'],
+    ImmutableCore: [],
+    Contradicted:  [],
+    Deprecated:    []
+};
+// Hex colours for UI badges (kept short so callers can inline).
+window.EITI_ESM_COLORS = {
+    Observed:      { bg: '#5a5a5a', fg: '#fff', icon: '👁' },
+    Hypothesized:  { bg: '#3b6fa8', fg: '#fff', icon: '💭' },
+    Supported:     { bg: '#2e7d32', fg: '#fff', icon: '🌱' },
+    Validated:     { bg: '#1b8a3a', fg: '#fff', icon: '✅' },
+    ImmutableCore: { bg: '#8b6914', fg: '#fff', icon: '💎' },
+    Contradicted:  { bg: '#a83232', fg: '#fff', icon: '⚠️' },
+    Deprecated:    { bg: '#3a3a3a', fg: '#aaa', icon: '🗑' }
+};
+
+// Lookup a fact by id in the in-memory KB cache (which mirrors IDB).
+function _eitiFindFactById(factId) {
+    if (typeof eitiKBLoad !== 'function') return null;
+    var facts = eitiKBLoad();
+    for (var i = 0; i < facts.length; i++) {
+        if (String(facts[i].id) === String(factId)) return facts[i];
+    }
+    return null;
+}
+
+// Validate-and-apply ESM transition. Throws on illegal transition.
+// Persists the new state to IDB (via eitiKBSave), mirrors into kb_idx, and
+// appends an esm_transition event to the audit_log.
+//
+//   await eitiESMTransition('kb_u123', 'Supported')
+//   → { factId, from, to, at }
+//   throws { code: 'illegal_transition' | 'unknown_state' | 'fact_not_found' }
+window.eitiESMTransition = async function(factId, newState) {
+    if (window.EITI_ESM_STATES.indexOf(newState) === -1) {
+        var err = new Error('Unknown ESM state: ' + newState);
+        err.code = 'unknown_state'; throw err;
+    }
+    var fact = _eitiFindFactById(factId);
+    if (!fact) {
+        var nf = new Error('Fact not found: ' + factId);
+        nf.code = 'fact_not_found'; throw nf;
+    }
+    var from = fact.epistemic_state || 'Observed';
+    var allowed = _ESM_TRANSITIONS[from] || [];
+    if (allowed.indexOf(newState) === -1) {
+        var il = new Error('Illegal ESM transition: ' + from + ' → ' + newState);
+        il.code = 'illegal_transition';
+        il.from = from; il.to = newState;
+        throw il;
+    }
+    // Apply the transition: mutate in-memory + persist + mirror to SQL.
+    fact.epistemic_state = newState;
+    var allFacts = eitiKBLoad();
+    eitiKBSave(allFacts);
+    if (window._db && window.eitiSQLReady) {
+        try {
+            window._db.run('UPDATE kb_idx SET epistemic_state=? WHERE id=?', [newState, String(factId)]);
+            if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+        } catch(e) { console.warn('[ESM] kb_idx mirror failed:', e); }
+    }
+    var at = new Date().toISOString();
+    if (typeof window.eitiLogEvent === 'function') {
+        await window.eitiLogEvent(factId, 'esm_transition', { from: from, to: newState });
+    }
+    return { factId: String(factId), from: from, to: newState, at: at };
+};
+
+// Migration helper: tag any in-memory fact missing epistemic_state with 'Observed'.
+// Idempotent — safe to call repeatedly. Returns count of facts touched.
+window.eitiESMMigrateFacts = function() {
+    if (typeof eitiKBLoad !== 'function') return 0;
+    var facts = eitiKBLoad();
+    var touched = 0;
+    for (var i = 0; i < facts.length; i++) {
+        if (!facts[i].epistemic_state) {
+            facts[i].epistemic_state = 'Observed';
+            touched++;
+        }
+    }
+    if (touched > 0 && typeof eitiKBSave === 'function') eitiKBSave(facts);
+    return touched;
+};
+
 // v11.8 FIX: дебаунс _persistSQL — раньше вызывалась при каждом eitiAttentionTouch,
 // что приводило к полной сериализации SQLite DB (O(размер БД)) при каждом сообщении в чате.
 // Теперь: максимум 1 запись в 2 секунды. При непрерывных вызовах — принудительный flush через 5 сек.
@@ -35690,6 +35814,14 @@ async function _initSQL() {
                 try {
                     _db.run("CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, fact_id TEXT, event TEXT, payload TEXT, at TEXT, prev_hash TEXT, entry_hash TEXT)");
                 } catch(e4) { console.warn('[EITI SQL] audit_log migration failed:', e4); }
+                // T1 migration: existing kb_idx rows lack epistemic_state column — add + backfill.
+                // ALTER TABLE throws "duplicate column" once the column exists; harmless.
+                try {
+                    _db.run("ALTER TABLE kb_idx ADD COLUMN epistemic_state TEXT DEFAULT 'Observed'");
+                } catch(e5) { /* column already exists — fine */ }
+                try {
+                    _db.run("UPDATE kb_idx SET epistemic_state='Observed' WHERE epistemic_state IS NULL");
+                } catch(e6) { /* table absent — fine */ }
             } catch(e) {
                 _db = new SQL.Database();
                 _createSchema();
