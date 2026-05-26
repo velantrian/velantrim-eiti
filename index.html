@@ -425,7 +425,7 @@
                 'Активен: Rex': 'Aktiv: Rex',
                 'Отключить AI': 'KI deaktivieren',
                 'Чат не отвечает — только локальный поиск': 'Chat antwortet nicht — nur lokale Suche',
-                'Голосовой ассистент Grok Voice (grok-voice-think-fast-1.0). Получить ключ: console.x.ai': 'Sprachassistent Grok Voice (grok-voice-think-fast-1.0). Schlüssel beziehen: console.x.ai',
+                'Голосовой ассистент Grok Voice (grok-voice-latest). Получить ключ: console.x.ai': 'Sprachassistent Grok Voice (grok-voice-latest). Schlüssel beziehen: console.x.ai',
                 '🗣️ Grok Голос': '🗣️ Grok Voice',
                 '⚡ Grok Текст': '⚡ Grok Text',
                 '🎙️ Голос ассистента': '🎙️ Assistentenstimme',
@@ -2046,7 +2046,7 @@
                 'Активен: Rex': 'Active: Rex',
                 'Отключить AI': 'Disable AI',
                 'Чат не отвечает — только локальный поиск': 'Chat does not reply — local search only',
-                'Голосовой ассистент Grok Voice (grok-voice-think-fast-1.0). Получить ключ: console.x.ai': 'Grok Voice assistant (grok-voice-think-fast-1.0). Get key: console.x.ai',
+                'Голосовой ассистент Grok Voice (grok-voice-latest). Получить ключ: console.x.ai': 'Grok Voice assistant (grok-voice-latest). Get key: console.x.ai',
                 '🗣️ Grok Голос': '🗣️ Grok Voice',
                 '⚡ Grok Текст': '⚡ Grok Text',
                 '🎙️ Голос ассистента': '🎙️ Assistant voice',
@@ -7296,7 +7296,7 @@
                             <!-- GROK KEY -->
                             <div style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:2px;">
                                 <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🗣️ xAI Grok API Key</div>
-                                <div style="font-size:11px;opacity:0.5;margin-bottom:8px;line-height:1.5;">Голосовой ассистент Grok Voice (grok-voice-think-fast-1.0). Получить ключ: console.x.ai</div>
+                                <div style="font-size:11px;opacity:0.5;margin-bottom:8px;line-height:1.5;">Голосовой ассистент Grok Voice (grok-voice-latest). Получить ключ: console.x.ai</div>
                                 <div style="display:flex;gap:6px;align-items:stretch;">
                                     <input type="password" id="grok-key" placeholder="xai-xxxxxxxxxx"
                                            style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:15px;-webkit-appearance:none;">
@@ -17139,8 +17139,8 @@
         });
 
         // ════════════════════════════════════════════════════════════════════
-        // 🗣️ GROK VOICE REALTIME  grok-voice-think-fast-1.0
-        //    WebSocket: wss://api.x.ai/v1/realtime?model=grok-voice-think-fast-1.0
+        // 🗣️ GROK VOICE REALTIME  grok-voice-latest
+        //    WebSocket: wss://api.x.ai/v1/realtime?model=grok-voice-latest
         //    Docs: https://docs.x.ai/developers/model-capabilities/audio/voice-agent
         // ════════════════════════════════════════════════════════════════════
         window._grokVoiceActive   = false;
@@ -17299,25 +17299,56 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     };
                 });
 
-                // WebSocket с авторизацией через subprotocol (browser restriction workaround)
-                // v12.8 FIX: браузер не может передать Authorization header в WebSocket.
-                // Правильный путь — ephemeral token через /v1/realtime/client_secrets (server-side).
-                // Пока используем xai-client-secret. subprotocol с API-ключом как fallback.
-                // Для продакшна: получить короткоживущий токен через REST и подставить сюда.
-                try {
-                    _grokWS = new WebSocket(
-                        'wss://api.x.ai/v1/realtime?model=grok-voice-think-fast-1.0',
-                        ['xai-client-secret.' + k]
-                    );
-                } catch(e) {
-                    _grokWS = new WebSocket(
-                        'wss://api.x.ai/v1/realtime?model=grok-voice-think-fast-1.0',
-                        ['openai-insecure-api-key.' + k]
-                    );
-                }
+                // WebSocket auth: xAI's WebSocket subprotocol no longer accepts the
+                // raw API key — only ephemeral tokens. Mint one via POST
+                // /v1/realtime/client_secrets, then open the socket. Direct-key
+                // fallback kept for users on legacy server-side proxies that still
+                // accept it (will fail silently with onclose if rejected).
+                var _grokOpenWS = function(authToken) {
+                    try {
+                        _grokWS = new WebSocket(
+                            'wss://api.x.ai/v1/realtime?model=grok-voice-latest',
+                            ['xai-client-secret.' + authToken]
+                        );
+                    } catch(e) {
+                        showToast('❌ Grok Voice: WebSocket init failed');
+                        eitiGrokVoiceStop();
+                        return;
+                    }
+                    _grokWS.binaryType = 'arraybuffer';
+                    _grokWireUpHandlers();
+                };
 
-                _grokWS.binaryType = 'arraybuffer';
+                // Try ephemeral token first; fall back to raw API key only if the
+                // mint endpoint refuses with CORS or rate limit.
+                fetch('https://api.x.ai/v1/realtime/client_secrets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + k
+                    },
+                    body: JSON.stringify({ expires_after: { seconds: 300 } })
+                }).then(function(r) {
+                    if (!r.ok) throw new Error('mint failed: HTTP ' + r.status);
+                    return r.json();
+                }).then(function(data) {
+                    // xAI returns the token in one of these shapes depending on the
+                    // SDK version; accept all of them.
+                    var token = (data && (data.value
+                                       || (data.client_secret && data.client_secret.value)
+                                       || data.token
+                                       || data.ephemeral_token))
+                              || k;
+                    _grokOpenWS(token);
+                }).catch(function(err) {
+                    console.warn('[Grok] ephemeral token fetch failed, trying API key directly:', err.message);
+                    _grokOpenWS(k);
+                });
 
+                // Handler wiring is hoisted into a function so _grokOpenWS can
+                // call it AFTER the async ephemeral-token fetch resolves and
+                // _grokWS becomes a real WebSocket instance.
+                var _grokWireUpHandlers = function() {
                 _grokWS.onopen = function() {
                     _grokVoiceSetBtn('');
                     showToast('🎤 Grok слушает…');
@@ -17665,7 +17696,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                     // v12.9.44: сохраняем инструкции для live-обновления памяти
                     window._grokLastInstructions = [
-                        'Ты — grok-voice-think-fast-1.0, голосовой ассистент VELANTRIM EITI v' + (window.EITI_VERSION||'13.2.0') + '.',
+                        'Ты — grok-voice-latest, голосовой ассистент VELANTRIM EITI v' + (window.EITI_VERSION||'13.2.0') + '.',
                         'ДОСТУП: у тебя есть полная база знаний (KB), заметки, файлы, MOSC-граф и история чатов пользователя — всё передано в этот контекст.',
                         'ИНСТРУМЕНТЫ: используй search_kb, search_notes, get_mosc_nodes, search_files при любом запросе — активно, без подтверждений.',
                         'СТИЛЬ: голосовой — отвечай разговорно, без markdown. Числа и URL проговаривай словами.',
@@ -17965,6 +17996,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     _eitiSyncChatPanelBtns();
                     if (typeof eitiGrokVoiceStop === 'function') eitiGrokVoiceStop();
                 };
+                }; // end _grokWireUpHandlers
             })
             .catch(function(e) {
                 showToast('❌ Микрофон: ' + (e.message || e));
@@ -18347,7 +18379,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     if (st) st.innerHTML = '⏳ Voice-ключ — проверяю через WebSocket...';
                     try {
                         var _testWS = new WebSocket(
-                            'wss://api.x.ai/v1/realtime?model=grok-voice-think-fast-1.0',
+                            'wss://api.x.ai/v1/realtime?model=grok-voice-latest',
                             ['xai-client-secret.' + k]
                         );
                         var _wsTimer = setTimeout(function() {
@@ -18357,7 +18389,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         _testWS.onopen = function() {
                             clearTimeout(_wsTimer);
                             _testWS.close();
-                            if (st) st.innerHTML = '<span style="color:#0f0">✅ Voice-ключ активен 🗣️<br><span style="font-size:10px;opacity:0.7;">Endpoint: Voice only (grok-voice-think-fast-1.0)</span></span>';
+                            if (st) st.innerHTML = '<span style="color:#0f0">✅ Voice-ключ активен 🗣️<br><span style="font-size:10px;opacity:0.7;">Endpoint: Voice only (grok-voice-latest)</span></span>';
                             showToast('✅ Grok Voice ключ активен');
                         };
                         _testWS.onerror = function() {
