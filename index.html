@@ -165,6 +165,9 @@
                 'Язык: Русский': 'Language: Русский',
                 'Language: English': 'Language: English',
                 'UI · меню · тосты. KB и заметки не переводятся.': 'UI · menu · toasts. KB and notes are not translated.',
+                '🔐 Целостность памяти': '🔐 Memory integrity',
+                'Журнал событий L3-фактов хеширован цепочкой SHA-256 — любая попытка задним числом изменить запись разорвёт цепочку.': 'L3 fact events are SHA-256 chain-hashed — any retroactive edit will break the chain.',
+                'Проверить целостность памяти': 'Verify memory integrity',
                 'Язык ответов AI': 'AI reply language',
                 'Авто': 'Auto',
                 'Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.': 'Auto — AI replies in the language of your message. Can be locked to RU or EN.',
@@ -6118,6 +6121,22 @@
 
                         </div>
                     </div>
+                    <!-- ═══ 🔐 ESM AUDIT (T2) — целостность памяти ═══ -->
+                    <div class="settings-group" id="esm-audit-group">
+                        <div class="settings-title" data-i18n="🔐 Целостность памяти">🔐 Целостность памяти</div>
+                        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+                            <div style="font-size:12px;opacity:0.6;line-height:1.5;" data-i18n="Журнал событий L3-фактов хеширован цепочкой SHA-256 — любая попытка задним числом изменить запись разорвёт цепочку.">
+                                Журнал событий L3-фактов хеширован цепочкой SHA-256 — любая попытка задним числом изменить запись разорвёт цепочку.
+                            </div>
+                            <button type="button" onclick="window.eitiVerifyAuditChainUI && window.eitiVerifyAuditChainUI()"
+                                style="padding:12px;border-radius:10px;border:2px solid var(--accent-color);background:var(--secondary-color);color:var(--text-color);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+                                <span style="font-size:18px;">🔐</span>
+                                <span data-i18n="Проверить целостность памяти">Проверить целостность памяти</span>
+                            </button>
+                            <div id="esm-audit-status" style="font-size:11px;opacity:0.55;line-height:1.5;"></div>
+                        </div>
+                    </div>
+
                     <!-- ═══ 🧠 SMART MEMORY HUB v12.9.77 ═══ -->
                     <div class="settings-group" id="smh-settings-group">
                         <div class="settings-title" data-i18n="🧠 Smart Memory Hub">🧠 Smart Memory Hub</div>
@@ -35325,6 +35344,15 @@ function _createSchema() {
             key TEXT PRIMARY KEY,
             val TEXT
         );
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            fact_id    TEXT,
+            event      TEXT,
+            payload    TEXT,
+            at         TEXT,
+            prev_hash  TEXT,
+            entry_hash TEXT
+        );
     `);
 
     // ── Пробуем создать FTS5 виртуальные таблицы (v12.9.59: trigram tokenizer) ──
@@ -35388,6 +35416,133 @@ function _createSchema() {
         console.warn('[EITI SQL] ⚠️ FTS5 недоступен — работаем через LIKE-поиск (sql.js без FTS5). Функционал сохранён.');
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T2 — Hash-chain audit log (tamper-evident memory event journal)
+// Each entry stores entry_hash = SHA-256(prev_hash || canonical_payload),
+// chaining all events so any retroactive edit breaks verification downstream.
+// ═══════════════════════════════════════════════════════════════════════════
+var _AUDIT_ZERO = '0'.repeat(64);
+
+function _eitiHexFromBuf(buf) {
+    var u8 = new Uint8Array(buf), s = '';
+    for (var i = 0; i < u8.length; i++) {
+        s += u8[i].toString(16).padStart(2, '0');
+    }
+    return s;
+}
+
+async function _eitiSHA256Hex(text) {
+    var enc = new TextEncoder().encode(text);
+    var buf = await crypto.subtle.digest('SHA-256', enc);
+    return _eitiHexFromBuf(buf);
+}
+
+// Canonical JSON: sort keys recursively so identical logical content
+// always serialises to the same string, regardless of insertion order.
+function _eitiCanonicalJSON(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) {
+        return '[' + value.map(_eitiCanonicalJSON).join(',') + ']';
+    }
+    var keys = Object.keys(value).sort();
+    var parts = keys.map(function(k){
+        return JSON.stringify(k) + ':' + _eitiCanonicalJSON(value[k]);
+    });
+    return '{' + parts.join(',') + '}';
+}
+
+window.eitiLogEvent = async function(factId, event, payload) {
+    if (!_db) {
+        console.warn('[EITI AUDIT] SQL DB not ready, event dropped:', event);
+        return null;
+    }
+    try {
+        var rows = _db.exec('SELECT entry_hash FROM audit_log ORDER BY id DESC LIMIT 1');
+        var prev = _AUDIT_ZERO;
+        if (rows.length && rows[0].values.length) {
+            prev = rows[0].values[0][0] || _AUDIT_ZERO;
+        }
+        var at = new Date().toISOString();
+        var canonical = _eitiCanonicalJSON({
+            factId: factId == null ? null : String(factId),
+            event: String(event || ''),
+            payload: payload == null ? null : payload,
+            at: at
+        });
+        var entry_hash = await _eitiSHA256Hex(prev + canonical);
+        var stmt = _db.prepare(
+            'INSERT INTO audit_log (fact_id, event, payload, at, prev_hash, entry_hash) VALUES (?,?,?,?,?,?)'
+        );
+        stmt.run([
+            factId == null ? null : String(factId),
+            String(event || ''),
+            typeof payload === 'string' ? payload : JSON.stringify(payload == null ? null : payload),
+            at,
+            prev,
+            entry_hash
+        ]);
+        stmt.free();
+        if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+        return { entry_hash: entry_hash, prev_hash: prev, at: at };
+    } catch (e) {
+        console.warn('[EITI AUDIT] eitiLogEvent failed:', e);
+        return null;
+    }
+};
+
+window.eitiVerifyAuditChain = async function() {
+    if (!_db) return { ok: false, reason: 'sql_not_ready', total: 0 };
+    var rows;
+    try {
+        rows = _db.exec('SELECT id, fact_id, event, payload, at, prev_hash, entry_hash FROM audit_log ORDER BY id ASC');
+    } catch (e) {
+        return { ok: false, reason: 'read_failed', error: String(e.message || e), total: 0 };
+    }
+    if (!rows.length || !rows[0].values.length) {
+        return { ok: true, total: 0 };
+    }
+    var values = rows[0].values;
+    var expectedPrev = _AUDIT_ZERO;
+    for (var i = 0; i < values.length; i++) {
+        var r = values[i];
+        var id = r[0], fact_id = r[1], event = r[2], payloadRaw = r[3];
+        var at = r[4], prev_hash = r[5], entry_hash = r[6];
+        if (prev_hash !== expectedPrev) {
+            return { ok: false, broken_at_id: id, reason: 'prev_hash_mismatch', total: values.length };
+        }
+        var payload;
+        try { payload = payloadRaw == null ? null : JSON.parse(payloadRaw); }
+        catch(_e) { payload = payloadRaw; }
+        var canonical = _eitiCanonicalJSON({
+            factId: fact_id,
+            event: event,
+            payload: payload,
+            at: at
+        });
+        var recomputed = await _eitiSHA256Hex(prev_hash + canonical);
+        if (recomputed !== entry_hash) {
+            return { ok: false, broken_at_id: id, reason: 'entry_hash_mismatch', total: values.length };
+        }
+        expectedPrev = entry_hash;
+    }
+    return { ok: true, total: values.length };
+};
+
+// UI hook for Settings button — see settings panel.
+window.eitiVerifyAuditChainUI = async function() {
+    var toast = (typeof window.showToast === 'function') ? window.showToast : function(m){ console.log(m); };
+    toast('🔐 Проверяю целостность памяти…', 1200);
+    var res = await window.eitiVerifyAuditChain();
+    if (res.ok) {
+        toast('✅ Журнал цел: ' + res.total + ' записей, цепочка не нарушена', 3500);
+    } else if (res.reason === 'sql_not_ready') {
+        toast('⚠️ SQLite ещё не готов, попробуй позже', 3000);
+    } else {
+        toast('❌ Журнал нарушен на id=' + res.broken_at_id + ' (' + res.reason + ')', 5000);
+    }
+    return res;
+};
 
 // v11.8 FIX: дебаунс _persistSQL — раньше вызывалась при каждом eitiAttentionTouch,
 // что приводило к полной сериализации SQLite DB (O(размер БД)) при каждом сообщении в чате.
@@ -35502,6 +35657,10 @@ async function _initSQL() {
         }
         _sqlReady = true;
         window.eitiSQLReady = true;
+        // Expose handle so existing guards `if (window._db && window.eitiSQLReady)`
+        // at lines 14809 / 29915 actually evaluate truthy. They were previously
+        // dead because _db was module-private.
+        window._db = _db;
         // Обновляем badge в «О приложении»
         setTimeout(function() {
             var badge = document.getElementById('eiti-sql-status-badge');
