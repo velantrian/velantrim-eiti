@@ -25974,6 +25974,19 @@ window.eitiLLMClearAll = async function() {
                     showToast('🗑 KB: удалён «' + trig.trim() + '»');
                 }
             });
+            // v14.0 T2 — [FACT_RETRACT:id|reason]: AI marks one of its own
+            // earlier facts as logged-in-error. Goes through eitiRetractFact
+            // which bypasses the standard transition matrix (Retracted is
+            // reachable from any state, including ImmutableCore, since by
+            // definition retraction admits the fact should not have been
+            // logged in the first place). Audit log captures the reason.
+            reply.replace(/\[FACT_RETRACT:([^\|\]]+)\|([^\]]*)\]/g, function(_, id, reason) {
+                if (typeof window.eitiRetractFact === 'function') {
+                    window.eitiRetractFact(id.trim(), reason.trim())
+                        .then(function(r){ showToast('⛔ Факт «' + r.factId + '» retracted'); })
+                        .catch(function(e){ console.warn('FACT_RETRACT:', e.message); });
+                }
+            });
             // NOTE_DELETE — v9.13
             reply.replace(/\[NOTE_DELETE:([^\]]+)\]/g, function(_, title) {
                 var notes = notesLoad().filter(function(n){
@@ -36206,28 +36219,68 @@ window.eitiVerifyAuditChainUI = async function() {
 // Forbidden by design: jump straight into ImmutableCore (must pass through
 // Validated), and any departure from ImmutableCore.
 // ═══════════════════════════════════════════════════════════════════════════
-window.EITI_ESM_STATES = ['Observed', 'Hypothesized', 'Supported', 'Validated', 'ImmutableCore', 'Contradicted', 'Deprecated'];
+// v14.0 T2: 8 named states. Retracted joined the family — used when a fact
+// was logged in error and needs an explicit "this was a mistake" terminal
+// state distinct from Deprecated (which is "still true but no longer
+// relevant") or Contradicted (which is "another fact says otherwise").
+window.EITI_ESM_STATES = [
+    'Observed', 'Hypothesized', 'Supported', 'Validated',
+    'ImmutableCore', 'Contradicted', 'Deprecated', 'Retracted'
+];
 
-// Allowed forward transitions. ImmutableCore / Contradicted / Deprecated have
-// no outgoing edges — they are terminal. Everything not listed is rejected.
+// Allowed forward transitions per v14.0 ТЗ.
+// Changes vs v13:
+//   + Validated → Deprecated   (canon can age out without contradiction)
+//   + Contradicted → Hypothesized (re-investigation after evidence change)
+//   + Retracted as new terminal (only reachable from a manual/AI command)
+//   ImmutableCore, Deprecated, Retracted: terminal — no outgoing edges.
 var _ESM_TRANSITIONS = {
     Observed:      ['Hypothesized', 'Deprecated'],
-    Hypothesized:  ['Supported',    'Deprecated', 'Contradicted'],
-    Supported:     ['Validated',    'Deprecated', 'Contradicted'],
-    Validated:     ['ImmutableCore', 'Contradicted'],
+    Hypothesized:  ['Supported',    'Contradicted', 'Deprecated'],
+    Supported:     ['Validated',    'Contradicted', 'Deprecated'],
+    Validated:     ['ImmutableCore','Contradicted', 'Deprecated'],
     ImmutableCore: [],
-    Contradicted:  [],
-    Deprecated:    []
+    Contradicted:  ['Deprecated',   'Hypothesized'],
+    Deprecated:    [],
+    Retracted:     []
 };
-// Hex colours for UI badges (kept short so callers can inline).
+
+// UI badge colours and icons per v14.0 ТЗ.
 window.EITI_ESM_COLORS = {
-    Observed:      { bg: '#5a5a5a', fg: '#fff', icon: '👁' },
-    Hypothesized:  { bg: '#3b6fa8', fg: '#fff', icon: '💭' },
-    Supported:     { bg: '#2e7d32', fg: '#fff', icon: '🌱' },
-    Validated:     { bg: '#1b8a3a', fg: '#fff', icon: '✅' },
-    ImmutableCore: { bg: '#8b6914', fg: '#fff', icon: '💎' },
-    Contradicted:  { bg: '#a83232', fg: '#fff', icon: '⚠️' },
-    Deprecated:    { bg: '#3a3a3a', fg: '#aaa', icon: '🗑' }
+    Observed:      { bg: '#888888', fg: '#fff', icon: '⚪' },
+    Hypothesized:  { bg: '#9b59b6', fg: '#fff', icon: '💭' },
+    Supported:     { bg: '#f39c12', fg: '#fff', icon: '🟡' },
+    Validated:     { bg: '#27ae60', fg: '#fff', icon: '✅' },
+    ImmutableCore: { bg: '#2980b9', fg: '#fff', icon: '🔒' },
+    Contradicted:  { bg: '#e74c3c', fg: '#fff', icon: '❌' },
+    Deprecated:    { bg: '#7f8c8d', fg: '#fff', icon: '🗑️' },
+    Retracted:     { bg: '#c0392b', fg: '#fff', icon: '⛔' }
+};
+
+// v14.0 T2: public retract helper. Bypasses the standard transition matrix
+// (Retracted is reachable from ANY state, including ImmutableCore — used
+// when a fact was logged in error and must be marked as such).
+// Audit log captures the reason for forensic trace.
+window.eitiRetractFact = async function(factId, reason) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) {
+        var nf = new Error('Fact not found: ' + factId);
+        nf.code = 'fact_not_found'; throw nf;
+    }
+    var from = fact.epistemic_state || 'Observed';
+    fact.epistemic_state = 'Retracted';
+    var allFacts = eitiKBLoad();
+    eitiKBSave(allFacts);
+    if (window._db && window.eitiSQLReady) {
+        try {
+            window._db.run('UPDATE kb_idx SET epistemic_state=? WHERE id=?', ['Retracted', String(factId)]);
+            if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
+        } catch(e) {}
+    }
+    if (typeof window.eitiLogEvent === 'function') {
+        await window.eitiLogEvent(factId, 'fact_retracted', { from: from, reason: reason || 'no reason given' });
+    }
+    return { factId: String(factId), from: from, to: 'Retracted', reason: reason || null };
 };
 
 // Lookup a fact by id in the in-memory KB cache (which mirrors IDB).
