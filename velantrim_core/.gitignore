@@ -1,7 +1,0 @@
-.env
-__pycache__/
-*.pyc
-.pytest_cache/
-data/raw/errors/*.txt
-output/*.json
-!output/.gitkeep
