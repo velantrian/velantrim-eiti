@@ -43574,5 +43574,202 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
 })();
 </script>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// IMAGE GENERATION + PROACTIVE RECOMMENDATIONS (additive module)
+// Self-contained, opt-in, zero changes to existing code paths. Pure cores are
+// exported on window so they can be unit-tested by the read-only harness.
+// ═══════════════════════════════════════════════════════════════════════════
+(function() {
+    'use strict';
+
+    // ── IMAGE GENERATION ────────────────────────────────────────────────────
+    // Lets a model (or the user) request an image; we build the provider request,
+    // parse the response into a blob, and attach it as a downloadable bubble.
+
+    // Extract image prompts from an AI reply: [IMG: ...] / [IMAGE: ...] / [КАРТИНКА: ...]
+    function eitiImgParseCommand(text) {
+        if (!text || typeof text !== 'string') return [];
+        var out = [];
+        var re = /\[(?:IMG|IMAGE|КАРТИНКА|РИСУНОК)\s*:\s*([^\]]+)\]/gi;
+        var m;
+        while ((m = re.exec(text)) !== null) {
+            var p = (m[1] || '').trim();
+            if (p) out.push(p);
+        }
+        return out;
+    }
+
+    // Build a provider-specific HTTP request descriptor for one image prompt.
+    function eitiImgBuildRequest(provider, prompt, opts) {
+        opts = opts || {};
+        if (!prompt || !String(prompt).trim()) throw new Error('empty image prompt');
+        var key = opts.key || '';
+        if (provider === 'openai') {
+            return {
+                url: 'https://api.openai.com/v1/images/generations',
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+                body: { model: opts.model || 'gpt-image-1', prompt: String(prompt), n: 1, size: opts.size || '1024x1024' }
+            };
+        }
+        if (provider === 'gemini') {
+            var model = opts.model || 'gemini-2.5-flash-image';
+            return {
+                url: 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + key,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { contents: [{ role: 'user', parts: [{ text: String(prompt) }] }], generationConfig: { responseModalities: ['IMAGE'] } }
+            };
+        }
+        throw new Error('unsupported image provider: ' + provider);
+    }
+
+    // Normalise a provider response into { mime, b64 } or { url } or null.
+    function eitiImgParseResponse(provider, json) {
+        if (!json) return null;
+        if (provider === 'openai') {
+            var d = json.data && json.data[0];
+            if (!d) return null;
+            if (d.b64_json) return { mime: 'image/png', b64: d.b64_json };
+            if (d.url) return { url: d.url };
+            return null;
+        }
+        if (provider === 'gemini') {
+            var cands = json.candidates || [];
+            for (var i = 0; i < cands.length; i++) {
+                var parts = (cands[i].content && cands[i].content.parts) || [];
+                for (var j = 0; j < parts.length; j++) {
+                    var inl = parts[j].inlineData || parts[j].inline_data;
+                    if (inl && inl.data) return { mime: inl.mimeType || inl.mime_type || 'image/png', b64: inl.data };
+                }
+            }
+            return null;
+        }
+        return null;
+    }
+
+    // Pick the first image-capable provider that has a configured key.
+    function eitiImgPickProvider() {
+        var dk = (typeof window._deobfKey === 'function') ? window._deobfKey : function(s){ return s || ''; };
+        try {
+            if (dk(localStorage.getItem('eiti_openai_key') || '')) return 'openai';
+            if (dk(localStorage.getItem('eiti_gemini_key') || '')) return 'gemini';
+        } catch (e) {}
+        return null;
+    }
+
+    // Orchestrator: generate an image for `prompt` and resolve { mime, b64 } | { url }.
+    async function eitiImgGenerate(prompt, opts) {
+        opts = opts || {};
+        var provider = opts.provider || eitiImgPickProvider();
+        if (!provider) throw new Error('Нет ключа для генерации картинок (OpenAI или Gemini)');
+        var dk = (typeof window._deobfKey === 'function') ? window._deobfKey : function(s){ return s || ''; };
+        var keyName = provider === 'openai' ? 'eiti_openai_key' : 'eiti_gemini_key';
+        var req = eitiImgBuildRequest(provider, prompt, { key: dk(localStorage.getItem(keyName) || ''), model: opts.model, size: opts.size });
+        var resp = await fetch(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) });
+        var json = await resp.json();
+        var parsed = eitiImgParseResponse(provider, json);
+        if (!parsed) throw new Error('Провайдер не вернул изображение');
+        return parsed;
+    }
+
+    window.eitiImgParseCommand  = eitiImgParseCommand;
+    window.eitiImgBuildRequest  = eitiImgBuildRequest;
+    window.eitiImgParseResponse = eitiImgParseResponse;
+    window.eitiImgPickProvider  = eitiImgPickProvider;
+    window.eitiImgGenerate      = eitiImgGenerate;
+
+    // ── PROACTIVE RECOMMENDATIONS ───────────────────────────────────────────
+    // "Это подходит к твоему проекту/делу?" — when a file is saved, find related
+    // notes/memory and offer to enrich the file or surface the connection.
+
+    var REC_STOP = { 'и':1,'в':1,'на':1,'с':1,'по':1,'а':1,'но':1,'для':1,'это':1,'как':1,'что':1,'из':1,'то':1,'же':1,'бы':1,'или':1,
+                     'the':1,'a':1,'an':1,'of':1,'to':1,'and':1,'in':1,'is':1,'it':1,'for':1,'on':1,'with':1 };
+
+    function eitiRecTokenize(text) {
+        if (!text || typeof text !== 'string') return [];
+        return text.toLowerCase().replace(/ё/g, 'е')
+            .split(/[^a-zа-я0-9]+/)
+            .filter(function(w) { return w.length >= 3 && !REC_STOP[w]; });
+    }
+
+    // Jaccard overlap of two token lists (0..1), order/duplicate insensitive.
+    function eitiRecOverlapScore(aTokens, bTokens) {
+        if (!aTokens || !bTokens || !aTokens.length || !bTokens.length) return 0;
+        var setB = {};
+        bTokens.forEach(function(t) { setB[t] = 1; });
+        var seen = {}, inter = 0, uniqA = 0;
+        aTokens.forEach(function(t) {
+            if (!seen[t]) { seen[t] = 1; uniqA++; if (setB[t]) inter++; }
+        });
+        var union = uniqA + Object.keys(setB).length - inter;
+        return union === 0 ? 0 : inter / union;
+    }
+
+    // Rank candidate records by textual overlap with a file's text.
+    function eitiRecFindRelated(fileText, candidates, opts) {
+        opts = opts || {};
+        var threshold = (typeof opts.threshold === 'number') ? opts.threshold : 0.12;
+        var limit = opts.limit || 3;
+        var ft = eitiRecTokenize(fileText);
+        var scored = (candidates || []).map(function(c) {
+            var text = (c.title || '') + ' ' + (c.body || c.content || c.text || c.answer || c.fact || '');
+            return { item: c, score: eitiRecOverlapScore(ft, eitiRecTokenize(text)) };
+        }).filter(function(s) { return s.score >= threshold; });
+        scored.sort(function(a, b) { return b.score - a.score; });
+        return scored.slice(0, limit);
+    }
+
+    // Build the human-facing recommendation message.
+    function eitiRecSuggestText(file, related) {
+        if (!related || !related.length) return '';
+        var name = (file && (file.name || file.title)) || 'этот файл';
+        var lines = related.map(function(r) {
+            var it = r.item || {};
+            var t = it.title || it.name || (it.text || it.body || it.content || it.fact || 'запись').slice(0, 48);
+            return '· ' + t + ' (совпадение ' + Math.round(r.score * 100) + '%)';
+        });
+        return '💡 «' + name + '» похоже связан с тем, что у тебя уже есть:\n' +
+            lines.join('\n') +
+            '\n\nЭто подходит к твоему проекту или делу? Скажи «обнови файл» — добавлю ключевое, или «не надо».';
+    }
+
+    function eitiRecIsEnabled() {
+        try { return localStorage.getItem('eiti_rec_enabled') === '1'; } catch (e) { return false; }
+    }
+
+    // Gather candidate records from notes + learned facts to compare against.
+    function eitiRecGatherCandidates() {
+        var out = [];
+        try { if (typeof window.notesLoad === 'function') out = out.concat(window.notesLoad() || []); } catch (e) {}
+        try { if (typeof window.eitiLearnGet === 'function') out = out.concat(window.eitiLearnGet() || []); } catch (e) {}
+        return out;
+    }
+
+    // Opt-in entry point: given a freshly-saved file, surface a recommendation.
+    function eitiRecOnFileSaved(file, candidates) {
+        if (!eitiRecIsEnabled() || !file) return '';
+        var text = (file.title || file.name || '') + ' ' + (file.body || file.content || '');
+        var related = eitiRecFindRelated(text, candidates || eitiRecGatherCandidates());
+        var msg = eitiRecSuggestText(file, related);
+        if (msg && typeof window.eitiReceiveReply === 'function') {
+            try { window.eitiReceiveReply(msg); } catch (e) {}
+        }
+        return msg;
+    }
+
+    window.eitiRecTokenize        = eitiRecTokenize;
+    window.eitiRecOverlapScore    = eitiRecOverlapScore;
+    window.eitiRecFindRelated     = eitiRecFindRelated;
+    window.eitiRecSuggestText     = eitiRecSuggestText;
+    window.eitiRecIsEnabled       = eitiRecIsEnabled;
+    window.eitiRecGatherCandidates = eitiRecGatherCandidates;
+    window.eitiRecOnFileSaved     = eitiRecOnFileSaved;
+
+    console.info('[eiti] image-gen + recommendations module installed');
+})();
+</script>
+
 </body>
 </html>
