@@ -26019,6 +26019,22 @@ window.eitiLLMClearAll = async function() {
             }
 
             function doSend() {
+                // 🖼️ Image generation — detect on the user's TYPED command, BEFORE the
+                // paste buffer is merged in. Otherwise a pasted document containing
+                // "нарисуй/картинка" plus a normal ask would be wrongly routed to image
+                // generation. Only fires when an image API key is configured.
+                var _typedCmd = (input.value || '').trim();
+                if (_typedCmd && typeof window.eitiImgDetectRequest === 'function'
+                    && window.eitiImgDetectRequest(_typedCmd)
+                    && typeof window.eitiImgMaybeHandle === 'function'
+                    && window.eitiImgMaybeHandle(_typedCmd)) {
+                    input.value = ''; input.style.height = 'auto';
+                    window._eitiPastedTextBuffer = null; // chip was not part of an image request
+                    var _chipImg = document.getElementById('eiti-paste-chip');
+                    if (_chipImg) _chipImg.remove();
+                    return;
+                }
+
                 // v13.4.0 P1 FIX #15: если был paste-chip — инжектим полный текст в начало.
                 if (window._eitiPastedTextBuffer) {
                     var _pastedContent = window._eitiPastedTextBuffer;
