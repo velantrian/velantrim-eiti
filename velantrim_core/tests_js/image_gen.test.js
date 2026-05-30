@@ -10,7 +10,7 @@ const assert = require('node:assert');
 const { loadFunctions } = require('./harness');
 
 const img = loadFunctions(
-  ['eitiImgParseCommand', 'eitiImgBuildRequest', 'eitiImgParseResponse'],
+  ['eitiImgParseCommand', 'eitiImgBuildRequest', 'eitiImgParseResponse', 'eitiImgDetectRequest'],
   { Error }
 );
 
@@ -118,4 +118,45 @@ test('Gemini key is read from eiti_gemini_key', () => {
   const sb = makeKeyResolver({ eiti_gemini_key: 'AIza-1' });
   assert.strictEqual(sb.eitiImgResolveKey('gemini'), 'AIza-1');
   assert.strictEqual(sb.eitiImgPickProvider(), 'gemini');
+});
+
+// Natural-language detection — routes "draw/generate an image…" typed in chat to
+// the image generator instead of the text model. Must NOT hijack normal chat.
+test('detects an image request and extracts prompt + 9:16 aspect', () => {
+  const r = img.eitiImgDetectRequest('Создай изображения красивой девушки 9:16');
+  assert.ok(r, 'should be detected');
+  assert.strictEqual(r.aspect, '9:16');
+  assert.match(r.prompt, /красивой девушки/);
+  assert.doesNotMatch(r.prompt, /9:16/, 'aspect stripped from prompt');
+});
+
+test('detects without an aspect (defaults to null)', () => {
+  const r = img.eitiImgDetectRequest('нарисуй кота в скафандре');
+  assert.ok(r);
+  assert.strictEqual(r.aspect, null);
+  assert.match(r.prompt, /кота в скафандре/);
+});
+
+test('maps aspect word hints (вертикально / landscape / square)', () => {
+  assert.strictEqual(img.eitiImgDetectRequest('сгенерируй вертикальное фото заката').aspect, '9:16');
+  assert.strictEqual(img.eitiImgDetectRequest('generate a landscape image of mountains').aspect, '16:9');
+  assert.strictEqual(img.eitiImgDetectRequest('сделай квадратную картинку').aspect, '1:1');
+});
+
+test('does NOT trigger on ordinary chat', () => {
+  assert.strictEqual(img.eitiImgDetectRequest('Привет, друг'), null);
+  assert.strictEqual(img.eitiImgDetectRequest('что ты умеешь?'), null);
+  assert.strictEqual(img.eitiImgDetectRequest('расскажи про картину Репина'), null); // noun but no verb
+  assert.strictEqual(img.eitiImgDetectRequest(''), null);
+  assert.strictEqual(img.eitiImgDetectRequest(null), null);
+});
+
+test('OpenAI build maps a 9:16 aspect to a portrait size', () => {
+  const req = img.eitiImgBuildRequest('openai', 'a tower', { key: 'k', aspect: '9:16' });
+  assert.strictEqual(req.body.size, '1024x1536');
+});
+
+test('Gemini build passes aspectRatio through imageConfig', () => {
+  const req = img.eitiImgBuildRequest('gemini', 'a tower', { key: 'k', aspect: '9:16' });
+  assert.strictEqual(req.body.generationConfig.imageConfig.aspectRatio, '9:16');
 });
