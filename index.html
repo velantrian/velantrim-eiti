@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.5"; // v13.4.5: paste-chip no longer duplicates text into the input; NL image-gen + 9:16 aspect
+        var EITI_VERSION = "13.4.6"; // v13.4.6: collapsible long sent messages (clamp to top lines + expand/collapse toggle)
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -26019,6 +26019,22 @@ window.eitiLLMClearAll = async function() {
             }
 
             function doSend() {
+                // 🖼️ Image generation — detect on the user's TYPED command, BEFORE the
+                // paste buffer is merged in. Otherwise a pasted document containing
+                // "нарисуй/картинка" plus a normal ask would be wrongly routed to image
+                // generation. Only fires when an image API key is configured.
+                var _typedCmd = (input.value || '').trim();
+                if (_typedCmd && typeof window.eitiImgDetectRequest === 'function'
+                    && window.eitiImgDetectRequest(_typedCmd)
+                    && typeof window.eitiImgMaybeHandle === 'function'
+                    && window.eitiImgMaybeHandle(_typedCmd)) {
+                    input.value = ''; input.style.height = 'auto';
+                    window._eitiPastedTextBuffer = null; // chip was not part of an image request
+                    var _chipImg = document.getElementById('eiti-paste-chip');
+                    if (_chipImg) _chipImg.remove();
+                    return;
+                }
+
                 // v13.4.0 P1 FIX #15: если был paste-chip — инжектим полный текст в начало.
                 if (window._eitiPastedTextBuffer) {
                     var _pastedContent = window._eitiPastedTextBuffer;
@@ -26044,14 +26060,8 @@ window.eitiLLMClearAll = async function() {
                 }
                 if (!txt.trim()) return;
 
-                // 🖼️ Image generation: "сгенерируй/нарисуй картинку…" → route to the
-                // image generator instead of the text model (which would just say it
-                // cannot draw). Only fires when a key is configured; otherwise normal
-                // chat handles it. eitiImgMaybeHandle echoes the user turn itself.
-                if (typeof window.eitiImgMaybeHandle === 'function' && window.eitiImgMaybeHandle(txt)) {
-                    input.value = ''; input.style.height = 'auto';
-                    return;
-                }
+                // (image-generation intent is handled at the top of doSend, on the
+                //  user's typed command — before any paste buffer is merged in.)
 
                 // v12.9.2: Grok Voice muted → текст → Grok (перехватываем до всего остального)
                 if (window._grokVoiceActive && window._grokMuted && _grokWS && _grokWS.readyState === 1) {
@@ -44084,6 +44094,131 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     }
 
     console.info('[eiti] image-gen + recommendations module installed');
+})();
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// COLLAPSIBLE LONG SENT MESSAGES (additive module)
+// A long outgoing (user) message is clamped to a few top lines; clicking the
+// toggle expands it fully, clicking again collapses it back. Works for both
+// freshly-sent messages and ones rendered from history (via MutationObserver).
+// Self-contained inline styles; disables the legacy v13.4.4 .msg-collapsible CSS
+// (which had a class mismatch and also hid the timestamp) by removing that class.
+// ═══════════════════════════════════════════════════════════════════════════
+(function eitiUserMsgCollapse() {
+    'use strict';
+    if (window._eitiUserMsgCollapseInstalled) return;
+    window._eitiUserMsgCollapseInstalled = true;
+
+    var COLLAPSE_LINES = 3;   // top lines visible while collapsed
+    var MIN_CHARS = 200;      // only consider long messages
+
+    function _clamp(el, on) {
+        if (on) {
+            el.style.display = '-webkit-box';
+            el.style.webkitBoxOrient = 'vertical';
+            el.style.webkitLineClamp = String(COLLAPSE_LINES);
+            el.style.overflow = 'hidden';
+        } else {
+            el.style.display = '';
+            el.style.webkitLineClamp = '';
+            el.style.overflow = '';
+        }
+    }
+
+    // Find the text element of an outgoing bubble. The send path uses
+    // .msg-text-display; the history render path uses a class-less <div> sitting
+    // between the optional file chips and the .message-time stamp.
+    function _findText(bubble) {
+        var el = bubble.querySelector('.msg-text-display');
+        if (el) return el;
+        var body = bubble.querySelector('.message-body') || bubble;
+        var kids = body.children || [];
+        for (var i = 0; i < kids.length; i++) {
+            var k = kids[i];
+            if (k.nodeType !== 1 || k.tagName !== 'DIV') continue;
+            var c = k.className || '';
+            if (/message-sender|message-time|message-controls|msg-file-chip|eiti-(collapse|msg-collapse)/.test(c)) continue;
+            return k; // first "plain" content div = the message text
+        }
+        return null;
+    }
+
+    function _enhance(bubble) {
+        if (!bubble || bubble._eitiCollapseDone) return;
+        if (!bubble.classList || !bubble.classList.contains('outgoing')) return;
+        var textEl = _findText(bubble);
+        if (!textEl) return;
+        var txt = textEl.textContent || '';
+        if (txt.length < MIN_CHARS) return;
+        bubble._eitiCollapseDone = true;
+        // Drop the legacy class so its broken CSS (phantom clamp + hidden time) is off.
+        try { bubble.classList.remove('msg-collapsible'); } catch (e) {}
+
+        // Reuse the proven v13.4.3 collapse (clamp + chevron + overflow measure)
+        // when present; otherwise fall back to an inline toggle.
+        if (typeof window.eitiAttachCollapse === 'function') {
+            try { window.eitiAttachCollapse(textEl); return; } catch (e) {}
+        }
+
+        _clamp(textEl, true);
+        (window.requestAnimationFrame || function(f){ setTimeout(f, 30); })(function() {
+            if (textEl.scrollHeight <= textEl.clientHeight + 2) {
+                _clamp(textEl, false); // short enough → leave it alone
+                return;
+            }
+            var toggle = document.createElement('div');
+            toggle.className = 'eiti-msg-collapse-toggle';
+            toggle.textContent = '▼ Показать полностью';
+            toggle.style.cssText = 'font-size:11px;opacity:0.65;cursor:pointer;margin-top:4px;user-select:none;';
+            var expanded = false;
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                expanded = !expanded;
+                _clamp(textEl, !expanded);
+                toggle.textContent = expanded ? '▲ Свернуть' : '▼ Показать полностью';
+            });
+            if (textEl.parentNode) textEl.parentNode.insertBefore(toggle, textEl.nextSibling);
+        });
+    }
+
+    function _scan(root) {
+        if (!root || !root.querySelectorAll) return;
+        var list = root.querySelectorAll('.message.outgoing');
+        for (var i = 0; i < list.length; i++) _enhance(list[i]);
+    }
+
+    function _init() {
+        var msgs = document.getElementById('messages');
+        if (!msgs) { setTimeout(_init, 500); return; }
+        _scan(msgs);
+        try {
+            var mo = new MutationObserver(function(muts) {
+                for (var m = 0; m < muts.length; m++) {
+                    var added = muts[m].addedNodes;
+                    for (var i = 0; i < added.length; i++) {
+                        var n = added[i];
+                        if (!n || n.nodeType !== 1) continue;
+                        if (n.classList && n.classList.contains('message') && n.classList.contains('outgoing')) {
+                            _enhance(n);
+                        } else {
+                            _scan(n);
+                        }
+                    }
+                }
+            });
+            mo.observe(msgs, { childList: true, subtree: true });
+        } catch (e) {}
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _init);
+    } else {
+        _init();
+    }
+
+    console.info('[eiti] collapsible long messages module installed');
 })();
 </script>
 
