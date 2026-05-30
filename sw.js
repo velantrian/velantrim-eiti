@@ -1,4 +1,4 @@
-// VELANTRIM EITI — Service Worker v13.4.4
+// VELANTRIM EITI — Service Worker v13.4.5
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
 
 var CACHE = 'eiti-v13.4.5'; // v13.4.4: render \n→<br> for user msgs (fixes first-send collapse) + 4-line clamp
