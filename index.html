@@ -43375,6 +43375,36 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
     }, true);
+
+    // Android fallback #1: beforeinput with inputType=insertFromPaste — fires on
+    // Chrome Android where the `paste` event's clipboardData is often empty.
+    // Delegated on document so it works even though #input may not exist yet.
+    document.addEventListener('beforeinput', function(e) {
+        if (!e.target || e.target.id !== 'input') return;
+        if (e.inputType !== 'insertFromPaste') return;
+        var pasted = e.data || '';
+        if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        e.preventDefault();
+        window._eitiPastedTextBuffer = pasted;
+        _showChip(pasted);
+    }, true);
+
+    // Android fallback #2: input monitor — detects a sudden length jump (gesture
+    // paste / paste-as-block) when neither event above carried the text.
+    var _prevInputLen = 0;
+    document.addEventListener('input', function(e) {
+        var el = e.target;
+        if (!el || el.id !== 'input') return;
+        var val = el.value || '';
+        var delta = val.length - _prevInputLen;
+        if (delta > PASTE_THRESHOLD && !window._eitiPastedTextBuffer) {
+            var pasted = val.slice(_prevInputLen);
+            el.value = val.slice(0, _prevInputLen);
+            window._eitiPastedTextBuffer = pasted;
+            _showChip(pasted);
+        }
+        _prevInputLen = el.value.length;
+    }, true);
 })();
 </script>
 
