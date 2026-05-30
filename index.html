@@ -26060,14 +26060,8 @@ window.eitiLLMClearAll = async function() {
                 }
                 if (!txt.trim()) return;
 
-                // 🖼️ Image generation: "сгенерируй/нарисуй картинку…" → route to the
-                // image generator instead of the text model (which would just say it
-                // cannot draw). Only fires when a key is configured; otherwise normal
-                // chat handles it. eitiImgMaybeHandle echoes the user turn itself.
-                if (typeof window.eitiImgMaybeHandle === 'function' && window.eitiImgMaybeHandle(txt)) {
-                    input.value = ''; input.style.height = 'auto';
-                    return;
-                }
+                // (image-generation intent is handled at the top of doSend, on the
+                //  user's typed command — before any paste buffer is merged in.)
 
                 // v12.9.2: Grok Voice muted → текст → Grok (перехватываем до всего остального)
                 if (window._grokVoiceActive && window._grokMuted && _grokWS && _grokWS.readyState === 1) {
