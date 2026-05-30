@@ -43654,20 +43654,19 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         return out;
     }
 
-    // Map an aspect ratio (e.g. "9:16") to the nearest OpenAI gpt-image-1 size.
-    function _eitiImgAspectToSize(aspect) {
-        if (aspect === '9:16' || aspect === '2:3' || aspect === '3:4') return '1024x1536'; // portrait
-        if (aspect === '16:9' || aspect === '3:2' || aspect === '4:3') return '1536x1024'; // landscape
-        return '1024x1024'; // square / default
-    }
-
     // Build a provider-specific HTTP request descriptor for one image prompt.
     function eitiImgBuildRequest(provider, prompt, opts) {
         opts = opts || {};
         if (!prompt || !String(prompt).trim()) throw new Error('empty image prompt');
         var key = opts.key || '';
         if (provider === 'openai') {
-            var size = opts.size || (opts.aspect ? _eitiImgAspectToSize(opts.aspect) : '1024x1024');
+            // Map an aspect ratio (e.g. "9:16") to the nearest gpt-image-1 size.
+            var size = opts.size;
+            if (!size) {
+                if (opts.aspect === '9:16' || opts.aspect === '2:3' || opts.aspect === '3:4') size = '1024x1536';
+                else if (opts.aspect === '16:9' || opts.aspect === '3:2' || opts.aspect === '4:3') size = '1536x1024';
+                else size = '1024x1024';
+            }
             return {
                 url: 'https://api.openai.com/v1/images/generations',
                 method: 'POST',
@@ -43695,10 +43694,13 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     function eitiImgDetectRequest(text) {
         if (!text || typeof text !== 'string') return null;
         var t = text.trim();
-        // A generation verb followed (anywhere) by an image noun.
-        var verb = /(сгенерир|сген\b|нарису|создай|сделай|сотвори|генерир|draw|generate|create|make|render)/i;
-        var noun = /(изображени|картин|фото|рисун|иллюстрац|пикч|image|picture|photo|drawing|illustration)/i;
-        if (!verb.test(t) || !noun.test(t)) return null;
+        // "Draw" verbs already mean making a picture, so they qualify on their own.
+        var drawVerb = /(нарису|render|\bdraw\b|сотвори)/i;
+        // Generic verbs only count as an image request with an image noun present.
+        var genVerb  = /(сгенерир|сген\b|создай|сделай|генерир|generate|create|make)/i;
+        var noun     = /(изображени|картин|фото|рисун|иллюстрац|пикч|image|picture|photo|drawing|illustration)/i;
+        var verb     = /(нарису|render|\bdraw\b|сотвори|сгенерир|сген\b|создай|сделай|генерир|generate|create|make)/i;
+        if (!(drawVerb.test(t) || (genVerb.test(t) && noun.test(t)))) return null;
 
         // Aspect ratio like 9:16 / 16:9 / 1:1, or word hints.
         var aspect = null;
