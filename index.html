@@ -6956,6 +6956,9 @@
                                 <button class="chat-ai-toggle eiti-on" id="chat-ds-btn"
                                     title="DeepSeek AI — текстовый ассистент"
                                     onclick="eitiChatDSToggle()">⚡</button>
+                                <button class="chat-ai-toggle" id="chat-img-btn"
+                                    title="🖼️ Сгенерировать изображение (OpenAI / Gemini)"
+                                    onclick="eitiImgChatGenerate()">🖼️</button>
                                 <button class="chat-action-mini" id="clearInputBtn" title="Очистить / двойной тап — копировать" style="width:28px;height:22px;font-size:13px;">♻</button>
                             </div>
                         </div>
@@ -7472,6 +7475,18 @@
                                         <button id="sugg-prov-same" onclick="eitiSuggSetProvider('same')" style="padding:5px 12px;border-radius:8px;border:none;font-size:12px;cursor:pointer;background:rgba(255,255,255,0.08);color:var(--text-color);">🔁 Тот же что в чате</button>
                                     </div>
                                     <div style="font-size:10px;opacity:0.4;margin-top:8px;">💡 Gemini Flash — быстрее и дешевле всего. Рекомендуется.</div>
+                                </div>
+                            </div>
+                            <!-- Proactive recommendations toggle -->
+                            <div id="eiti-recommendations-settings" style="margin-top:16px;padding:12px 14px;background:rgba(0,0,0,0.18);border-radius:12px;border:1px solid var(--border-color);">
+                                <div style="display:flex;align-items:center;justify-content:space-between;">
+                                    <div>
+                                        <div style="font-size:13px;font-weight:700;">🔗 Проактивные рекомендации</div>
+                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;">При сохранении файла подсказывать связь с заметками и памятью</div>
+                                    </div>
+                                    <div id="rec-toggle-slider" onclick="eitiRecToggle()" style="width:42px;height:24px;border-radius:12px;background:#444;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
+                                        <div id="rec-toggle-knob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -43766,6 +43781,111 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     window.eitiRecIsEnabled       = eitiRecIsEnabled;
     window.eitiRecGatherCandidates = eitiRecGatherCandidates;
     window.eitiRecOnFileSaved     = eitiRecOnFileSaved;
+
+    // ── UI WIRING ───────────────────────────────────────────────────────────
+    // Thin glue between the cores above and the DOM. Kept defensive (typeof
+    // checks, try/catch) so a missing element can never break the chat.
+
+    function _toast(msg) {
+        if (typeof window.showToast === 'function') window.showToast(msg);
+    }
+
+    // Render an image result as a downloadable incoming chat bubble.
+    function eitiImgRenderBubble(prompt, result) {
+        var msgs = document.getElementById('messages');
+        if (!msgs) return;
+        var src = result.url || ('data:' + (result.mime || 'image/png') + ';base64,' + result.b64);
+        var time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+        var safePrompt = (typeof window.eitiEsc === 'function') ? window.eitiEsc(prompt) : String(prompt);
+        var fname = 'eiti_image_' + Date.now() + '.png';
+        var div = document.createElement('div');
+        div.className = 'message incoming';
+        div.innerHTML =
+            '<div class="message-row"><div class="message-body">' +
+            '<div class="message-sender">🖼️ Image</div>' +
+            '<img src="' + src + '" alt="' + safePrompt + '" ' +
+                'style="max-width:100%;border-radius:12px;display:block;margin:4px 0;">' +
+            '<div style="font-size:11px;opacity:0.6;margin-top:4px;">' + safePrompt + '</div>' +
+            '<a href="' + src + '" download="' + fname + '" ' +
+                'style="display:inline-block;margin-top:6px;font-size:12px;color:var(--accent-color,#ffd700);">⬇️ Download</a>' +
+            '<div class="message-time">' + time + '</div>' +
+            '</div></div>';
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    // Chat button handler: take the prompt from the input box, generate, attach.
+    async function eitiImgChatGenerate() {
+        var input = document.getElementById('input');
+        var prompt = input ? (input.value || '').trim() : '';
+        if (!prompt) { _toast('✏️ Введите описание картинки в поле ввода'); return; }
+        if (!eitiImgPickProvider()) {
+            _toast('🔑 Нужен ключ OpenAI или Gemini в Настройках');
+            return;
+        }
+        _toast('🖼️ Генерирую изображение…');
+        try {
+            var result = await eitiImgGenerate(prompt);
+            eitiImgRenderBubble(prompt, result);
+            if (input) input.value = '';
+        } catch (e) {
+            _toast('❌ ' + (e && e.message ? e.message : 'Не удалось сгенерировать'));
+        }
+    }
+    window.eitiImgChatGenerate = eitiImgChatGenerate;
+    window.eitiImgRenderBubble  = eitiImgRenderBubble;
+
+    // Recommendations settings toggle (mirrors the Smart Suggestions toggle).
+    function _eitiRecRenderToggle() {
+        var on = eitiRecIsEnabled();
+        var knob = document.getElementById('rec-toggle-knob');
+        var slider = document.getElementById('rec-toggle-slider');
+        if (knob) knob.style.transform = on ? 'translateX(18px)' : '';
+        if (slider) slider.style.background = on ? 'var(--accent-color,#ffd700)' : '#444';
+    }
+    function eitiRecToggle() {
+        var on = !eitiRecIsEnabled();
+        try { localStorage.setItem('eiti_rec_enabled', on ? '1' : '0'); } catch (e) {}
+        _eitiRecRenderToggle();
+        _toast(on ? '🔗 Рекомендации включены' : '🔗 Рекомендации выключены');
+    }
+    window.eitiRecToggle = eitiRecToggle;
+    window._eitiRecRenderToggle = _eitiRecRenderToggle;
+
+    // Reflect persisted toggle state once the DOM is ready.
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', _eitiRecRenderToggle);
+        } else {
+            _eitiRecRenderToggle();
+        }
+    }
+
+    // Wrap notesSave so that, when recommendations are enabled, saving a NEW
+    // note surfaces related notes/memory. Wrapping (not editing the original)
+    // keeps the single-file source untouched and the feature fully opt-in.
+    if (typeof window.notesSave === 'function' && !window._eitiRecWrapped) {
+        window._eitiRecWrapped = true;
+        var _knownNoteIds = {};
+        try { (window.notesLoad ? window.notesLoad() : []).forEach(function(n){ if (n && n.id) _knownNoteIds[n.id] = 1; }); } catch (e) {}
+        var _origNotesSave = window.notesSave;
+        window.notesSave = function(notes) {
+            var ret = _origNotesSave.apply(this, arguments);
+            try {
+                if (eitiRecIsEnabled() && Array.isArray(notes)) {
+                    var fresh = notes.filter(function(n){ return n && n.id && !_knownNoteIds[n.id]; });
+                    notes.forEach(function(n){ if (n && n.id) _knownNoteIds[n.id] = 1; });
+                    if (fresh.length) {
+                        var newest = fresh[fresh.length - 1];
+                        // Compare against everything except the new note itself.
+                        var others = eitiRecGatherCandidates().filter(function(c){ return c.id !== newest.id; });
+                        eitiRecOnFileSaved(newest, others);
+                    }
+                }
+            } catch (e) {}
+            return ret;
+        };
+    }
 
     console.info('[eiti] image-gen + recommendations module installed');
 })();
