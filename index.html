@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.4"; // v13.4.4: render \n→<br> for user msgs (collapse on first send) + 4-line clamp
+        var EITI_VERSION = "13.4.5"; // v13.4.5: paste-chip no longer duplicates text into the input; NL image-gen + 9:16 aspect
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -13408,10 +13408,14 @@
                         pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
                     } catch(_) { return; }
                     if (!pasted || pasted.length < 300) return;
+                    var _before = t.value; // keep whatever the user already typed
                     e.preventDefault();
                     e.stopPropagation();
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
+                    // Guarantee the pasted block never stays in the input, even if a
+                    // platform ignores preventDefault for paste (PWA/webview quirk).
+                    setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
                 }, true);
 
                 // Android fallback #1: beforeinput с inputType=insertFromPaste —
@@ -13421,9 +13425,12 @@
                     if (e.inputType !== 'insertFromPaste') return;
                     var pasted = e.data || '';
                     if (!pasted || pasted.length < 300) return;
+                    var _beforeBI = e.target.value;
                     e.preventDefault();
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
+                    var _tBI = e.target;
+                    setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
                 }, true);
 
                 // Android fallback #2: input-монитор — детектирует резкий прирост
@@ -26036,6 +26043,15 @@ window.eitiLLMClearAll = async function() {
                     }
                 }
                 if (!txt.trim()) return;
+
+                // 🖼️ Image generation: "сгенерируй/нарисуй картинку…" → route to the
+                // image generator instead of the text model (which would just say it
+                // cannot draw). Only fires when a key is configured; otherwise normal
+                // chat handles it. eitiImgMaybeHandle echoes the user turn itself.
+                if (typeof window.eitiImgMaybeHandle === 'function' && window.eitiImgMaybeHandle(txt)) {
+                    input.value = ''; input.style.height = 'auto';
+                    return;
+                }
 
                 // v12.9.2: Grok Voice muted → текст → Grok (перехватываем до всего остального)
                 if (window._grokVoiceActive && window._grokMuted && _grokWS && _grokWS.readyState === 1) {
@@ -43370,10 +43386,15 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var pasted = '';
         try { pasted = (e.clipboardData || window.clipboardData).getData('text') || ''; } catch(_) { return; }
         if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        var _before = t.value; // preserve whatever the user already typed
         e.preventDefault();
         e.stopPropagation();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
+        // Safety net: if a platform ignores preventDefault for paste (common in
+        // installed PWA/webview), the pasted block would also land in the input.
+        // Restore the pre-paste value so the text lives ONLY in the chip.
+        setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
     }, true);
 
     // Android fallback #1: beforeinput with inputType=insertFromPaste — fires on
@@ -43384,9 +43405,11 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (e.inputType !== 'insertFromPaste') return;
         var pasted = e.data || '';
         if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        var _tBI = e.target, _beforeBI = _tBI.value;
         e.preventDefault();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
+        setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
     }, true);
 
     // Android fallback #2: input monitor — detects a sudden length jump (gesture
@@ -43651,24 +43674,67 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (!prompt || !String(prompt).trim()) throw new Error('empty image prompt');
         var key = opts.key || '';
         if (provider === 'openai') {
+            // Map an aspect ratio (e.g. "9:16") to the nearest gpt-image-1 size.
+            var size = opts.size;
+            if (!size) {
+                if (opts.aspect === '9:16' || opts.aspect === '2:3' || opts.aspect === '3:4') size = '1024x1536';
+                else if (opts.aspect === '16:9' || opts.aspect === '3:2' || opts.aspect === '4:3') size = '1536x1024';
+                else size = '1024x1024';
+            }
             return {
                 url: 'https://api.openai.com/v1/images/generations',
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-                body: { model: opts.model || 'gpt-image-1', prompt: String(prompt), n: 1, size: opts.size || '1024x1024' }
+                body: { model: opts.model || 'gpt-image-1', prompt: String(prompt), n: 1, size: size }
             };
         }
         if (provider === 'gemini') {
             var model = opts.model || 'gemini-2.5-flash-image';
+            var genCfg = { responseModalities: ['IMAGE'] };
+            if (opts.aspect) genCfg.imageConfig = { aspectRatio: opts.aspect };
             return {
                 url: 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + key,
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: { contents: [{ role: 'user', parts: [{ text: String(prompt) }] }], generationConfig: { responseModalities: ['IMAGE'] } }
+                body: { contents: [{ role: 'user', parts: [{ text: String(prompt) }] }], generationConfig: genCfg }
             };
         }
         throw new Error('unsupported image provider: ' + provider);
     }
+
+    // Detect a natural-language image-generation request and extract the prompt
+    // and any aspect ratio. Returns { prompt, aspect } or null when it is not an
+    // image request (so normal chat is never hijacked).
+    function eitiImgDetectRequest(text) {
+        if (!text || typeof text !== 'string') return null;
+        var t = text.trim();
+        // "Draw" verbs already mean making a picture, so they qualify on their own.
+        var drawVerb = /(нарису|render|\bdraw\b|сотвори)/i;
+        // Generic verbs only count as an image request with an image noun present.
+        var genVerb  = /(сгенерир|сген\b|создай|сделай|генерир|generate|create|make)/i;
+        var noun     = /(изображени|картин|фото|рисун|иллюстрац|пикч|image|picture|photo|drawing|illustration)/i;
+        var verb     = /(нарису|render|\bdraw\b|сотвори|сгенерир|сген\b|создай|сделай|генерир|generate|create|make)/i;
+        if (!(drawVerb.test(t) || (genVerb.test(t) && noun.test(t)))) return null;
+
+        // Aspect ratio like 9:16 / 16:9 / 1:1, or word hints.
+        var aspect = null;
+        var ratio = t.match(/\b(\d{1,2})\s*[:xх]\s*(\d{1,2})\b/);
+        if (ratio) aspect = ratio[1] + ':' + ratio[2];
+        else if (/вертикальн|портрет|portrait|vertical|сторис|stories|9\s*[:xх]\s*16/i.test(t)) aspect = '9:16';
+        else if (/горизонтальн|пейзаж|landscape|widescreen|16\s*[:xх]\s*9/i.test(t)) aspect = '16:9';
+        else if (/квадрат|square/i.test(t)) aspect = '1:1';
+
+        // Strip the leading command words to leave a clean prompt for the model.
+        var prompt = t
+            .replace(/^[^а-яёa-z0-9]*/i, '')
+            .replace(verb, '')
+            .replace(/^\s*(мне|пожалуйста|please|me|a|an|the)\b/i, '')
+            .replace(/\b(\d{1,2})\s*[:xх]\s*(\d{1,2})\b/, '')
+            .trim();
+        if (!prompt) prompt = t; // fall back to the raw text if stripping emptied it
+        return { prompt: prompt, aspect: aspect };
+    }
+
 
     // Normalise a provider response into { mime, b64 } or { url } or null.
     function eitiImgParseResponse(provider, json) {
@@ -43720,7 +43786,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         opts = opts || {};
         var provider = opts.provider || eitiImgPickProvider();
         if (!provider) throw new Error('Нет ключа для генерации картинок (OpenAI или Gemini)');
-        var req = eitiImgBuildRequest(provider, prompt, { key: eitiImgResolveKey(provider), model: opts.model, size: opts.size });
+        var req = eitiImgBuildRequest(provider, prompt, { key: eitiImgResolveKey(provider), model: opts.model, size: opts.size, aspect: opts.aspect });
         var resp = await fetch(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) });
         var json = await resp.json();
         var parsed = eitiImgParseResponse(provider, json);
@@ -43734,6 +43800,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     window.eitiImgResolveKey    = eitiImgResolveKey;
     window.eitiImgPickProvider  = eitiImgPickProvider;
     window.eitiImgGenerate      = eitiImgGenerate;
+    window.eitiImgDetectRequest = eitiImgDetectRequest;
 
     // ── PROACTIVE RECOMMENDATIONS ───────────────────────────────────────────
     // "Это подходит к твоему проекту/делу?" — when a file is saved, find related
@@ -43839,6 +43906,26 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (typeof window.showToast === 'function') window.showToast(msg);
     }
 
+    // Render the user's own request as an outgoing bubble (self-contained, so it
+    // works when we intercept the send before the app renders the user turn).
+    function eitiImgRenderUserBubble(text) {
+        var msgs = document.getElementById('messages');
+        if (!msgs) return;
+        var time = new Date().toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+        var safe = (typeof window.eitiEsc === 'function') ? window.eitiEsc(text)
+                 : String(text).replace(/[&<>]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]; });
+        var div = document.createElement('div');
+        div.className = 'message outgoing';
+        div.innerHTML =
+            '<div class="message-row"><div class="message-body">' +
+            '<div class="message-sender">Вы</div>' +
+            '<div class="msg-text">' + safe + '</div>' +
+            '<div class="message-time">' + time + '</div>' +
+            '</div></div>';
+        msgs.appendChild(div);
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+
     // Render an image result as a downloadable incoming chat bubble.
     function eitiImgRenderBubble(prompt, result) {
         var msgs = document.getElementById('messages');
@@ -43863,25 +43950,58 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         msgs.scrollTop = msgs.scrollHeight;
     }
 
+    // Shared engine: generate `prompt` (optionally with an aspect ratio), echo
+    // the user request into the chat, then attach the image bubble.
+    async function eitiImgRunForChat(prompt, aspect, opts) {
+        opts = opts || {};
+        prompt = (prompt || '').trim();
+        if (!prompt) { _toast('✏️ Опишите, какую картинку сгенерировать'); return false; }
+        if (!eitiImgPickProvider()) {
+            _toast('🔑 Нужен ключ OpenAI или Gemini в Настройках');
+            return false;
+        }
+        // Show what the user asked for, so the chat reads naturally.
+        if (opts.echoUser) eitiImgRenderUserBubble(opts.echoUser);
+        _toast('🖼️ Генерирую изображение' + (aspect ? ' ' + aspect : '') + '…');
+        try {
+            var result = await eitiImgGenerate(prompt, { aspect: aspect });
+            eitiImgRenderBubble(prompt, result);
+            return true;
+        } catch (e) {
+            _toast('❌ ' + (e && e.message ? e.message : 'Не удалось сгенерировать'));
+            if (typeof window.eitiReceiveReply === 'function') {
+                try { window.eitiReceiveReply('❌ Не удалось сгенерировать изображение: ' + (e && e.message ? e.message : 'ошибка')); } catch (_) {}
+            }
+            return false;
+        }
+    }
+
     // Chat button handler: take the prompt from the input box, generate, attach.
     async function eitiImgChatGenerate() {
         var input = document.getElementById('input');
-        var prompt = input ? (input.value || '').trim() : '';
-        if (!prompt) { _toast('✏️ Введите описание картинки в поле ввода'); return; }
-        if (!eitiImgPickProvider()) {
-            _toast('🔑 Нужен ключ OpenAI или Gemini в Настройках');
-            return;
-        }
-        _toast('🖼️ Генерирую изображение…');
-        try {
-            var result = await eitiImgGenerate(prompt);
-            eitiImgRenderBubble(prompt, result);
-            if (input) input.value = '';
-        } catch (e) {
-            _toast('❌ ' + (e && e.message ? e.message : 'Не удалось сгенерировать'));
-        }
+        var raw = input ? (input.value || '').trim() : '';
+        if (!raw) { _toast('✏️ Введите описание картинки в поле ввода'); return; }
+        // Honour an aspect ratio typed inline (e.g. "... 9:16").
+        var det = eitiImgDetectRequest(raw);
+        var prompt = det ? det.prompt : raw;
+        var aspect = det ? det.aspect : null;
+        var ok = await eitiImgRunForChat(prompt, aspect);
+        if (ok && input) { input.value = ''; if (input.style) input.style.height = 'auto'; }
     }
     window.eitiImgChatGenerate = eitiImgChatGenerate;
+    window.eitiImgRunForChat   = eitiImgRunForChat;
+
+    // Natural-language routing: intercept "сгенерируй/нарисуй картинку…" typed in
+    // the chat so it goes to the image generator instead of the text model.
+    // Returns true when it handled the message (caller should stop sending).
+    function eitiImgMaybeHandle(text) {
+        var det = eitiImgDetectRequest(text);
+        if (!det) return false;
+        if (!eitiImgPickProvider()) return false; // no key → let normal chat answer/explain
+        eitiImgRunForChat(det.prompt, det.aspect, { echoUser: text });
+        return true;
+    }
+    window.eitiImgMaybeHandle = eitiImgMaybeHandle;
     window.eitiImgRenderBubble  = eitiImgRenderBubble;
 
     // Recommendations settings toggle (mirrors the Smart Suggestions toggle).
