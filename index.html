@@ -44087,5 +44087,130 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
 })();
 </script>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// COLLAPSIBLE LONG SENT MESSAGES (additive module)
+// A long outgoing (user) message is clamped to a few top lines; clicking the
+// toggle expands it fully, clicking again collapses it back. Works for both
+// freshly-sent messages and ones rendered from history (via MutationObserver).
+// Self-contained inline styles; disables the legacy v13.4.4 .msg-collapsible CSS
+// (which had a class mismatch and also hid the timestamp) by removing that class.
+// ═══════════════════════════════════════════════════════════════════════════
+(function eitiUserMsgCollapse() {
+    'use strict';
+    if (window._eitiUserMsgCollapseInstalled) return;
+    window._eitiUserMsgCollapseInstalled = true;
+
+    var COLLAPSE_LINES = 3;   // top lines visible while collapsed
+    var MIN_CHARS = 200;      // only consider long messages
+
+    function _clamp(el, on) {
+        if (on) {
+            el.style.display = '-webkit-box';
+            el.style.webkitBoxOrient = 'vertical';
+            el.style.webkitLineClamp = String(COLLAPSE_LINES);
+            el.style.overflow = 'hidden';
+        } else {
+            el.style.display = '';
+            el.style.webkitLineClamp = '';
+            el.style.overflow = '';
+        }
+    }
+
+    // Find the text element of an outgoing bubble. The send path uses
+    // .msg-text-display; the history render path uses a class-less <div> sitting
+    // between the optional file chips and the .message-time stamp.
+    function _findText(bubble) {
+        var el = bubble.querySelector('.msg-text-display');
+        if (el) return el;
+        var body = bubble.querySelector('.message-body') || bubble;
+        var kids = body.children || [];
+        for (var i = 0; i < kids.length; i++) {
+            var k = kids[i];
+            if (k.nodeType !== 1 || k.tagName !== 'DIV') continue;
+            var c = k.className || '';
+            if (/message-sender|message-time|message-controls|msg-file-chip|eiti-(collapse|msg-collapse)/.test(c)) continue;
+            return k; // first "plain" content div = the message text
+        }
+        return null;
+    }
+
+    function _enhance(bubble) {
+        if (!bubble || bubble._eitiCollapseDone) return;
+        if (!bubble.classList || !bubble.classList.contains('outgoing')) return;
+        var textEl = _findText(bubble);
+        if (!textEl) return;
+        var txt = textEl.textContent || '';
+        if (txt.length < MIN_CHARS) return;
+        bubble._eitiCollapseDone = true;
+        // Drop the legacy class so its broken CSS (phantom clamp + hidden time) is off.
+        try { bubble.classList.remove('msg-collapsible'); } catch (e) {}
+
+        // Reuse the proven v13.4.3 collapse (clamp + chevron + overflow measure)
+        // when present; otherwise fall back to an inline toggle.
+        if (typeof window.eitiAttachCollapse === 'function') {
+            try { window.eitiAttachCollapse(textEl); return; } catch (e) {}
+        }
+
+        _clamp(textEl, true);
+        (window.requestAnimationFrame || function(f){ setTimeout(f, 30); })(function() {
+            if (textEl.scrollHeight <= textEl.clientHeight + 2) {
+                _clamp(textEl, false); // short enough → leave it alone
+                return;
+            }
+            var toggle = document.createElement('div');
+            toggle.className = 'eiti-msg-collapse-toggle';
+            toggle.textContent = '▼ Показать полностью';
+            toggle.style.cssText = 'font-size:11px;opacity:0.65;cursor:pointer;margin-top:4px;user-select:none;';
+            var expanded = false;
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                expanded = !expanded;
+                _clamp(textEl, !expanded);
+                toggle.textContent = expanded ? '▲ Свернуть' : '▼ Показать полностью';
+            });
+            if (textEl.parentNode) textEl.parentNode.insertBefore(toggle, textEl.nextSibling);
+        });
+    }
+
+    function _scan(root) {
+        if (!root || !root.querySelectorAll) return;
+        var list = root.querySelectorAll('.message.outgoing');
+        for (var i = 0; i < list.length; i++) _enhance(list[i]);
+    }
+
+    function _init() {
+        var msgs = document.getElementById('messages');
+        if (!msgs) { setTimeout(_init, 500); return; }
+        _scan(msgs);
+        try {
+            var mo = new MutationObserver(function(muts) {
+                for (var m = 0; m < muts.length; m++) {
+                    var added = muts[m].addedNodes;
+                    for (var i = 0; i < added.length; i++) {
+                        var n = added[i];
+                        if (!n || n.nodeType !== 1) continue;
+                        if (n.classList && n.classList.contains('message') && n.classList.contains('outgoing')) {
+                            _enhance(n);
+                        } else {
+                            _scan(n);
+                        }
+                    }
+                }
+            });
+            mo.observe(msgs, { childList: true, subtree: true });
+        } catch (e) {}
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _init);
+    } else {
+        _init();
+    }
+
+    console.info('[eiti] collapsible long messages module installed');
+})();
+</script>
+
 </body>
 </html>
