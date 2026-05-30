@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.4"; // v13.4.4: render \n→<br> for user msgs (collapse on first send) + 4-line clamp
+        var EITI_VERSION = "13.4.5"; // v13.4.5: paste-chip no longer duplicates text into the input; NL image-gen + 9:16 aspect
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -13408,10 +13408,14 @@
                         pasted = (e.clipboardData || window.clipboardData).getData('text') || '';
                     } catch(_) { return; }
                     if (!pasted || pasted.length < 300) return;
+                    var _before = t.value; // keep whatever the user already typed
                     e.preventDefault();
                     e.stopPropagation();
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
+                    // Guarantee the pasted block never stays in the input, even if a
+                    // platform ignores preventDefault for paste (PWA/webview quirk).
+                    setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
                 }, true);
 
                 // Android fallback #1: beforeinput с inputType=insertFromPaste —
@@ -13421,9 +13425,12 @@
                     if (e.inputType !== 'insertFromPaste') return;
                     var pasted = e.data || '';
                     if (!pasted || pasted.length < 300) return;
+                    var _beforeBI = e.target.value;
                     e.preventDefault();
                     window._eitiPastedTextBuffer = pasted;
                     _eitiShowPastedChip(pasted);
+                    var _tBI = e.target;
+                    setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
                 }, true);
 
                 // Android fallback #2: input-монитор — детектирует резкий прирост
@@ -43379,10 +43386,15 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var pasted = '';
         try { pasted = (e.clipboardData || window.clipboardData).getData('text') || ''; } catch(_) { return; }
         if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        var _before = t.value; // preserve whatever the user already typed
         e.preventDefault();
         e.stopPropagation();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
+        // Safety net: if a platform ignores preventDefault for paste (common in
+        // installed PWA/webview), the pasted block would also land in the input.
+        // Restore the pre-paste value so the text lives ONLY in the chip.
+        setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
     }, true);
 
     // Android fallback #1: beforeinput with inputType=insertFromPaste — fires on
@@ -43393,9 +43405,11 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (e.inputType !== 'insertFromPaste') return;
         var pasted = e.data || '';
         if (!pasted || pasted.length < PASTE_THRESHOLD) return;
+        var _tBI = e.target, _beforeBI = _tBI.value;
         e.preventDefault();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
+        setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
     }, true);
 
     // Android fallback #2: input monitor — detects a sudden length jump (gesture
