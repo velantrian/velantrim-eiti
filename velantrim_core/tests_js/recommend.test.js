@@ -78,3 +78,33 @@ test('suggestText names the file and lists matches with percentages', () => {
 test('suggestText with no related → empty string (stay silent)', () => {
   assert.strictEqual(rec.eitiRecSuggestText({ name: 'x' }, []), '');
 });
+
+// eitiRecGatherCandidates pulls from notes + learned facts + USER FILES so that
+// saving a file can be matched against everything the user has. System snapshot
+// files (chat_latest.txt etc.) must be excluded.
+test('gatherCandidates includes notes, facts and user files (skips system files)', () => {
+  const sb = loadFunctions(['eitiRecGatherCandidates'], {
+    window: {
+      notesLoad: () => [{ id: 'n1', title: 'note' }],
+      eitiLearnGet: () => [{ id: 'f1', fact: 'fact' }],
+      getAiTextStore: () => ({
+        files: [
+          { name: 'plan.md', content: 'user file' },
+          { name: 'chat_latest.txt', content: 'system snapshot' },
+        ],
+      }),
+      isUserFile: (f) => f.name !== 'chat_latest.txt',
+    },
+  });
+  const got = sb.eitiRecGatherCandidates();
+  const names = got.map((c) => c.name || c.title || c.fact);
+  assert.ok(names.includes('note'), 'notes included');
+  assert.ok(names.includes('fact'), 'facts included');
+  assert.ok(names.includes('plan.md'), 'user file included');
+  assert.ok(!names.includes('chat_latest.txt'), 'system snapshot excluded');
+});
+
+test('gatherCandidates is resilient when sources are missing', () => {
+  const sb = loadFunctions(['eitiRecGatherCandidates'], { window: {} });
+  assert.deepStrictEqual([...sb.eitiRecGatherCandidates()], []);
+});

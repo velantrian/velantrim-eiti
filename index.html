@@ -43769,6 +43769,15 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var out = [];
         try { if (typeof window.notesLoad === 'function') out = out.concat(window.notesLoad() || []); } catch (e) {}
         try { if (typeof window.eitiLearnGet === 'function') out = out.concat(window.eitiLearnGet() || []); } catch (e) {}
+        // Include user-created files (skip internal system snapshots).
+        try {
+            if (typeof window.getAiTextStore === 'function') {
+                var files = (window.getAiTextStore().files) || [];
+                out = out.concat(files.filter(function(f) {
+                    return typeof window.isUserFile === 'function' ? window.isUserFile(f) : true;
+                }));
+            }
+        } catch (e) {}
         return out;
     }
 
@@ -43891,6 +43900,33 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
                         var others = eitiRecGatherCandidates().filter(function(c){ return c.id !== newest.id; });
                         eitiRecOnFileSaved(newest, others);
                     }
+                }
+            } catch (e) {}
+            return ret;
+        };
+    }
+
+    // Wrap upsertAiFile the same way so that saving/creating a NEW user file (not
+    // an internal snapshot like chat_latest.txt) also surfaces related notes,
+    // facts and files. Opt-in via the same toggle; original is left untouched.
+    if (typeof window.upsertAiFile === 'function' && !window._eitiRecFileWrapped) {
+        window._eitiRecFileWrapped = true;
+        var _knownFileNames = {};
+        try {
+            var _existing = (typeof window.getAiTextStore === 'function') ? (window.getAiTextStore().files || []) : [];
+            _existing.forEach(function(f){ if (f && f.name) _knownFileNames[f.name] = 1; });
+        } catch (e) {}
+        var _origUpsertAiFile = window.upsertAiFile;
+        window.upsertAiFile = function(name, mime, content) {
+            var isNew = !!name && !_knownFileNames[name];
+            if (name) _knownFileNames[name] = 1;
+            var ret = _origUpsertAiFile.apply(this, arguments);
+            try {
+                var userFile = (typeof window.isUserFile === 'function') ? window.isUserFile({ name: name }) : true;
+                if (eitiRecIsEnabled() && isNew && userFile) {
+                    var file = { name: name, content: content };
+                    var others = eitiRecGatherCandidates().filter(function(c){ return c.name !== name; });
+                    eitiRecOnFileSaved(file, others);
                 }
             } catch (e) {}
             return ret;
