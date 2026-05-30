@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.5"; // v13.4.5: paste-chip no longer duplicates text into the input; NL image-gen + 9:16 aspect
+        var EITI_VERSION = "13.4.6"; // v13.4.6: collapsible long sent messages (clamp to top lines + expand/collapse toggle)
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
