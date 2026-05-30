@@ -43664,13 +43664,24 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         return null;
     }
 
-    // Pick the first image-capable provider that has a configured key.
-    function eitiImgPickProvider() {
+    // Resolve a provider's API key, honouring the same localStorage fallbacks
+    // the rest of the app uses (OpenAI may be stored under either key name).
+    function eitiImgResolveKey(provider) {
         var dk = (typeof window._deobfKey === 'function') ? window._deobfKey : function(s){ return s || ''; };
         try {
-            if (dk(localStorage.getItem('eiti_openai_key') || '')) return 'openai';
-            if (dk(localStorage.getItem('eiti_gemini_key') || '')) return 'gemini';
+            if (provider === 'openai') {
+                return dk(localStorage.getItem('eiti_openai_key') || '') ||
+                       dk(localStorage.getItem('eiti_apikey_openai') || '');
+            }
+            if (provider === 'gemini') return dk(localStorage.getItem('eiti_gemini_key') || '');
         } catch (e) {}
+        return '';
+    }
+
+    // Pick the first image-capable provider that has a configured key.
+    function eitiImgPickProvider() {
+        if (eitiImgResolveKey('openai')) return 'openai';
+        if (eitiImgResolveKey('gemini')) return 'gemini';
         return null;
     }
 
@@ -43679,9 +43690,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         opts = opts || {};
         var provider = opts.provider || eitiImgPickProvider();
         if (!provider) throw new Error('Нет ключа для генерации картинок (OpenAI или Gemini)');
-        var dk = (typeof window._deobfKey === 'function') ? window._deobfKey : function(s){ return s || ''; };
-        var keyName = provider === 'openai' ? 'eiti_openai_key' : 'eiti_gemini_key';
-        var req = eitiImgBuildRequest(provider, prompt, { key: dk(localStorage.getItem(keyName) || ''), model: opts.model, size: opts.size });
+        var req = eitiImgBuildRequest(provider, prompt, { key: eitiImgResolveKey(provider), model: opts.model, size: opts.size });
         var resp = await fetch(req.url, { method: req.method, headers: req.headers, body: JSON.stringify(req.body) });
         var json = await resp.json();
         var parsed = eitiImgParseResponse(provider, json);
@@ -43692,6 +43701,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     window.eitiImgParseCommand  = eitiImgParseCommand;
     window.eitiImgBuildRequest  = eitiImgBuildRequest;
     window.eitiImgParseResponse = eitiImgParseResponse;
+    window.eitiImgResolveKey    = eitiImgResolveKey;
     window.eitiImgPickProvider  = eitiImgPickProvider;
     window.eitiImgGenerate      = eitiImgGenerate;
 

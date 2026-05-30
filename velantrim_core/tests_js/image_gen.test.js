@@ -85,3 +85,37 @@ test('null/empty responses never throw', () => {
   assert.strictEqual(img.eitiImgParseResponse('openai', null), null);
   assert.strictEqual(img.eitiImgParseResponse('gemini', {}), null);
 });
+
+// Key resolution must honour the same localStorage fallbacks the rest of the
+// app uses: OpenAI keys may live under either `eiti_openai_key` or the legacy
+// `eiti_apikey_openai`. Regression guard for the PR-review fix.
+function makeKeyResolver(stored) {
+  const sb = loadFunctions(['eitiImgResolveKey', 'eitiImgPickProvider'], {
+    window: { _deobfKey: (s) => s || '' },
+    localStorage: { getItem: (k) => (k in stored ? stored[k] : null) },
+  });
+  return sb;
+}
+
+test('OpenAI key falls back to the legacy eiti_apikey_openai name', () => {
+  const sb = makeKeyResolver({ eiti_apikey_openai: 'sk-legacy' });
+  assert.strictEqual(sb.eitiImgResolveKey('openai'), 'sk-legacy');
+  assert.strictEqual(sb.eitiImgPickProvider(), 'openai');
+});
+
+test('primary eiti_openai_key takes precedence over the legacy name', () => {
+  const sb = makeKeyResolver({ eiti_openai_key: 'sk-primary', eiti_apikey_openai: 'sk-legacy' });
+  assert.strictEqual(sb.eitiImgResolveKey('openai'), 'sk-primary');
+});
+
+test('no configured key → resolver empty and picker null', () => {
+  const sb = makeKeyResolver({});
+  assert.strictEqual(sb.eitiImgResolveKey('openai'), '');
+  assert.strictEqual(sb.eitiImgPickProvider(), null);
+});
+
+test('Gemini key is read from eiti_gemini_key', () => {
+  const sb = makeKeyResolver({ eiti_gemini_key: 'AIza-1' });
+  assert.strictEqual(sb.eitiImgResolveKey('gemini'), 'AIza-1');
+  assert.strictEqual(sb.eitiImgPickProvider(), 'gemini');
+});
