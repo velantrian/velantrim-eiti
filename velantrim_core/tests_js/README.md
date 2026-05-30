@@ -29,6 +29,8 @@ node --test velantrim_core/tests_js/*.test.js
 | `cosine.test.js` | `_cosineSim` | semantic-search similarity metric |
 | `decay.test.js` | `_pkgApplyDecayAll` | fractal-memory weight decay |
 | `embed_offline.test.js` | `_embedOffline` | offline embedding contract |
+| `ranking.test.js` | `tfScore` | local-search term-frequency scoring |
+| `parse_commands.test.js` | `eitiTaskParseAICommands` | parsing `[TASK_*]` directives from LLM replies |
 
 Notes pinned by these tests: the `eitiCalcSalience` 4.0 cap is currently
 unreachable (max multiplier is 2.73), and `_cosineSim` degrades to `0` on a

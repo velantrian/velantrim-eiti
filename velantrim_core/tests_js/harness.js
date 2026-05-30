@@ -5,10 +5,11 @@
 // Instead we read it, slice out individual top-level functions by name, and run
 // them inside an isolated Node `vm` sandbox so their pure logic can be unit-tested.
 //
-// Extraction relies on the monolith's consistent formatting: every top-level
-// script function is indented by exactly 8 spaces, and its closing brace sits on
-// its own line at the same 8-space indent. Nested braces are always more deeply
-// indented, so this is robust against `{` inside regex/strings (e.g. `{3,}`).
+// Extraction relies on the monolith's consistent formatting: a function's
+// closing brace sits on its own line at the *same* indentation as its
+// `function` keyword. Nested braces are always more deeply indented, so this is
+// robust against `{` inside regex/strings (e.g. `{3,}`). Works for functions at
+// any indent level (top-level 0/8 spaces or nested 12+).
 
 const fs = require('fs');
 const path = require('path');
@@ -17,16 +18,18 @@ const vm = require('vm');
 const INDEX_HTML = path.join(__dirname, '..', '..', 'index.html');
 const LINES = fs.readFileSync(INDEX_HTML, 'utf8').split('\n');
 
-/** Return the exact source text of a top-level function by name. */
+/** Return the exact source text of a function by name, at any indent level. */
 function extractFunction(name) {
-  const startRe = new RegExp('^ {8}(?:async )?function ' + name + '\\b');
+  const startRe = new RegExp('^(\\s*)(?:async )?function ' + name + '\\b');
   let start = -1;
+  let indent = '';
   for (let i = 0; i < LINES.length; i++) {
-    if (startRe.test(LINES[i])) { start = i; break; }
+    const m = LINES[i].match(startRe);
+    if (m) { start = i; indent = m[1]; break; }
   }
   if (start === -1) throw new Error('Function not found in index.html: ' + name);
 
-  const closeRe = /^ {8}\}\s*$/;
+  const closeRe = new RegExp('^' + indent + '\\}\\s*$');
   let end = -1;
   for (let i = start + 1; i < LINES.length; i++) {
     if (closeRe.test(LINES[i])) { end = i; break; }
