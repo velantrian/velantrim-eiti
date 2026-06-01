@@ -38,12 +38,12 @@ test('OpenAI request targets the images endpoint with bearer auth', () => {
   assert.strictEqual(req.body.n, 1);
 });
 
-test('Gemini request puts the key in the URL and asks for an IMAGE modality', () => {
+test('Gemini request targets the Imagen predict endpoint with the key in the URL', () => {
   const req = img.eitiImgBuildRequest('gemini', 'a fox', { key: 'AIzaXYZ' });
   assert.match(req.url, /generativelanguage\.googleapis\.com/);
-  assert.match(req.url, /:generateContent\?key=AIzaXYZ$/);
-  assert.strictEqual(req.body.generationConfig.responseModalities[0], 'IMAGE');
-  assert.strictEqual(req.body.contents[0].parts[0].text, 'a fox');
+  assert.match(req.url, /:predict\?key=AIzaXYZ$/);
+  assert.strictEqual(req.body.parameters.sampleCount, 1);
+  assert.strictEqual(req.body.instances[0].prompt, 'a fox');
 });
 
 test('empty prompt and unknown provider throw', () => {
@@ -156,7 +156,7 @@ test('OpenAI build maps a 9:16 aspect to a portrait size', () => {
   assert.strictEqual(req.body.size, '1024x1536');
 });
 
-test('Gemini build passes aspectRatio through imageConfig', () => {
+test('Gemini build passes aspectRatio through Imagen parameters', () => {
   const req = img.eitiImgBuildRequest('gemini', 'a tower', { key: 'k', aspect: '9:16' });
-  assert.strictEqual(req.body.generationConfig.imageConfig.aspectRatio, '9:16');
+  assert.strictEqual(req.body.parameters.aspectRatio, '9:16');
 });

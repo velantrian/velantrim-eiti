@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.7"; // v13.4.7: fix streaming freeze (plain-text while streaming, markdown once at end) + de-dupe paste hooks / robust paste-leftover cleanup
+        var EITI_VERSION = "13.4.8"; // v13.4.8: green CI — align Gemini image-gen tests with the Imagen predict endpoint + pass aspectRatio through Imagen parameters
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -43883,11 +43883,14 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         }
         if (provider === 'gemini') {
             var model = opts.model || 'imagen-3.0-generate-002';
+            var imgParams = { sampleCount: 1 };
+            // Imagen predict honours an explicit aspect ratio (e.g. "9:16").
+            if (opts.aspect) imgParams.aspectRatio = opts.aspect;
             return {
                 url: 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':predict?key=' + key,
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: { instances: [{ prompt: String(prompt) }], parameters: { sampleCount: 1 } }
+                body: { instances: [{ prompt: String(prompt) }], parameters: imgParams }
             };
         }
         throw new Error('unsupported image provider: ' + provider);
