@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.9"; // v13.4.9: clamp Imagen aspectRatio to the supported set (map unsupported ratios to nearest, omit unparseable)
+        var EITI_VERSION = "13.5.0"; // v13.5.0: fix silent note/file/board creation — force command tags on create-intent, tolerate short [TASK_ADD], honest warning when AI claims-but-no-tag
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -19168,6 +19168,24 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     window._eitiMemSaveUserText = userText;
                 }
 
+                // ── patch v13.5.0: усиленные директивы создания заметки / файла / задачи ──
+                // Системная проблема (воспроизводится на любом провайдере): модель часто
+                // пишет «создал ✅», но НЕ вставляет командный тег — и артефакт не создаётся.
+                // Как и для личной памяти выше, при явном намерении даём жёсткую директиву,
+                // чтобы тег точно появился (без тега ничего не создастся).
+                var _noteCreateKw = /(созда(й|ть)|сдела(й|ть)|добав(ь|ить)|запиши|нов(ая|ую))[^\n]{0,24}заметк|заметк[ауи][^\n]{0,18}(созда|добав|запиши)|create[^\n]{0,20}note|new note|save[^\n]{0,20}note|write down/i;
+                var _fileCreateKw = /(созда(й|ть)|сдела(й|ть)|сохрани|нов(ый|ого))[^\n]{0,24}файл|файл[^\n]{0,18}(созда|сдела|сохрани)|в\s*eiti\s*files|create[^\n]{0,20}file|new file/i;
+                var _taskCreateKw = /(созда(й|ть)|добав(ь|ить)|занеси|постав(ь|ить))[^\n]{0,24}(задач|таск|дел[оа]|доск|канбан|board|task)|на\s*доску|в\s*(личн\w*\s*)?доску|add[^\n]{0,20}task|to[\- ]?do|kanban/i;
+                if (_noteCreateKw.test(userText)) {
+                    sysContent += '\n\n⚠️ КРИТИЧЕСКИ ВАЖНО: Пользователь просит создать/записать ЗАМЕТКУ. Ты ОБЯЗАН вставить в свой ответ тег [NOTE_WRITE:Заголовок|Текст заметки] (или [NOTE_APPEND:Заголовок|Текст] чтобы дописать в существующую). БЕЗ этого тега заметка НЕ создастся — не утверждай, что создал, если тег не вставлен.';
+                }
+                if (_fileCreateKw.test(userText)) {
+                    sysContent += '\n\n⚠️ КРИТИЧЕСКИ ВАЖНО: Пользователь просит создать ФАЙЛ в EITI Files. Ты ОБЯЗАН вставить в свой ответ тег <EITI_FILE:имя.txt>содержимое</EITI_FILE>. БЕЗ этого тега файл НЕ создастся — не утверждай, что создал, если тег не вставлен.';
+                }
+                if (_taskCreateKw.test(userText)) {
+                    sysContent += '\n\n⚠️ КРИТИЧЕСКИ ВАЖНО: Пользователь просит добавить задачу на Личную Доску. Ты ОБЯЗАН вставить в свой ответ тег [TASK_ADD:статус|Название|Описание|дата|приоритет|теги] (статус: To Do / In Progress / Done / Blocked; достаточно указать статус и название, остальное можно опустить). БЕЗ этого тега задача НЕ добавится — не утверждай, что добавил, если тег не вставлен.';
+                }
+
                 // ── v12.7: EITI Memory — личная память ──────────────
                 // Вставляется синхронно через _memCache (уже загружен при запуске)
                 var _personalMem = (typeof _memCache !== 'undefined' && _memCache !== null) ? _memCache : [];
@@ -27811,7 +27829,7 @@ window.eitiLLMClearAll = async function() {
                         var _warn = document.createElement('div');
                         _warn.style.cssText = 'margin:4px 12px 8px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#f59e0b;';
                         _warn.innerHTML = '⚠️ <b>Внимание:</b> AI сказал что сохранил, но тег [MEM_ADD] не найден — запись <b>не попала</b> в Личную память. Попробуй написать: <i>«Сохрани в личную память: [текст]»</i>';
-                        var _chat = document.getElementById('chat-messages') || document.getElementById('chatMessages');
+                        var _chat = document.getElementById('messages') || document.getElementById('chat-messages') || document.getElementById('chatMessages');
                         if (_chat) _chat.appendChild(_warn);
                     }, 400);
                 }
@@ -27821,11 +27839,46 @@ window.eitiLLMClearAll = async function() {
                         var _warn = document.createElement('div');
                         _warn.style.cssText = 'margin:4px 12px 8px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#f59e0b;';
                         _warn.innerHTML = '⚠️ <b>Внимание:</b> AI сказал что удалил, но тег [MEM_DEL] не найден — запись <b>осталась</b> в Личной памяти. Попробуй написать: <i>«Удали из личной памяти всё»</i>';
-                        var _chat = document.getElementById('chat-messages') || document.getElementById('chatMessages');
+                        var _chat = document.getElementById('messages') || document.getElementById('chat-messages') || document.getElementById('chatMessages');
                         if (_chat) _chat.appendChild(_warn);
                     }, 400);
                 }
             })();
+
+            // ── Честность AI для заметок / файлов / доски (v13.5.0) ──────────
+            // Та же логика, что и для личной памяти выше: если пользователь явно
+            // просил создать заметку / файл / задачу, AI отрапортовал об успехе,
+            // но соответствующий командный тег отсутствует — артефакт НЕ создан.
+            // Честно предупреждаем, чтобы «создал ✅» без реального результата не
+            // вводил в заблуждение (системная проблема, не зависит от провайдера).
+            (function() {
+                var _lastUserMsg = '';
+                for (var _j = chatLog.length - 1; _j >= 0; _j--) {
+                    if (chatLog[_j].role === 'user') { _lastUserMsg = (chatLog[_j].text||'').toLowerCase(); break; }
+                }
+                if (!_lastUserMsg) return;
+                var _claimed = /(созда(л|на|но|ны)|сделал|добавил|записал|сохранил|готово|created|added|saved|done|✅)/i.test(reply);
+                if (!_claimed) return;
+                var _checks = [
+                    { want:/(созда|сдела|добав|запиши|нов)[^\n]{0,24}заметк|заметк[ауи][^\n]{0,18}(созда|добав|запиши)|create[^\n]{0,20}note|new note/i,
+                      tag:/\[NOTE_WRITE|\[NOTE_APPEND/, label:'заметку', hint:'«создай заметку Название: текст»' },
+                    { want:/(созда|сдела|сохрани|нов)[^\n]{0,24}файл|файл[^\n]{0,18}(созда|сдела|сохрани)|в\s*eiti\s*files|create[^\n]{0,20}file|new file/i,
+                      tag:/<EITI_FILE:|\[FILE_EDIT/, label:'файл', hint:'«создай файл ideas.md: текст»' },
+                    { want:/(созда|добав|занеси|постав)[^\n]{0,24}(задач|таск|дел[оа]|доск|board|task)|на\s*доску|в\s*доску|add[^\n]{0,20}task|to[\- ]?do/i,
+                      tag:/\[TASK_ADD/, label:'задачу на Доску', hint:'«добавь задачу: Название»' }
+                ];
+                _checks.forEach(function(c) {
+                    if (!c.want.test(_lastUserMsg) || c.tag.test(reply)) return;
+                    setTimeout(function() {
+                        var _warn = document.createElement('div');
+                        _warn.style.cssText = 'margin:4px 12px 8px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:6px;font-size:12px;color:#f59e0b;';
+                        _warn.innerHTML = '⚠️ <b>Внимание:</b> AI сказал, что создал ' + c.label + ', но командный тег не найден — <b>ничего не создано</b>. Повтори запрос, например: <i>' + c.hint + '</i>';
+                        var _chat = document.getElementById('messages') || document.getElementById('chat-messages') || document.getElementById('chatMessages');
+                        if (_chat) _chat.appendChild(_warn);
+                    }, 400);
+                });
+            })();
+
             // v12.9.40: PKG — Хеббианский граф — парсим команды из AI-ответа
             if (typeof pkgParseAICommands === 'function') pkgParseAICommands(reply);
             // v12.9.46: Персональная Доска — парсим TASK команды из AI-ответа
@@ -40440,11 +40493,24 @@ function eitiTaskParseAICommands(text) {
     if (!text) return;
 
     // [TASK_ADD:статус|название|описание|дата|приоритет|теги]
-    text.replace(/\[TASK_ADD:([^\|\]]+)\|([^\|\]]+)\|([^\|\]]*)\|([^\|\]]*)\|([^\|\]]*)\|([^\]]*)\]/g,
-        function(_, status, title, desc, date, priority, tags) {
-            eitiTaskAdd(status.trim(), title.trim(), desc.trim(),
-                date.trim() || null, priority.trim() || 'medium', tags.trim());
-        });
+    // v13.5.0 FIX: tolerate fewer fields. Models often emit a short tag like
+    // [TASK_ADD:Buy milk] or [TASK_ADD:To Do|Buy milk]; the old regex demanded
+    // all 6 fields and silently matched nothing, so the task was never created.
+    text.replace(/\[TASK_ADD:([^\]]+)\]/g, function(_, body) {
+        var p = body.split('|').map(function(s){ return s.trim(); });
+        var status, title, rest;
+        if (p.length === 1) {
+            // Short form [TASK_ADD:Title] — model omitted the column; default it.
+            status = 'To Do'; title = p[0]; rest = [];
+        } else {
+            // Positional: status | title | desc | date | priority | tags
+            // (any trailing field may be omitted).
+            status = p[0]; title = p[1]; rest = p.slice(2);
+        }
+        if (!title) return;
+        eitiTaskAdd(status, title, (rest[0] || ''),
+            (rest[1] || '') || null, (rest[2] || '') || 'medium', (rest[3] || ''));
+    });
 
     // [TASK_MOVE:id|статус]
     text.replace(/\[TASK_MOVE:(\d+)\|([^\]]+)\]/g, function(_, id, status) {
