@@ -1752,7 +1752,21 @@
                 'Озвучка остановлена': 'Vorlesen gestoppt',
                 'Регенерируется...': 'Wird neu generiert…',
                 'Регенерировано': 'Neu generiert',
-                'Всегда отвечай в чате, пиши с emojis по смыслу': 'Antworte immer im Chat, verwende Emojis sinngemäß',},
+                'Всегда отвечай в чате, пиши с emojis по смыслу': 'Antworte immer im Chat, verwende Emojis sinngemäß',
+                '💬 Панель чата': '💬 Chat-Leiste',
+                'Режим отображения': 'Anzeigemodus',
+                'Попап': 'Popup',
+                'Кнопки': 'Schaltflächen',
+                'Нажмите «+» слева в поле ввода — откроется меню выбранных функций.': 'Tippe auf «+» links im Eingabefeld, um das Funktionsmenü zu öffnen.',
+                'Кнопки отображаются прямо в поле ввода, как раньше.': 'Schaltflächen werden direkt im Eingabefeld angezeigt, wie früher.',
+                'Прикрепить файл': 'Datei anhängen',
+                'Сгенерировать изображение': 'Bild generieren',
+                'Заглушить микрофон': 'Mikrofon stummschalten',
+                'Очистить ввод': 'Eingabe löschen',
+                'Нет активных функций.': 'Keine aktiven Funktionen.',
+                'Включите в Настройки → Панель чата.': 'In Einstellungen → Chat-Leiste aktivieren.',
+                'вкл': 'ein',
+                'выкл': 'aus',},
                 en: {
                 // === Tabs ===
                 'Чат': 'Chat',
@@ -3381,7 +3395,21 @@
                 'Озвучка остановлена': 'Speech stopped',
                 'Регенерируется...': 'Regenerating...',
                 'Регенерировано': 'Regenerated',
-                'Всегда отвечай в чате, пиши с emojis по смыслу': 'Always reply in chat, use emojis where it makes sense'
+                'Всегда отвечай в чате, пиши с emojis по смыслу': 'Always reply in chat, use emojis where it makes sense',
+                '💬 Панель чата': '💬 Chat Panel',
+                'Режим отображения': 'Display mode',
+                'Попап': 'Popup',
+                'Кнопки': 'Buttons',
+                'Нажмите «+» слева в поле ввода — откроется меню выбранных функций.': 'Tap «+» on the left of the input field to open the function menu.',
+                'Кнопки отображаются прямо в поле ввода, как раньше.': 'Buttons are shown directly in the input field, as before.',
+                'Прикрепить файл': 'Attach file',
+                'Сгенерировать изображение': 'Generate image',
+                'Заглушить микрофон': 'Mute microphone',
+                'Очистить ввод': 'Clear input',
+                'Нет активных функций.': 'No active functions.',
+                'Включите в Настройки → Панель чата.': 'Enable in Settings → Chat Panel.',
+                'вкл': 'on',
+                'выкл': 'off'
             }};
             var state = { locale: 'ru' };
             try {
@@ -44171,6 +44199,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     }
 
     function eitiChatPlusRender(popup) {
+        var _t = typeof window.T === 'function' ? window.T : function(s){return s;};
         var cfg = eitiChatPlusGetSettings();
         var html = '';
         EITI_CHAT_PLUS_ITEMS.forEach(function (item) {
@@ -44182,11 +44211,11 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             }
             html += '<div class="chat-plus-item' + (isActive ? ' cpi-active' : '') + '" onclick="eitiChatPlusAction(\'' + item.action + '\')">' +
                 '<div class="cpi-icon">' + item.icon + '</div>' +
-                '<span class="cpi-label">' + item.label + '</span>' +
-                (item.stateBtn ? '<span class="cpi-state">' + (isActive ? 'вкл' : 'выкл') + '</span>' : '') +
+                '<span class="cpi-label">' + _t(item.label) + '</span>' +
+                (item.stateBtn ? '<span class="cpi-state">' + (isActive ? _t('вкл') : _t('выкл')) + '</span>' : '') +
                 '</div>';
         });
-        if (!html) html = '<div style="padding:12px 16px;opacity:0.5;font-size:13px;">Нет активных функций.<br>Включите в Настройки → Панель чата.</div>';
+        if (!html) html = '<div style="padding:12px 16px;opacity:0.5;font-size:13px;">' + _t('Нет активных функций.') + '<br>' + _t('Включите в Настройки → Панель чата.') + '</div>';
         popup.innerHTML = html;
     }
 
@@ -44239,12 +44268,13 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     }
 
     function eitiChatClassicRender() {
+        var _t = typeof window.T === 'function' ? window.T : function(s){return s;};
         var container = document.getElementById('chat-classic-btns');
         if (!container) return;
         var cfg = eitiChatPlusGetSettings();
         var topItems = [
             { id: 'grok',     btnId: 'chat-grok-btn',      fn: 'eitiChatGrokToggle',  icon: '🗣️', title: 'Grok Voice',          style: '' },
-            { id: 'grokMute', btnId: 'chat-grok-mute-btn', fn: 'eitiGrokMuteToggle',  icon: '🎙️', title: 'Выключить микрофон', style: 'font-size:13px;' }
+            { id: 'grokMute', btnId: 'chat-grok-mute-btn', fn: 'eitiGrokMuteToggle',  icon: '🎙️', title: 'Заглушить микрофон', style: 'font-size:13px;' }
         ];
         var bottomItems = [
             { id: 'deepseek',   btnId: 'chat-ds-btn',   fn: 'eitiChatDSToggle',    icon: '⚡', title: 'DeepSeek AI',               style: '' },
@@ -44255,7 +44285,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             var sb = document.getElementById(item.btnId);
             var isOn = sb ? sb.classList.contains('eiti-on') : false;
             var cls = item.id === 'clearInput' ? 'chat-action-mini' : ('chat-ai-toggle' + (isOn ? ' eiti-on' : ''));
-            return '<button class="' + cls + '" title="' + item.title + '" style="' + item.style + '" onclick="eitiClassicBtnClick(\'' + item.fn + '\')">' + item.icon + '</button>';
+            return '<button class="' + cls + '" title="' + _t(item.title) + '" style="' + item.style + '" onclick="eitiClassicBtnClick(\'' + item.fn + '\')">' + item.icon + '</button>';
         }
         var topHtml   = topItems.filter(function(i){ return cfg[i.id]; }).map(makeBtn).join('');
         var bottomHtml = bottomItems.filter(function(i){ return cfg[i.id]; }).map(makeBtn).join('');
@@ -44296,12 +44326,13 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (plusHint)    plusHint.style.display    = mode === 'plus'    ? '' : 'none';
         if (classicHint) classicHint.style.display = mode === 'buttons' ? '' : 'none';
         // Toggle list
+        var _t = typeof window.T === 'function' ? window.T : function(s){return s;};
         var html = '';
         EITI_CHAT_PLUS_ITEMS.forEach(function (item) {
             var on = cfg[item.id] !== false;
             html += '<div class="chat-panel-toggle ' + (on ? 'cpt-on' : '') + '" onclick="eitiChatPanelToggleItem(\'' + item.id + '\')">' +
                 '<div class="cpt-icon">' + item.icon + '</div>' +
-                '<div class="cpt-label">' + item.label + '</div>' +
+                '<div class="cpt-label">' + _t(item.label) + '</div>' +
                 '<div class="cpt-check">' + (on ? '✓' : '') + '</div>' +
                 '</div>';
         });
