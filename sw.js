@@ -1,7 +1,7 @@
-// VELANTRIM EITI — Service Worker v13.4.8
+// VELANTRIM EITI — Service Worker v13.4.9
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
 
-var CACHE = 'eiti-v13.4.8'; // v13.4.8: green CI — Imagen predict test alignment + aspectRatio passthrough
+var CACHE = 'eiti-v13.4.9'; // v13.4.9: clamp Imagen aspectRatio to supported set
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится

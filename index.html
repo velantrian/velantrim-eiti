@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.8"; // v13.4.8: green CI — align Gemini image-gen tests with the Imagen predict endpoint + pass aspectRatio through Imagen parameters
+        var EITI_VERSION = "13.4.9"; // v13.4.9: clamp Imagen aspectRatio to the supported set (map unsupported ratios to nearest, omit unparseable)
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -43884,8 +43884,32 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (provider === 'gemini') {
             var model = opts.model || 'imagen-3.0-generate-002';
             var imgParams = { sampleCount: 1 };
-            // Imagen predict honours an explicit aspect ratio (e.g. "9:16").
-            if (opts.aspect) imgParams.aspectRatio = opts.aspect;
+            // Imagen predict accepts only a fixed set of aspect ratios. The
+            // request detector can extract any ratio (e.g. "2:3" / "3:2"), so map
+            // anything unsupported to the nearest allowed ratio (log-distance, so
+            // portrait/landscape are treated symmetrically) and omit it entirely
+            // when we cannot parse one — a stray ratio must never become an API error.
+            if (opts.aspect) {
+                var _imagenAspects = ['1:1', '3:4', '4:3', '9:16', '16:9'];
+                if (_imagenAspects.indexOf(opts.aspect) !== -1) {
+                    imgParams.aspectRatio = opts.aspect;
+                } else {
+                    var _arM = /^\s*(\d{1,2})\s*:\s*(\d{1,2})\s*$/.exec(String(opts.aspect));
+                    if (_arM) {
+                        var _arTarget = parseInt(_arM[1], 10) / parseInt(_arM[2], 10);
+                        if (isFinite(_arTarget) && _arTarget > 0) {
+                            var _arBest = null, _arBestDiff = Infinity;
+                            _imagenAspects.forEach(function(s) {
+                                var _p = s.split(':');
+                                var _r = parseInt(_p[0], 10) / parseInt(_p[1], 10);
+                                var _d = Math.abs(Math.log(_r) - Math.log(_arTarget));
+                                if (_d < _arBestDiff) { _arBestDiff = _d; _arBest = s; }
+                            });
+                            imgParams.aspectRatio = _arBest;
+                        }
+                    }
+                }
+            }
             return {
                 url: 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':predict?key=' + key,
                 method: 'POST',

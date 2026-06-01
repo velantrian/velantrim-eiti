@@ -156,7 +156,20 @@ test('OpenAI build maps a 9:16 aspect to a portrait size', () => {
   assert.strictEqual(req.body.size, '1024x1536');
 });
 
-test('Gemini build passes aspectRatio through Imagen parameters', () => {
+test('Gemini build passes a supported aspectRatio through Imagen parameters', () => {
   const req = img.eitiImgBuildRequest('gemini', 'a tower', { key: 'k', aspect: '9:16' });
   assert.strictEqual(req.body.parameters.aspectRatio, '9:16');
+});
+
+test('Gemini build maps an unsupported aspect to the nearest Imagen ratio', () => {
+  // Imagen predict only accepts 1:1, 3:4, 4:3, 9:16, 16:9. The detector can
+  // still extract 2:3 / 3:2, which must map to the nearest supported ratio
+  // rather than be forwarded verbatim (which Imagen rejects).
+  assert.strictEqual(img.eitiImgBuildRequest('gemini', 'x', { key: 'k', aspect: '2:3' }).body.parameters.aspectRatio, '3:4');
+  assert.strictEqual(img.eitiImgBuildRequest('gemini', 'x', { key: 'k', aspect: '3:2' }).body.parameters.aspectRatio, '4:3');
+});
+
+test('Gemini build omits aspectRatio when none is given or it is unparseable', () => {
+  assert.strictEqual('aspectRatio' in img.eitiImgBuildRequest('gemini', 'x', { key: 'k' }).body.parameters, false);
+  assert.strictEqual('aspectRatio' in img.eitiImgBuildRequest('gemini', 'x', { key: 'k', aspect: 'square' }).body.parameters, false);
 });
