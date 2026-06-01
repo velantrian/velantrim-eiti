@@ -5584,7 +5584,7 @@
         }
         /* === CHAT PLUS BUTTON === */
         .chat-plus-btn {
-            width: 34px; height: 52px;
+            width: 34px; height: 36px;
             border-radius: 10px;
             border: 1.5px solid var(--border-color);
             background: rgba(255,255,255,0.06);
@@ -7042,17 +7042,17 @@
                             </div>
                             <textarea class="chat-input" placeholder="Введите сообщение... (Enter — отправить)" id="input" rows="1"></textarea>
                         </div>
-                        <!-- RIGHT: [📎] top + [send] bottom -->
-                        <div class="chat-right-col" style="justify-content:space-between;min-height:52px;">
-                            <label class="chat-attach-btn" id="chat-attach-btn" title="Прикрепить файл (PDF, DOCX, TXT, MD, JSON, CSV)">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                <input type="file" id="chat-file-input" accept=".txt,.md,.markdown,.pdf,.docx,.json,.jsonl,.csv,.xml,.html" style="display:none;" multiple onchange="eitiChatAttachFile(this)">
-                            </label>
+                        <!-- RIGHT: send only -->
+                        <div class="chat-right-col" style="justify-content:flex-end;min-height:36px;">
                             <button class="chat-send-btn" id="send"><span data-icon="send">➤</span></button>
                         </div>
                         <!-- Hidden: preserve IDs for JS -->
                         <div style="display:none;">
                             <button id="clearChatBtn"></button>
+                            <label class="chat-attach-btn" id="chat-attach-btn" title="Прикрепить файл (PDF, DOCX, TXT, MD, JSON, CSV)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                <input type="file" id="chat-file-input" accept=".txt,.md,.markdown,.pdf,.docx,.json,.jsonl,.csv,.xml,.html" style="display:none;" multiple onchange="eitiChatAttachFile(this)">
+                            </label>
                             <button id="llm-mode-btn" onclick="eitiToggleLLMMode()"></button>
                             <div id="chatActionGroup"></div>
                             <button class="chat-ai-toggle" id="chat-grok-btn"
@@ -44100,6 +44100,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
 
     // ─── CHAT PLUS POPUP ───────────────────────────────────────────
     var EITI_CHAT_PLUS_ITEMS = [
+        { id: 'attach',     icon: '📎', label: 'Прикрепить файл',           stateBtn: 'chat-attach-btn',   action: '_eitiAttachFile' },
         { id: 'deepseek',   icon: '⚡', label: 'DeepSeek AI',               stateBtn: 'chat-ds-btn',       action: 'eitiChatDSToggle' },
         { id: 'image',      icon: '🖼️', label: 'Сгенерировать изображение', stateBtn: null,                action: 'eitiImgChatGenerate' },
         { id: 'grok',       icon: '🗣️', label: 'Grok Voice',                stateBtn: 'chat-grok-btn',     action: 'eitiChatGrokToggle' },
@@ -44112,7 +44113,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             var s = localStorage.getItem('eiti_chat_panel_btns');
             if (s) return JSON.parse(s);
         } catch (e) {}
-        return { deepseek: true, image: false, grok: true, grokMute: true, clearInput: true };
+        return { attach: true, deepseek: true, image: false, grok: true, grokMute: true, clearInput: true };
     }
 
     function eitiChatPlusSaveSettings(cfg) {
@@ -44174,6 +44175,11 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var btn = document.getElementById('chat-plus-btn');
         if (popup) { popup.style.display = 'none'; popup.classList.remove('open'); }
         if (btn) btn.classList.remove('open');
+        if (fnName === '_eitiAttachFile') {
+            var fi = document.getElementById('chat-file-input');
+            if (fi) fi.click();
+            return;
+        }
         if (fnName === '_eitiClearInput') {
             var inp = document.getElementById('input');
             if (inp) { inp.value = ''; inp.style.height = 'auto'; inp.focus(); }
