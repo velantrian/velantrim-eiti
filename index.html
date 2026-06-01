@@ -7029,6 +7029,7 @@
                             <button class="chat-plus-btn" id="chat-plus-btn"
                                 title="Функции чата"
                                 onclick="eitiChatPlusToggle()">+</button>
+                            <div id="chat-classic-btns" style="display:none;flex-direction:column;align-items:center;gap:3px;"></div>
                         </div>
                         <!-- CENTRE: input + attach indicator -->
                         <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
@@ -7042,8 +7043,11 @@
                             </div>
                             <textarea class="chat-input" placeholder="Введите сообщение... (Enter — отправить)" id="input" rows="1"></textarea>
                         </div>
-                        <!-- RIGHT: send only -->
-                        <div class="chat-right-col" style="justify-content:flex-end;min-height:36px;">
+                        <!-- RIGHT: attach proxy (classic mode) + send -->
+                        <div class="chat-right-col" style="justify-content:space-between;min-height:36px;">
+                            <button id="chat-attach-proxy" class="chat-attach-btn" style="display:none;" title="Прикрепить файл" onclick="document.getElementById('chat-file-input').click()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                            </button>
                             <button class="chat-send-btn" id="send"><span data-icon="send">➤</span></button>
                         </div>
                         <!-- Hidden: preserve IDs for JS -->
@@ -7222,9 +7226,25 @@
                     <!-- ═══ CHAT PANEL BUTTONS ═══ -->
                     <div class="settings-group">
                         <div class="settings-title">💬 Панель чата</div>
+                        <div style="padding:10px 14px 4px;">
+                            <div style="font-size:12px;opacity:0.6;margin-bottom:8px;">Режим отображения</div>
+                            <div style="display:flex;gap:6px;">
+                                <button id="cpm-plus-btn" onclick="eitiChatPanelSetMode('plus')"
+                                    style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <span style="font-size:17px;">+</span><span>Попап</span>
+                                </button>
+                                <button id="cpm-classic-btn" onclick="eitiChatPanelSetMode('buttons')"
+                                    style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                    <span style="font-size:14px;">⚡🖼️</span><span>Кнопки</span>
+                                </button>
+                            </div>
+                        </div>
                         <div style="padding:4px 0;">
-                            <div style="font-size:11px;opacity:0.5;padding:8px 14px 6px;line-height:1.5;">
-                                Нажмите «+» слева в поле ввода чтобы открыть меню функций.<br>Здесь можно выбрать какие функции в нём показывать.
+                            <div id="cpm-plus-hint" style="font-size:11px;opacity:0.5;padding:6px 14px 4px;line-height:1.5;display:none;">
+                                Нажмите «+» слева в поле ввода — откроется меню выбранных функций.
+                            </div>
+                            <div id="cpm-classic-hint" style="font-size:11px;opacity:0.5;padding:6px 14px 4px;line-height:1.5;display:none;">
+                                Кнопки отображаются прямо в поле ввода, как раньше.
                             </div>
                             <div id="chat-panel-settings-list"></div>
                         </div>
@@ -44188,10 +44208,94 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (typeof window[fnName] === 'function') window[fnName]();
     }
 
+    function eitiChatPanelGetMode() {
+        try { return localStorage.getItem('eiti_chat_panel_mode') || 'plus'; } catch(e) { return 'plus'; }
+    }
+
+    function eitiChatPanelSetMode(mode) {
+        try { localStorage.setItem('eiti_chat_panel_mode', mode); } catch(e) {}
+        eitiApplyChatPanelMode();
+        eitiChatPanelSettingsRender();
+    }
+
+    function eitiApplyChatPanelMode() {
+        var mode = eitiChatPanelGetMode();
+        var plusBtn = document.getElementById('chat-plus-btn');
+        var classicBtns = document.getElementById('chat-classic-btns');
+        var attachProxy = document.getElementById('chat-attach-proxy');
+        var popup = document.getElementById('chat-plus-popup');
+        if (mode === 'buttons') {
+            if (plusBtn) plusBtn.style.display = 'none';
+            if (popup) { popup.style.display = 'none'; popup.classList.remove('open'); }
+            if (classicBtns) classicBtns.style.display = 'flex';
+            eitiChatClassicRender();
+            var cfg = eitiChatPlusGetSettings();
+            if (attachProxy) attachProxy.style.display = cfg.attach ? '' : 'none';
+        } else {
+            if (plusBtn) plusBtn.style.display = '';
+            if (classicBtns) { classicBtns.style.display = 'none'; classicBtns.innerHTML = ''; }
+            if (attachProxy) attachProxy.style.display = 'none';
+        }
+    }
+
+    function eitiChatClassicRender() {
+        var container = document.getElementById('chat-classic-btns');
+        if (!container) return;
+        var cfg = eitiChatPlusGetSettings();
+        var topItems = [
+            { id: 'grok',     btnId: 'chat-grok-btn',      fn: 'eitiChatGrokToggle',  icon: '🗣️', title: 'Grok Voice',          style: '' },
+            { id: 'grokMute', btnId: 'chat-grok-mute-btn', fn: 'eitiGrokMuteToggle',  icon: '🎙️', title: 'Выключить микрофон', style: 'font-size:13px;' }
+        ];
+        var bottomItems = [
+            { id: 'deepseek',   btnId: 'chat-ds-btn',   fn: 'eitiChatDSToggle',    icon: '⚡', title: 'DeepSeek AI',               style: '' },
+            { id: 'image',      btnId: 'chat-img-btn',  fn: 'eitiImgChatGenerate', icon: '🖼️', title: 'Сгенерировать изображение', style: '' },
+            { id: 'clearInput', btnId: 'clearInputBtn', fn: 'clear',               icon: '♻',  title: 'Очистить ввод',            style: 'width:28px;height:22px;font-size:13px;' }
+        ];
+        function makeBtn(item) {
+            var sb = document.getElementById(item.btnId);
+            var isOn = sb ? sb.classList.contains('eiti-on') : false;
+            var cls = item.id === 'clearInput' ? 'chat-action-mini' : ('chat-ai-toggle' + (isOn ? ' eiti-on' : ''));
+            return '<button class="' + cls + '" title="' + item.title + '" style="' + item.style + '" onclick="eitiClassicBtnClick(\'' + item.fn + '\')">' + item.icon + '</button>';
+        }
+        var topHtml   = topItems.filter(function(i){ return cfg[i.id]; }).map(makeBtn).join('');
+        var bottomHtml = bottomItems.filter(function(i){ return cfg[i.id]; }).map(makeBtn).join('');
+        var html = '';
+        if (topHtml)    html += '<div class="chat-left-top">' + topHtml + '</div>';
+        if (bottomHtml) html += '<div style="display:flex;gap:3px;">' + bottomHtml + '</div>';
+        container.innerHTML = html;
+    }
+
+    function eitiClassicBtnClick(fn) {
+        if (fn === 'clear') {
+            var inp = document.getElementById('input');
+            if (inp) { inp.value = ''; inp.style.height = 'auto'; inp.focus(); }
+        } else if (typeof window[fn] === 'function') {
+            window[fn]();
+        }
+        setTimeout(eitiChatClassicRender, 60);
+    }
+
     function eitiChatPanelSettingsRender() {
         var list = document.getElementById('chat-panel-settings-list');
         if (!list) return;
-        var cfg = eitiChatPlusGetSettings();
+        var cfg  = eitiChatPlusGetSettings();
+        var mode = eitiChatPanelGetMode();
+        // Mode buttons highlight
+        var plusModeBtn    = document.getElementById('cpm-plus-btn');
+        var classicModeBtn = document.getElementById('cpm-classic-btn');
+        var plusHint    = document.getElementById('cpm-plus-hint');
+        var classicHint = document.getElementById('cpm-classic-hint');
+        if (plusModeBtn) {
+            plusModeBtn.style.borderColor = mode === 'plus' ? 'var(--accent-color)' : 'var(--border-color)';
+            plusModeBtn.style.background  = mode === 'plus' ? 'rgba(255,200,0,0.12)' : '';
+        }
+        if (classicModeBtn) {
+            classicModeBtn.style.borderColor = mode === 'buttons' ? 'var(--accent-color)' : 'var(--border-color)';
+            classicModeBtn.style.background  = mode === 'buttons' ? 'rgba(255,200,0,0.12)' : '';
+        }
+        if (plusHint)    plusHint.style.display    = mode === 'plus'    ? '' : 'none';
+        if (classicHint) classicHint.style.display = mode === 'buttons' ? '' : 'none';
+        // Toggle list
         var html = '';
         EITI_CHAT_PLUS_ITEMS.forEach(function (item) {
             var on = cfg[item.id] !== false;
@@ -44209,17 +44313,26 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         cfg[id] = !cfg[id];
         eitiChatPlusSaveSettings(cfg);
         eitiChatPanelSettingsRender();
+        if (eitiChatPanelGetMode() === 'buttons') {
+            eitiChatClassicRender();
+            var attachProxy = document.getElementById('chat-attach-proxy');
+            if (attachProxy) attachProxy.style.display = cfg.attach ? '' : 'none';
+        }
     }
 
-    window.eitiChatPlusToggle        = eitiChatPlusToggle;
-    window.eitiChatPlusAction        = eitiChatPlusAction;
+    window.eitiChatPlusToggle          = eitiChatPlusToggle;
+    window.eitiChatPlusAction          = eitiChatPlusAction;
     window.eitiChatPanelSettingsRender = eitiChatPanelSettingsRender;
-    window.eitiChatPanelToggleItem   = eitiChatPanelToggleItem;
+    window.eitiChatPanelToggleItem     = eitiChatPanelToggleItem;
+    window.eitiChatPanelSetMode        = eitiChatPanelSetMode;
+    window.eitiApplyChatPanelMode      = eitiApplyChatPanelMode;
+    window.eitiClassicBtnClick         = eitiClassicBtnClick;
 
     document.addEventListener('DOMContentLoaded', function () {
         eitiChatPanelSettingsRender();
+        eitiApplyChatPanelMode();
     });
-    if (document.readyState !== 'loading') eitiChatPanelSettingsRender();
+    if (document.readyState !== 'loading') { eitiChatPanelSettingsRender(); eitiApplyChatPanelMode(); }
 
     // Natural-language routing: intercept "сгенерируй/нарисуй картинку…" typed in
     // the chat so it goes to the image generator instead of the text model.
