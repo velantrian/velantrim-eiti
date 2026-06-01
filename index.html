@@ -1766,7 +1766,10 @@
                 'Нет активных функций.': 'Keine aktiven Funktionen.',
                 'Включите в Настройки → Панель чата.': 'In Einstellungen → Chat-Leiste aktivieren.',
                 'вкл': 'ein',
-                'выкл': 'aus',},
+                'выкл': 'aus',
+                'Скопировать чат': 'Chat kopieren',
+                'Чат скопирован': 'Chat kopiert',
+                'Чат пуст': 'Chat ist leer',},
                 en: {
                 // === Tabs ===
                 'Чат': 'Chat',
@@ -3409,7 +3412,10 @@
                 'Нет активных функций.': 'No active functions.',
                 'Включите в Настройки → Панель чата.': 'Enable in Settings → Chat Panel.',
                 'вкл': 'on',
-                'выкл': 'off'
+                'выкл': 'off',
+                'Скопировать чат': 'Copy chat',
+                'Чат скопирован': 'Chat copied',
+                'Чат пуст': 'Chat is empty'
             }};
             var state = { locale: 'ru' };
             try {
@@ -44153,6 +44159,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         { id: 'image',      icon: '🖼️', label: 'Сгенерировать изображение', stateBtn: null,                action: 'eitiImgChatGenerate' },
         { id: 'grok',       icon: '🗣️', label: 'Grok Voice',                stateBtn: 'chat-grok-btn',     action: 'eitiChatGrokToggle' },
         { id: 'grokMute',   icon: '🎙️', label: 'Заглушить микрофон',        stateBtn: 'chat-grok-mute-btn', action: 'eitiGrokMuteToggle' },
+        { id: 'copyChat',   icon: '📋', label: 'Скопировать чат',           stateBtn: null,                action: '_eitiCopyChat' },
         { id: 'clearInput', icon: '♻',  label: 'Очистить ввод',             stateBtn: null,                action: '_eitiClearInput' }
     ];
 
@@ -44161,7 +44168,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             var s = localStorage.getItem('eiti_chat_panel_btns');
             if (s) return JSON.parse(s);
         } catch (e) {}
-        return { attach: true, deepseek: true, image: false, grok: true, grokMute: true, clearInput: true };
+        return { attach: true, deepseek: true, image: false, grok: true, grokMute: true, copyChat: true, clearInput: true };
     }
 
     function eitiChatPlusSaveSettings(cfg) {
@@ -44227,6 +44234,16 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (fnName === '_eitiAttachFile') {
             var fi = document.getElementById('chat-file-input');
             if (fi) fi.click();
+            return;
+        }
+        if (fnName === '_eitiCopyChat') {
+            var _t2 = typeof window.T === 'function' ? window.T : function(s){return s;};
+            var log = window.chatLog || [];
+            var txt = log.map(function(m){ return (m.role === 'user' ? 'Я: ' : 'AI: ') + (m.text || ''); }).join('\n\n');
+            if (!txt.trim()) { if (typeof showToast === 'function') showToast(_t2('Чат пуст')); return; }
+            if (typeof copyText === 'function') copyText(txt).then(function(){ if (typeof showToast === 'function') showToast('📋 ' + _t2('Чат скопирован')); });
+            else navigator.clipboard && navigator.clipboard.writeText(txt).then(function(){ if (typeof showToast === 'function') showToast('📋 ' + _t2('Чат скопирован')); });
+            if (typeof vibrate === 'function') vibrate();
             return;
         }
         if (fnName === '_eitiClearInput') {
