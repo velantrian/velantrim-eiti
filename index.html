@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.4.6"; // v13.4.6: collapsible long sent messages (clamp to top lines + expand/collapse toggle)
+        var EITI_VERSION = "13.4.7"; // v13.4.7: fix streaming freeze (plain-text while streaming, markdown once at end) + de-dupe paste hooks / robust paste-leftover cleanup
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -19835,7 +19835,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         if (delta) {
                                             gResult += delta;
                                             var le2 = document.getElementById(liveId);
-                                            if (le2) { var t3 = le2.querySelector('[id$="-text"]'); if (t3) t3.innerHTML = eitiRenderMarkdown(gResult) + '<span style="opacity:.4">▌</span>'; }
+                                            // v13.4.7 FIX: plain text while streaming. Rendering markdown on every
+                                            // token re-parsed + DOMPurify-sanitised the WHOLE accumulated reply each
+                                            // time (O(N²)) — long Gemini answers progressively froze the tab / went
+                                            // white. The full markdown render runs once on chunk.done above.
+                                            if (le2) { var t3 = le2.querySelector('[id$="-text"]'); if (t3) t3.textContent = gResult; }
                                             var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight;
                                         }
                                     } catch(e) {}
@@ -20109,8 +20113,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         var delta = _dsChunk.choices[0].delta.content;
                                         if (delta) {
                                             result += delta;
-                                            // v12.9.77: live markdown рендер во время стриминга
-                                            if (textEl) textEl.innerHTML = eitiRenderMarkdown(result) + '<span style="opacity:0.5;">▌</span>';
+                                            // v13.4.7 FIX: plain text while streaming. The v12.9.77 live-markdown
+                                            // render re-parsed + DOMPurify-sanitised the entire reply on every token
+                                            // (O(N²)) and froze the tab on long answers. Markdown is rendered once
+                                            // when the stream finishes (chunk.done above).
+                                            if (textEl) textEl.textContent = result;
                                             scheduleScroll();
                                         }
                                     } catch(e) {}
@@ -43539,6 +43546,27 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
     window._eitiShowPastedChip = _showChip;
     window._eitiShowPasteModal = _showModal;
 
+    // v13.4.7 FIX: this IIFE is the single source of truth for paste handling.
+    // Claim the install flag so the older, duplicate hook inside initApp()
+    // (guarded by `if (!window._eitiPasteHookInstalled)`) does NOT register a
+    // second set of paste/beforeinput/input listeners. Double registration made
+    // every paste run twice and left two input-monitors fighting over their own
+    // `_prevInputLen` — the cause of the lag and the stray leftover text.
+    window._eitiPasteHookInstalled = true;
+
+    // v13.4.7 FIX: restore the input to its pre-paste content across several
+    // ticks. Some installed-PWA/Android-webview platforms ignore preventDefault
+    // and insert the pasted block asynchronously (sometimes only partially),
+    // leaving stray text behind. Retrying on rAF + short timeouts catches the
+    // late insertion without wiping anything the user legitimately typed.
+    function _restoreInput(el, before) {
+        function fix() { if (el && el.value !== before && el.value.length > before.length) el.value = before; }
+        fix();
+        requestAnimationFrame(fix);
+        setTimeout(fix, 0);
+        setTimeout(fix, 40);
+    }
+
     document.addEventListener('paste', function(e) {
         var t = e.target;
         if (!t || t.id !== 'input') return;
@@ -43553,7 +43581,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         // Safety net: if a platform ignores preventDefault for paste (common in
         // installed PWA/webview), the pasted block would also land in the input.
         // Restore the pre-paste value so the text lives ONLY in the chip.
-        setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
+        _restoreInput(t, _before);
     }, true);
 
     // Android fallback #1: beforeinput with inputType=insertFromPaste — fires on
@@ -43568,7 +43596,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         e.preventDefault();
         window._eitiPastedTextBuffer = pasted;
         _showChip(pasted);
-        setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
+        _restoreInput(_tBI, _beforeBI);
     }, true);
 
     // Android fallback #2: input monitor — detects a sudden length jump (gesture
@@ -43579,11 +43607,17 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (!el || el.id !== 'input') return;
         var val = el.value || '';
         var delta = val.length - _prevInputLen;
-        if (delta > PASTE_THRESHOLD && !window._eitiPastedTextBuffer) {
+        if (delta > PASTE_THRESHOLD) {
+            // v13.4.7 FIX: always strip a sudden large block out of the input so
+            // it never lingers there. Only capture + show a chip when no paste
+            // was recorded yet — if the buffer is already set this is just the
+            // leftover from a paste whose preventDefault the platform ignored.
             var pasted = val.slice(_prevInputLen);
             el.value = val.slice(0, _prevInputLen);
-            window._eitiPastedTextBuffer = pasted;
-            _showChip(pasted);
+            if (!window._eitiPastedTextBuffer) {
+                window._eitiPastedTextBuffer = pasted;
+                _showChip(pasted);
+            }
         }
         _prevInputLen = el.value.length;
     }, true);

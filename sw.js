@@ -1,7 +1,7 @@
-// VELANTRIM EITI — Service Worker v13.4.6
+// VELANTRIM EITI — Service Worker v13.4.7
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
 
-var CACHE = 'eiti-v13.4.6'; // v13.4.6: collapsible long sent messages
+var CACHE = 'eiti-v13.4.7'; // v13.4.7: streaming freeze fix + paste hook de-dup
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится
