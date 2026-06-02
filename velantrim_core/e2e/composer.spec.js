@@ -43,7 +43,10 @@ test('input grows vertically and toggles compose mode while typing', async ({ pa
   await expect(panel).not.toHaveClass(/composing/);
   const h0 = await input.evaluate((el) => el.getBoundingClientRect().height);
 
-  // Multi-line content → grows beyond a single line and enters compose mode.
+  // Multi-line content → enters compose mode and the field grows to FIT all the
+  // lines, i.e. no internal scrollbar (scrollHeight ≤ clientHeight). This is the
+  // real requirement ("see all the text as you type") and is independent of the
+  // headless font metrics. The content (8 short lines) stays well under 40vh.
   await setInput(page, MULTILINE);
   await expect(panel).toHaveClass(/composing/);
   await page.waitForTimeout(200); // let the autogrow rAF settle
@@ -53,13 +56,15 @@ test('input grows vertically and toggles compose mode while typing', async ({ pa
     return {
       rect: el.getBoundingClientRect().height, scrollH: el.scrollHeight,
       clientH: el.clientHeight, styleH: el.style.height,
-      lines: (el.value || '').split('\n').length, len: (el.value || '').length,
+      lines: (el.value || '').split('\n').length,
       lineHeight: cs.lineHeight, fontSize: cs.fontSize, maxH: cs.maxHeight,
       innerH: window.innerHeight,
     };
   });
   const hGrown = info.rect;
-  expect(hGrown, 'grow metrics: ' + JSON.stringify(info) + ' h0=' + h0).toBeGreaterThan(h0 + 20);
+  // grew to fit (no internal scroll) AND taller than the empty single line
+  expect(info.scrollH, 'grow metrics: ' + JSON.stringify(info)).toBeLessThanOrEqual(info.clientH + 6);
+  expect(hGrown, 'grow metrics: ' + JSON.stringify(info) + ' h0=' + h0).toBeGreaterThan(h0 + 10);
 
   // Clearing returns to the default single-row layout and shrinks the field.
   await setInput(page, '');
