@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.1"; // v13.7.1: offline «be my friend»/«support me»/«give wisdom» — wisdom & short-verse pool (RU/EN), «more»/«ещё» continuation
+        var EITI_VERSION = "13.7.2"; // v13.7.2: glossy themes (gold/blue/silver) — add inner padding so message text stays inside the bubble border
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -4889,6 +4889,14 @@
             border-radius: 16px;
             box-shadow: 0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
             border: 1px solid #404045;
+        }
+        /* v13.7.2: glossy-темы рисуют рамку на .message-body, но без внутреннего
+           отступа — текст упирался/выходил за рамку. Добавляем padding, чтобы текст
+           держался внутри обводки. */
+        body.design-glossy-gold .message-body,
+        body.design-glossy-blue .message-body,
+        body.design-glossy-violet .message-body {
+            padding: 8px 14px;
         }
         body.design-glossy-violet .chat-input {
             box-shadow: 0 0 0 2px rgba(180,180,190,0.2), inset 0 2px 6px rgba(0,0,0,0.5);
