@@ -1,7 +1,7 @@
-// VELANTRIM EITI — Service Worker v13.6.0
+// VELANTRIM EITI — Service Worker v13.6.1
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
 
-var CACHE = 'eiti-v13.6.0'; // v13.6.0: chat input grows upward + compose-mode (buttons drop to bottom row)
+var CACHE = 'eiti-v13.6.1'; // v13.6.1: chat input autogrow fix (flex:0 0 auto) + bottom spacing
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится
