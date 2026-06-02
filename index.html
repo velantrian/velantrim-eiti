@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.0"; // v13.7.0: friendly bilingual offline small-talk replies (greeting/how-are-you/what-can-you-do/…) with emojis when AI is not connected
+        var EITI_VERSION = "13.7.3"; // v13.7.3: glossy bubbles — less rounded corners (10px) + inner padding so text stays inside the border
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -4783,7 +4783,7 @@
         }
         body.design-glossy-gold .tab-item.active { color: #ffd700; }
         body.design-glossy-gold .message-body {
-            border-radius: 18px;
+            border-radius: 10px;
             box-shadow: 0 4px 16px rgba(255,200,0,0.2), inset 0 1px 0 rgba(255,240,100,0.15);
             border: 1px solid #3a2a00;
         }
@@ -4831,7 +4831,7 @@
         }
         body.design-glossy-blue .tab-item.active { color: #007aff; }
         body.design-glossy-blue .message-body {
-            border-radius: 18px;
+            border-radius: 10px;
             box-shadow: 0 4px 16px rgba(0,120,255,0.25), inset 0 1px 0 rgba(100,180,255,0.15);
             border: 1px solid #002060;
         }
@@ -4886,9 +4886,17 @@
         }
         body.design-glossy-violet .tab-item.active { color: #c0c0c8; }
         body.design-glossy-violet .message-body {
-            border-radius: 16px;
+            border-radius: 10px;
             box-shadow: 0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
             border: 1px solid #404045;
+        }
+        /* v13.7.2: glossy-темы рисуют рамку на .message-body, но без внутреннего
+           отступа — текст упирался/выходил за рамку. Добавляем padding, чтобы текст
+           держался внутри обводки. */
+        body.design-glossy-gold .message-body,
+        body.design-glossy-blue .message-body,
+        body.design-glossy-violet .message-body {
+            padding: 8px 14px;
         }
         body.design-glossy-violet .chat-input {
             box-shadow: 0 0 0 2px rgba(180,180,190,0.2), inset 0 2px 6px rgba(0,0,0,0.5);
@@ -28759,8 +28767,87 @@ window.eitiLLMClearAll = async function() {
                   en: ['🫂 It can be hard, and that\'s okay. I\'m here — we can just talk.', '💛 I\'m sorry it\'s tough. You\'re not alone, I\'m here. Want to share what happened?', '🌿 Take a breath. You\'re doing better than you think. I\'m listening.'] }
             ];
 
+            // v13.7.1: «будь мне другом» / «поддержи меня» / «дай мудрость» → тёплый
+            // ответ + мудрость или короткий стих. «ещё» / «more» — следующая, без повторов.
+            var WISDOM = {
+                ru: [
+                    '🌱 «Не там счастье, где много, а там, где хватает». Цени то, что есть сейчас.',
+                    '🕊️ Сила не в том, чтобы никогда не падать, а в том, чтобы вставать каждый раз.',
+                    '🌊 Будь как вода: мягкая, но точащая камень. Терпение сильнее напора.',
+                    '🌟 Делай что можешь, тем что имеешь, там где ты есть. — Теодор Рузвельт',
+                    '🔥 Темнее всего перед рассветом. Держись — свет уже в пути.',
+                    '🍃 Пусть ветер тревог пролетит стороной,\nа в сердце твоём будет тихий покой.',
+                    '🌸 Всё проходит — и это пройдёт. Сегодняшняя буря завтра станет историей.',
+                    '🧭 Не бойся идти медленно — бойся стоять на месте.',
+                    '💎 Камень становится драгоценным под давлением. И ты крепнешь в трудностях.',
+                    '🤝 Друг — это тот, кто рядом, когда трудно. Я рядом.',
+                    '🌙 Когда устанешь от дорог и слов,\nприсядь, вдохни — и сделай шаг с нуля.',
+                    '☀️ Каждое утро — чистый лист. Ты можешь начать заново.',
+                    '🌳 Большие деревья растут медленно. Дай себе время.',
+                    '💛 Ты сделал(а) больше, чем думаешь. Будь добрее к себе.',
+                    '🪐 Ты не обязан(а) знать весь путь. Достаточно сделать следующий шаг.',
+                    '🌻 Там, где внимание — там и рост. Поливай то, что хочешь вырастить.'
+                ],
+                en: [
+                    '🌱 "Happiness is not having much, but needing little." Cherish what you have now.',
+                    '🕊️ Strength isn\'t never falling — it\'s rising every single time you do.',
+                    '🌊 Be like water: soft, yet it carves stone. Patience outlasts force.',
+                    '🌟 Do what you can, with what you have, where you are. — Theodore Roosevelt',
+                    '🔥 It\'s darkest before dawn. Hold on — the light is already on its way.',
+                    '🍃 May the winds of worry pass you by,\nand quiet peace remain within your heart.',
+                    '🌸 Everything passes — this will too. Today\'s storm is tomorrow\'s story.',
+                    '🧭 Don\'t fear going slowly — fear standing still.',
+                    '💎 A stone becomes a gem under pressure. You grow stronger through hardship.',
+                    '🤝 A friend is the one who stays when it\'s hard. I\'m right here.',
+                    '🌙 When words and roads have worn you down,\nsit, breathe — and start again from zero.',
+                    '☀️ Every morning is a blank page. You can begin again.',
+                    '🌳 Tall trees grow slowly. Give yourself time.',
+                    '💛 You\'ve done more than you think. Be kinder to yourself.',
+                    '🪐 You don\'t need to see the whole path. Just take the next step.',
+                    '🌻 Where attention goes, growth follows. Water what you want to grow.'
+                ]
+            };
+            function _pickWisdom() {
+                window._eitiStUsed = window._eitiStUsed || {};
+                var pool = WISDOM[L], key = 'w_' + L, used = window._eitiStUsed[key] || {};
+                var avail = [], k;
+                for (k = 0; k < pool.length; k++) if (!used[k]) avail.push(k);
+                if (!avail.length) { used = {}; for (k = 0; k < pool.length; k++) avail.push(k); }
+                var idx = avail[Math.floor(Math.random() * avail.length)];
+                used[idx] = 1; window._eitiStUsed[key] = used;
+                window._eitiLastSmallTalk = 'wisdom';
+                return pool[idx];
+            }
+            var _befriendRe = /(будь(те)? мне друг|стань моим друг|будь моим друг|ты мой друг|поддержи меня|подержи меня|будь со мной|побудь со мной|обними меня|мне нужен друг|мне одиноко|be my friend|be my buddy|support me|comfort me|be with me|stay with me|i need a friend|hold me)/i;
+            var _wisdomRe = /(дай мудрост|подари мудрост|скажи мудрост|немного мудрост|мудрост|мудрый совет|совет жизн|вдохнови меня|скажи что-то мудрое|стих|стишок|поэз|give( me)? wisdom|some wisdom|inspire me|wise (words|saying|quote)|a (poem|verse)|read me a (poem|verse))/i;
+            var _moreRe = /(^|\s)(ещё|еще|more|another|again)(\s|$)|ещё раз|еще раз|ещё расскажи|еще расскажи|расскажи ещё|расскажи еще|давай ещё|давай еще|продолжай|tell me more|one more|more wisdom|go on|keep going/i;
+            var _moreTail = { ru: ['💬 Скажи «ещё» — и расскажу следующую.', '💬 Хочешь ещё? Просто напиши «ещё».'],
+                              en: ['💬 Say "more" and I\'ll share another.', '💬 Want more? Just say "more".'] };
+            if (_befriendRe.test(lo)) {
+                var _bi = pick({
+                    ru: ['💛 Конечно, я буду тебе другом. Я рядом. Давай подарю тебе немного мудрости:',
+                         '🤝 Я с тобой. Ты не один(а). Держи кусочек мудрости:',
+                         '🫂 Обнимаю тебя теплом. Вот мудрость, чтобы стало легче:',
+                         '🌟 Я твой друг — всегда. Позволь поделиться мудростью:'],
+                    en: ['💛 Of course I\'ll be your friend. I\'m here. Let me give you a little wisdom:',
+                         '🤝 I\'m with you. You\'re not alone. Here\'s a piece of wisdom:',
+                         '🫂 Sending you a warm hug. Here\'s some wisdom to ease your heart:',
+                         '🌟 I\'m your friend — always. Let me share some wisdom:']
+                }[L]);
+                return _bi + '\n\n' + _pickWisdom() + '\n\n' + pick(_moreTail[L]);
+            }
+            if (_wisdomRe.test(lo)) {
+                return pick({ ru: ['📜 Держи мудрость:', '✨ Вот тебе мудрость:'], en: ['📜 Here\'s some wisdom:', '✨ Some wisdom for you:'] }[L])
+                     + '\n\n' + _pickWisdom() + '\n\n' + pick(_moreTail[L]);
+            }
+            if (_moreRe.test(lo) && window._eitiLastSmallTalk === 'wisdom') {
+                return pick({ ru: ['🌿 Вот ещё:', '📜 Ещё одна:', '✨ И вот это:'], en: ['🌿 Here\'s another:', '📜 One more:', '✨ And this one:'] }[L])
+                     + '\n\n' + _pickWisdom() + '\n\n' + pick(_moreTail[L]);
+            }
+
             for (var i = 0; i < INTENTS.length; i++) {
                 if (INTENTS[i].re.test(lo)) {
+                    window._eitiLastSmallTalk = 'other';
                     var ans = pick(INTENTS[i][L]);
                     if (INTENTS[i].foot) ans += '\n\n' + pick(FOOT[L]);
                     return ans;
