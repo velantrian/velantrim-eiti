@@ -26455,26 +26455,21 @@ window.eitiLLMClearAll = async function() {
                     && typeof window.eitiImgMaybeHandle === 'function'
                     && window.eitiImgMaybeHandle(_typedCmd)) {
                     input.value = ''; input.style.height = 'auto';
-                    window._eitiPastedTextBuffer = null; // chip was not part of an image request
-                    window._eitiPasteSnapshot = null;
-                    window._eitiLastInputVal = '';
-                    var _chipImg = document.getElementById('eiti-paste-chip');
-                    if (_chipImg) _chipImg.remove();
+                    // chip(s) were not part of an image request → убираем все
+                    if (typeof window._eitiClearPasteBlocks === 'function') window._eitiClearPasteBlocks();
+                    else window._eitiPastedTextBuffer = null;
                     return;
                 }
 
                 // v13.4.0 P1 FIX #15: если был paste-chip — инжектим полный текст в начало.
                 if (window._eitiPastedTextBuffer) {
-                    var _pastedContent = window._eitiPastedTextBuffer;
+                    var _pastedContent = window._eitiPastedTextBuffer; // объединённый текст всех чипов
                     var _currentVal = (input.value || '').trim();
                     input.value = (_currentVal ? _currentVal + '\n\n' : 'Вот текст для анализа:\n\n') + _pastedContent;
-                    window._eitiPastedTextBuffer = null;
-                    var _chip0 = document.getElementById('eiti-paste-chip');
-                    if (_chip0) _chip0.remove();
-                    // сбрасываем трекинг вставки, чтобы следующая вставка после отправки
-                    // не сравнивалась с устаревшим значением поля
-                    window._eitiPasteSnapshot = null;
-                    window._eitiLastInputVal = '';
+                    // убираем ВСЕ чипы и сбрасываем трекинг вставки, чтобы следующая
+                    // вставка после отправки не сравнивалась с устаревшим значением поля
+                    if (typeof window._eitiClearPasteBlocks === 'function') window._eitiClearPasteBlocks();
+                    else { window._eitiPastedTextBuffer = null; window._eitiPasteSnapshot = null; window._eitiLastInputVal = ''; }
                 }
                 var txt = input.value.trim();
                 // v12.9.50: если прикреплён файл — инжектируем его в текст
@@ -43703,23 +43698,81 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         };
     }
 
-    function _showChip(text) {
-        var input = document.getElementById('input');
-        var old = document.getElementById('eiti-paste-chip');
-        if (old) old.remove();
+    // v13.5+: НЕСКОЛЬКО вставленных блоков накапливаются как отдельные чипы.
+    // _eitiPasteBlocks — источник правды: [{id, text}]. _eitiPastedTextBuffer
+    // держим как объединённый текст (совместимость с doSend и пр.).
+    window._eitiPasteBlocks = window._eitiPasteBlocks || [];
 
-        var s = _info(text);
+    function _chipsBox() {
+        var input = document.getElementById('input');
+        if (!input) return null;
+        var box = document.getElementById('eiti-paste-chips');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'eiti-paste-chips';
+            box.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;width:100%;align-self:flex-start;margin:2px 0;';
+            var anchor = input.parentElement;
+            if (anchor) anchor.insertBefore(box, input);
+            else input.parentNode.insertBefore(box, input);
+        }
+        return box;
+    }
+
+    function _syncBuffer() {
+        var blocks = window._eitiPasteBlocks;
+        window._eitiPastedTextBuffer = blocks.length
+            ? blocks.map(function(b){ return b.text; }).join('\n\n')
+            : null;
+    }
+
+    function _renumberChips() {
+        var blocks = window._eitiPasteBlocks;
+        for (var i = 0; i < blocks.length; i++) {
+            var el = document.getElementById('eiti-paste-chip-' + blocks[i].id);
+            if (!el) continue;
+            var titleEl = el.querySelector('.epc-title');
+            if (titleEl) titleEl.textContent = blocks.length > 1 ? ('Вставка ' + (i + 1)) : 'Pasted content';
+        }
+    }
+
+    function _removeBlock(id) {
+        window._eitiPasteBlocks = window._eitiPasteBlocks.filter(function(b){ return b.id !== id; });
+        var el = document.getElementById('eiti-paste-chip-' + id);
+        if (el) el.remove();
+        var box = document.getElementById('eiti-paste-chips');
+        if (box && !box.children.length) box.remove();
+        _renumberChips();
+        _syncBuffer();
+    }
+
+    function _eitiClearPasteBlocks() {
+        window._eitiPasteBlocks = [];
+        var box = document.getElementById('eiti-paste-chips');
+        if (box) box.remove();
+        var legacy = document.getElementById('eiti-paste-chip');
+        if (legacy) legacy.remove();
+        window._eitiPastedTextBuffer = null;
+        window._eitiPasteSnapshot = null;
+        window._eitiLastInputVal = '';
+    }
+    window._eitiClearPasteBlocks = _eitiClearPasteBlocks;
+
+    function _renderChip(block) {
+        var box = _chipsBox();
+        if (!box) return;
+        var s = _info(block.text);
         var chip = document.createElement('div');
-        chip.id = 'eiti-paste-chip';
+        chip.id = 'eiti-paste-chip-' + block.id;
+        chip.className = 'eiti-paste-chip';
         chip.title = 'Вставленный текст · ' + s.kb + ' КБ · ' + s.lines + ' строк · нажми для просмотра';
         chip.style.cssText =
             'display:inline-flex;align-items:center;gap:8px;' +
-            'padding:6px 8px 6px 6px;margin:4px 8px 4px;' +
+            'padding:6px 8px 6px 6px;' +
             'background:var(--secondary-color,rgba(0,0,0,0.18));' +
             'border:1px solid var(--border-color,rgba(255,255,255,0.18));' +
             'border-radius:12px;cursor:pointer;font-size:12px;' +
             'box-shadow:0 1px 3px rgba(0,0,0,0.18);' +
-            'max-width:230px;line-height:1.2;align-self:flex-start;';
+            'max-width:230px;line-height:1.2;';
 
         var badge = document.createElement('div');
         badge.textContent = 'TXT';
@@ -43734,17 +43787,18 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var label = document.createElement('div');
         label.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;';
         var l1 = document.createElement('div');
+        l1.className = 'epc-title';
         l1.textContent = 'Pasted content';
-        l1.style.cssText = 'font-weight:600;color:var(--text-color,#fff);font-size:12px;line-height:1.2;';
+        l1.style.cssText = 'font-weight:600;color:var(--text-color,#fff);font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
         var l2 = document.createElement('div');
         l2.textContent = s.kb + ' КБ · ' + s.lines + ' строк';
         l2.style.cssText = 'opacity:0.55;font-size:10px;margin-top:2px;line-height:1.2;';
         label.appendChild(l1); label.appendChild(l2);
 
         var rmBtn = document.createElement('button');
-        rmBtn.id = 'eiti-paste-remove';
         rmBtn.type = 'button';
         rmBtn.textContent = '✕';
+        rmBtn.setAttribute('aria-label', 'Удалить');
         rmBtn.style.cssText =
             'flex-shrink:0;width:22px;height:22px;border-radius:50%;' +
             'border:none;background:rgba(0,0,0,0.55);color:#fff;' +
@@ -43752,24 +43806,39 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             'display:flex;align-items:center;justify-content:center;';
 
         chip.appendChild(badge); chip.appendChild(label); chip.appendChild(rmBtn);
-
-        var anchor = input && input.parentElement ? input.parentElement : null;
-        if (anchor) anchor.insertBefore(chip, input);
-        else if (input) input.parentNode.insertBefore(chip, input);
+        box.appendChild(chip);
 
         chip.addEventListener('click', function(e) {
             if (e.target === rmBtn) return;
-            _showModal();
+            _showModal(block.id);
         });
         rmBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            chip.remove();
-            window._eitiPastedTextBuffer = null;
+            _removeBlock(block.id);
         });
     }
 
-    function _showModal() {
-        var buf = window._eitiPastedTextBuffer || '';
+    var _lastAddText = '', _lastAddTime = 0;
+    function _addBlock(text) {
+        if (!text || text.length < PASTE_THRESHOLD) return;
+        var now = Date.now();
+        // дедуп: одно и то же содержимое от двойного срабатывания событий (paste+input)
+        if (text === _lastAddText && (now - _lastAddTime) < 600) return;
+        _lastAddText = text; _lastAddTime = now;
+        var block = { id: 'b' + now.toString(36) + Math.random().toString(36).slice(2, 6), text: text };
+        window._eitiPasteBlocks.push(block);
+        _renderChip(block);
+        _renumberChips();
+        _syncBuffer();
+    }
+
+
+    function _showModal(id) {
+        var blocks = window._eitiPasteBlocks, block = null;
+        if (id) { for (var bi = 0; bi < blocks.length; bi++) { if (blocks[bi].id === id) { block = blocks[bi]; break; } } }
+        if (!block) block = blocks[blocks.length - 1];
+        if (!block) return;
+        var buf = block.text || '';
         if (!buf) return;
         var existing = document.getElementById('eiti-paste-modal');
         if (existing) existing.remove();
@@ -43855,9 +43924,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             } else if (navigator.clipboard) { navigator.clipboard.writeText(buf); }
         });
         btnRemove.addEventListener('click', function() {
-            window._eitiPastedTextBuffer = null;
-            var chip = document.getElementById('eiti-paste-chip');
-            if (chip) chip.remove();
+            _removeBlock(block.id);
             close();
             if (typeof showToast === 'function') showToast('🗑 Вставка удалена', 1200);
         });
@@ -43869,8 +43936,8 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         });
     }
 
-    window._eitiShowPastedChip = _showChip;
-    window._eitiShowPasteModal = _showModal;
+    window._eitiShowPastedChip = _addBlock;
+    window._eitiShowPasteModal = function(id){ _showModal(id); };
 
     // v13.4.7 FIX: this IIFE is the single source of truth for paste handling.
     // Claim the install flag so the older, duplicate hook inside initApp()
@@ -43902,8 +43969,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var _before = t.value; // preserve whatever the user already typed
         e.preventDefault();
         e.stopPropagation();
-        window._eitiPastedTextBuffer = pasted;
-        _showChip(pasted);
+        _addBlock(pasted);
         // Safety net: if a platform ignores preventDefault for paste (common in
         // installed PWA/webview), the pasted block would also land in the input.
         // Restore the pre-paste value so the text lives ONLY in the chip.
@@ -43920,8 +43986,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         if (!pasted || pasted.length < PASTE_THRESHOLD) return;
         var _tBI = e.target, _beforeBI = _tBI.value;
         e.preventDefault();
-        window._eitiPastedTextBuffer = pasted;
-        _showChip(pasted);
+        _addBlock(pasted);
         _restoreInput(_tBI, _beforeBI);
     }, true);
 
@@ -43932,18 +43997,17 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         var el = e.target;
         if (!el || el.id !== 'input') return;
         var val = el.value || '';
+        // value сжалось (отправка/очистка/удаление) — пересинхронизируем базу,
+        // чтобы не было ложного «прыжка» и отрицательных срезов.
+        if (val.length < _prevInputLen) { _prevInputLen = val.length; return; }
         var delta = val.length - _prevInputLen;
         if (delta > PASTE_THRESHOLD) {
-            // v13.4.7 FIX: always strip a sudden large block out of the input so
-            // it never lingers there. Only capture + show a chip when no paste
-            // was recorded yet — if the buffer is already set this is just the
-            // leftover from a paste whose preventDefault the platform ignored.
+            // Capture-фаза: вырезаем большой блок ДО autogrow (нет зависания), и
+            // добавляем как ОТДЕЛЬНЫЙ чип. Дедуп в _addBlock гасит двойное
+            // срабатывание, если paste/beforeinput уже обработали ту же вставку.
             var pasted = val.slice(_prevInputLen);
             el.value = val.slice(0, _prevInputLen);
-            if (!window._eitiPastedTextBuffer) {
-                window._eitiPastedTextBuffer = pasted;
-                _showChip(pasted);
-            }
+            _addBlock(pasted);
         }
         _prevInputLen = el.value.length;
     }, true);
