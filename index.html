@@ -6542,7 +6542,7 @@
         .chat-input {
             resize: none;
             min-height: 42px;
-            max-height: 160px;
+            max-height: 40vh; /* растёт вверх по мере ввода (как в ChatGPT), потом скролл */
             overflow-y: auto;
             line-height: 1.45;
             padding-top: 10px;
@@ -6554,6 +6554,16 @@
         }
         .chat-input-panel {
             align-items: flex-end;
+            flex-wrap: wrap; /* нужно для compose-режима (кнопки уходят на нижний ряд) */
+        }
+        /* compose-режим: пока есть текст — поле занимает всю ширину сверху, а кнопки
+           ➕ и ➤ опускаются на нижний ряд (➕ слева, ➤ справа). Без текста — как было. */
+        .chat-input-panel.composing .chat-center-col {
+            flex: 1 1 100% !important;
+            order: -1;
+        }
+        .chat-input-panel.composing .chat-right-col {
+            margin-left: auto;
         }
 
         /* ═══════════════════════════════════════ NOTES ═══ */
@@ -7082,7 +7092,7 @@
                             <div id="chat-classic-btns" style="display:none;flex-direction:column;align-items:center;gap:3px;"></div>
                         </div>
                         <!-- CENTRE: input + attach indicator -->
-                        <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                        <div class="chat-center-col" style="flex:1;display:flex;flex-direction:column;min-width:0;">
                             <div id="chat-attach-indicator">
                                 <div id="chat-attach-files-list"></div>
                                 <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;">
@@ -26108,7 +26118,7 @@ window.eitiLLMClearAll = async function() {
                     })();
                 }
                 // Очищаем поле в любом случае
-                if (input) { input.value = ''; input.style.height = 'auto'; }
+                if (input) { input.value = ''; input.style.height = 'auto'; if(window._eitiAutoGrow)window._eitiAutoGrow(input); }
             };
 
             actRow.appendChild(cancelBtn);
@@ -26454,7 +26464,7 @@ window.eitiLLMClearAll = async function() {
                     && window.eitiImgDetectRequest(_typedCmd)
                     && typeof window.eitiImgMaybeHandle === 'function'
                     && window.eitiImgMaybeHandle(_typedCmd)) {
-                    input.value = ''; input.style.height = 'auto';
+                    input.value = ''; input.style.height = 'auto'; if(window._eitiAutoGrow)window._eitiAutoGrow(input);
                     // chip(s) were not part of an image request → убираем все
                     if (typeof window._eitiClearPasteBlocks === 'function') window._eitiClearPasteBlocks();
                     else window._eitiPastedTextBuffer = null;
@@ -26478,7 +26488,7 @@ window.eitiLLMClearAll = async function() {
                 if (/продолжай файл|continue file|следующая часть/i.test(txt) && window._eitiChatFileSession) {
                     var _nextChunk = eitiChatContinueFile();
                     if (_nextChunk) {
-                        input.value = ''; input.style.height = 'auto';
+                        input.value = ''; input.style.height = 'auto'; if(window._eitiAutoGrow)window._eitiAutoGrow(input);
                         _intentUserMsg(_nextChunk);
                         if (typeof eitiAskDeepSeek === 'function') eitiAskDeepSeek(_nextChunk);
                         return;
@@ -26491,7 +26501,7 @@ window.eitiLLMClearAll = async function() {
 
                 // v12.9.2: Grok Voice muted → текст → Grok (перехватываем до всего остального)
                 if (window._grokVoiceActive && window._grokMuted && _grokWS && _grokWS.readyState === 1) {
-                    input.value = ''; input.style.height = 'auto';
+                    input.value = ''; input.style.height = 'auto'; if(window._eitiAutoGrow)window._eitiAutoGrow(input);
                     window.eitiGrokSendText(txt);
                     return;
                 }
@@ -26512,7 +26522,7 @@ window.eitiLLMClearAll = async function() {
                 }
 
                 _intentUserMsg(txt);
-                input.value = ''; input.style.height = 'auto';
+                input.value = ''; input.style.height = 'auto'; if(window._eitiAutoGrow)window._eitiAutoGrow(input);
 
                 // Сохранение в IDB происходит внутри каждой ветки — не дублируем здесь
 
@@ -32708,13 +32718,19 @@ window.eitiLLMClearAll = async function() {
             } catch(e) {}
         }
         
-        // Autogrow textarea
+        // Autogrow textarea + compose-режим (поле растёт вверх; кнопки уходят вниз).
+        function _eitiAutoGrow(el) {
+            el = el || document.getElementById('input');
+            if (!el || el.id !== 'input') return;
+            var cap = Math.max(120, Math.round((window.innerHeight || 600) * 0.4));
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, cap) + 'px';
+            var panel = el.closest ? el.closest('.chat-input-panel') : null;
+            if (panel) panel.classList.toggle('composing', (el.value || '').length > 0);
+        }
+        window._eitiAutoGrow = _eitiAutoGrow;
         document.addEventListener('input', function(e) {
-            if (e.target && e.target.id === 'input') {
-                var el = e.target;
-                el.style.height = 'auto';
-                el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-            }
+            if (e.target && e.target.id === 'input') _eitiAutoGrow(e.target);
         });
         // Enter = отправить → обрабатывается внутри eitiPatchSendButton (нет дублей)
 
