@@ -15347,6 +15347,7 @@
             "",
             "FILE SYSTEM:",
             "  Create file:  <EITI_FILE:name.txt>content</EITI_FILE>",
+            "    Supported extensions: .txt .md .json .csv .pdf — the file shows up in chat as a download chip. For .pdf and .md write normal text/Markdown (PDF is rendered from it). For .json the content must be valid JSON. Use this whenever the user asks for a document, report, export or downloadable file.",
             "  Edit file:    [FILE_EDIT:name.txt|full new content]",
             "  Rename file:  [FILE_RENAME:old.txt|new.txt]",
             "  Delete file:  [FILE_DELETE:name.txt]",
@@ -15552,6 +15553,7 @@
             "",
             "ФАЙЛОВАЯ СИСТЕМА:",
             "  Создать файл: <EITI_FILE:имя.txt>содержимое</EITI_FILE>",
+            "    Поддерживаемые расширения: .txt .md .json .csv .pdf — файл появится в чате как чип со скачиванием. Для .pdf и .md пиши обычный текст/Markdown (PDF строится из него). Для .json содержимое должно быть валидным JSON. Используй это всегда, когда пользователь просит документ, отчёт, экспорт или файл для скачивания.",
 "  Редактировать файл: [FILE_EDIT:имя.txt|новое содержимое полностью]",
             "  Переименовать файл: [FILE_RENAME:старое.txt|новое.txt]",
 "  Удалить файл:       [FILE_DELETE:имя.txt]",
@@ -16282,6 +16284,18 @@
         function eitiRenderMarkdown(text) {
             if (!text) return '';
             var t = String(text);
+            // v13.5+: AI-сгенерированные файлы → чип-«булавка» со скачиванием.
+            // Прячем теги/маркеры в PUA-плейсхолдеры ДО экранирования и markdown,
+            // а восстанавливаем готовый HTML чипа ПОСЛЕ санитизации — чтобы инлайновый
+            // onclick не вырезался DOMPurify (как у существующих file-chip).
+            var _aiFileChips = [];
+            function _stashAiFile(name) {
+                var ph = '' + _aiFileChips.length + '';
+                _aiFileChips.push((typeof _eitiAiFileChip === 'function') ? _eitiAiFileChip(name) : '');
+                return ph;
+            }
+            t = t.replace(/<EITI_(?:FILE|APPEND):([^>]+)>[\s\S]*?<\/EITI_(?:FILE|APPEND)>/g, function(_m, name){ return '\n' + _stashAiFile(name) + '\n'; });
+            t = t.replace(/⟦EITIFILE:([^⟧]+)⟧/g, function(_m, name){ return '\n' + _stashAiFile(name) + '\n'; });
             // Escape HTML first
             t = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             // Fenced code blocks FIRST (before other rules touch content inside)
@@ -16330,7 +16344,12 @@
             // Single newline → <br>
             t = t.replace(/\n/g, '<br>');
             // v13.4.0 P0 #2: финальная санитизация результата markdown-рендера
-            return (typeof _eitiSafeHTML === 'function') ? _eitiSafeHTML(t) : t;
+            t = (typeof _eitiSafeHTML === 'function') ? _eitiSafeHTML(t) : t;
+            // Восстанавливаем чипы-файлы ПОСЛЕ санитизации (инлайн onclick переживает DOMPurify).
+            if (_aiFileChips.length) {
+                t = t.replace(/(\d+)/g, function(_m, i){ return _aiFileChips[+i] || ''; });
+            }
+            return t;
         }
 
         var EITI_DOMAIN_CONFIG = {
@@ -17197,13 +17216,88 @@
             });
         }
 
+        // v13.5+: HTML чипа-«булавки» для файла, созданного ИИ. Клик/кнопка ⬇ → скачать
+        // (PDF — через печать). Инлайн onclick — как у существующих msg-file-chip.
+        function _eitiAiFileChip(name) {
+            var nm = String(name || '').trim();
+            var esc = (typeof eitiEsc === 'function') ? eitiEsc(nm) : nm;
+            var ext = (nm.indexOf('.') >= 0 ? nm.split('.').pop() : '').toUpperCase();
+            var icon = ext === 'PDF' ? '📕'
+                     : ext === 'JSON' ? '🧾'
+                     : (ext === 'MD' || ext === 'MARKDOWN') ? '📝'
+                     : ext === 'CSV' ? '📊' : '📄';
+            var meta = ext === 'PDF' ? (ext + ' · печать → сохранить') : (ext + ' · сгенерирован EITI');
+            return '<span class="msg-file-chip eiti-aifile-chip" data-fname="' + esc + '"'
+                + ' onclick="if(typeof eitiDownloadFile===\'function\')eitiDownloadFile(this.getAttribute(\'data-fname\'))"'
+                + ' title="Скачать ' + esc + '" style="cursor:pointer;margin:6px 4px;">'
+                + '<span class="chip-icon">' + icon + '</span>'
+                + '<span class="chip-info"><span class="chip-name">' + esc + '</span>'
+                + '<span class="chip-meta">' + (typeof eitiEsc === 'function' ? eitiEsc(meta) : meta) + '</span></span>'
+                + '<span class="eiti-aifile-dl" aria-hidden="true" style="margin-left:8px;padding:5px 11px;border-radius:9px;'
+                + 'background:var(--accent-color,#ffd700);color:#000;font-weight:700;font-size:12px;line-height:1;flex-shrink:0;">⬇</span>'
+                + '</span>';
+        }
+        window._eitiAiFileChip = _eitiAiFileChip;
+
+        // v13.5+: MIME по расширению — для корректного скачивания AI-файлов.
+        function _eitiMimeForExt(name) {
+            var n = String(name || '').toLowerCase();
+            if (/\.(md|markdown)$/.test(n)) return 'text/markdown';
+            if (/\.json$/.test(n))         return 'application/json';
+            if (/\.csv$/.test(n))          return 'text/csv';
+            if (/\.html?$/.test(n))        return 'text/html';
+            if (/\.pdf$/.test(n))          return 'application/pdf';
+            return 'text/plain';
+        }
+        window._eitiMimeForExt = _eitiMimeForExt;
+
+        // v13.5+: PDF офлайн с кириллицей — рендерим документ в скрытый iframe и
+        // открываем диалог печати («Сохранить как PDF»). Системные шрифты → кириллица
+        // идеальна, без вшивания шрифтов и без раздувания файла.
+        function _eitiPrintToPDF(name, content) {
+            var bodyHtml = (typeof eitiRenderMarkdown === 'function')
+                ? eitiRenderMarkdown(content)
+                : String(content || '').replace(/[&<>]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]; }).replace(/\n/g, '<br>');
+            var safeTitle = (typeof eitiEsc === 'function') ? eitiEsc(name) : String(name);
+            var html = '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>' + safeTitle + '</title>'
+                + '<style>*{box-sizing:border-box}'
+                + 'body{font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:#111;background:#fff;padding:24px;max-width:760px;margin:0 auto;}'
+                + 'h1,h2,h3,h4{line-height:1.25;margin:.8em 0 .3em} '
+                + 'pre,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace} '
+                + 'pre{background:#f5f5f5;border-radius:8px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word} '
+                + 'code{background:#f0f0f0;border-radius:4px;padding:1px 5px} '
+                + 'table{border-collapse:collapse;width:100%} td,th{border:1px solid #ccc;padding:5px 9px;text-align:left} '
+                + 'th{background:#f3f3f3} a{color:#1259a3} img{max-width:100%} '
+                + '@page{margin:16mm}</style></head><body>' + bodyHtml + '</body></html>';
+            var ifr = document.createElement('iframe');
+            ifr.setAttribute('aria-hidden', 'true');
+            ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+            document.body.appendChild(ifr);
+            var doc = ifr.contentDocument || (ifr.contentWindow && ifr.contentWindow.document);
+            if (!doc) { try { document.body.removeChild(ifr); } catch(e) {} showToast('❌ Не удалось подготовить PDF'); return; }
+            doc.open(); doc.write(html); doc.close();
+            var fired = false;
+            function _print() {
+                if (fired) return; fired = true;
+                try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch(e) {}
+                setTimeout(function(){ try { document.body.removeChild(ifr); } catch(e) {} }, 60000);
+            }
+            ifr.onload = _print;
+            setTimeout(_print, 500); // фолбэк, если onload не сработал
+            showToast('🖨 ' + name + ' — выберите «Сохранить как PDF»', 3000);
+        }
+        window._eitiPrintToPDF = _eitiPrintToPDF;
+
         function eitiDownloadFile(name) {
             var store = getAiTextStore();
             var f = store.files.find(function(x){ return x.name === name; });
             if (!f) { showToast('❌ Файл не найден'); return; }
-            _dlBlob(f.content || '', f.name, f.mime || 'text/plain');
+            // PDF → печать/«Сохранить как PDF» (кириллица, офлайн, без библиотек).
+            if (/\.pdf$/i.test(f.name)) { _eitiPrintToPDF(f.name, f.content || ''); return; }
+            _dlBlob(f.content || '', f.name, _eitiMimeForExt(f.name) || f.mime || 'text/plain');
             showToast('⬇️ ' + f.name);
         }
+        window.eitiDownloadFile = eitiDownloadFile;
 
         function eitiDownloadAllFiles() {
             var store = getAiTextStore();
@@ -26439,11 +26533,14 @@ window.eitiLLMClearAll = async function() {
 
             // Очищаем теги из отображаемого текста (заменяем на user-friendly сообщения)
             var processed = reply;
+            // v13.5+: тег файла → лёгкий маркер чипа (eitiRenderMarkdown превратит его
+            // в «булавку» со скачиванием). Содержимое не дублируем в текст чата — оно уже
+            // в IDB-хранилище файлов.
             processed = processed.replace(/<EITI_FILE:([^>]+)>[\s\S]*?<\/EITI_FILE>/g, function(_, name) {
-                return '📁 Файл **' + name.trim() + '** сохранён ✅';
+                return '📁 Файл сохранён:\n⟦EITIFILE:' + name.trim() + '⟧';
             });
             processed = processed.replace(/<EITI_APPEND:([^>]+)>[\s\S]*?<\/EITI_APPEND>/g, function(_, name) {
-                return '✏️ В файл **' + name.trim() + '** добавлено ✅';
+                return '✏️ Файл обновлён:\n⟦EITIFILE:' + name.trim() + '⟧';
             });
             function _eitiReadHandler(_, name) {
                 var f = _idbFilesCache.find(function(x){ return x.name === name.trim(); });
@@ -27761,14 +27858,14 @@ window.eitiLLMClearAll = async function() {
             }
             // EITI_FILE
             reply.replace(/<EITI_FILE:([^>]+)>([\s\S]*?)<\/EITI_FILE>/g, function(_, name, content) {
-                upsertAiFile(name.trim(), 'text/plain', content);
+                upsertAiFile(name.trim(), _eitiMimeForExt(name.trim()), content);
                 updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
             });
             // EITI_APPEND
             reply.replace(/<EITI_APPEND:([^>]+)>([\s\S]*?)<\/EITI_APPEND>/g, function(_, name, content) {
                 var store = getAiTextStore();
                 var f = store.files.find(function(x){ return x.name === name.trim(); });
-                upsertAiFile(name.trim(), f ? (f.mime||'text/plain') : 'text/plain', (f ? (f.content||'') : '') + '\n' + content);
+                upsertAiFile(name.trim(), f ? (f.mime||_eitiMimeForExt(name.trim())) : _eitiMimeForExt(name.trim()), (f ? (f.content||'') : '') + '\n' + content);
                 updateCount('aitext', getAiTextStore().files.length); eitiUpdateFileCount();
             });
             // NOTE_WRITE
