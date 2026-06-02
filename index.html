@@ -6302,7 +6302,23 @@
         }
         .eiti-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
         .eiti-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-        
+
+        /* v13.5+: «думающий» блок — статус-строки + поток рассуждений (как ChatGPT/Claude) */
+        .eiti-think-box {
+            margin: 0 0 8px; padding: 6px 10px;
+            border-left: 2px solid var(--accent-color, #ffd700);
+            background: rgba(255,255,255,0.035); border-radius: 8px;
+        }
+        .eiti-think-head { display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.62; }
+        .eiti-think-ic { font-size: 13px; flex-shrink: 0; }
+        .eiti-think-status { font-style: italic; min-width: 0; }
+        .eiti-think-toggle { margin-left: auto; font-size: 11px; opacity: 0.7; flex-shrink: 0; }
+        .eiti-think-body {
+            margin-top: 5px; font-size: 12px; line-height: 1.5;
+            opacity: 0.45; white-space: pre-wrap; word-break: break-word;
+            max-height: 168px; overflow: auto; font-family: inherit;
+        }
+
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
@@ -19011,6 +19027,103 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         }
 
         // v12.9.78: Авто-детект режима мышления AI
+        // ═══════════════════════════════════════════════════════════════
+        // v13.5+: «Думающий» индикатор в живом пузыре ответа.
+        //  • Косметические статус-строки (полупрозрачные, с shimmer) — для любых моделей.
+        //  • Реальный поток рассуждений (delta.reasoning_content / delta.reasoning) —
+        //    для reasoning-моделей (deepseek-reasoner, QwQ и т.п.).
+        // Когда пошёл финальный ответ — блок сворачивается в тумблер «🧠 Размышления».
+        // Эфемерно (в chatLog не сохраняется), как у ChatGPT/Claude.
+        // ═══════════════════════════════════════════════════════════════
+        var _eitiThinkPhrases = {
+            ru: ['Анализирую запрос…', 'Ищу в памяти…', 'Связываю факты…', 'Формулирую ответ…', 'Проверяю детали…'],
+            en: ['Analyzing the request…', 'Searching memory…', 'Connecting the facts…', 'Composing the answer…', 'Checking details…']
+        };
+        function _eitiThinkStart(liveId, lang) {
+            var textEl = document.getElementById(liveId + '-text');
+            if (!textEl || !textEl.parentNode) return;
+            if (document.getElementById(liveId + '-think')) return;
+            var box = document.createElement('div');
+            box.id = liveId + '-think';
+            box.className = 'eiti-think-box';
+            box.dataset.phase = 'status';
+            box.innerHTML =
+                '<div class="eiti-think-head"><span class="eiti-think-ic rne-diary-thinking">🧠</span>'
+                + '<span class="eiti-think-status">…</span>'
+                + '<span class="eiti-think-toggle" style="display:none;">▸</span></div>'
+                + '<div class="eiti-think-body" style="display:none;"></div>';
+            textEl.parentNode.insertBefore(box, textEl);
+            // прячем точки-«печатает» — активность теперь показывает think-блок
+            try { textEl.innerHTML = ''; } catch(e) {}
+            var phrases = _eitiThinkPhrases[(lang === 'en') ? 'en' : 'ru'];
+            var statusEl = box.querySelector('.eiti-think-status');
+            if (statusEl) statusEl.textContent = phrases[0];
+            var i = 0;
+            box._timer = setInterval(function() {
+                if (!document.body.contains(box)) { clearInterval(box._timer); box._timer = null; return; }
+                // если ещё на стадии статуса, но в ответе уже появился текст/ошибка —
+                // гасим блок (покрывает finalize, ошибки, таймауты и abort без правок в catch)
+                if (box.dataset.phase === 'status') {
+                    var te = document.getElementById(liveId + '-text');
+                    if (te && (te.textContent || '').trim()) {
+                        clearInterval(box._timer); box._timer = null; box.remove(); return;
+                    }
+                    i = (i + 1) % phrases.length;
+                    if (statusEl) statusEl.textContent = phrases[i];
+                }
+            }, 1500);
+        }
+        window._eitiThinkStart = _eitiThinkStart;
+
+        function _eitiThinkReasoning(liveId, chunk) {
+            if (!chunk) return;
+            var box = document.getElementById(liveId + '-think');
+            if (!box) return;
+            var body = box.querySelector('.eiti-think-body');
+            if (!body) return;
+            if (box.dataset.phase !== 'reasoning') {
+                box.dataset.phase = 'reasoning';
+                var st = box.querySelector('.eiti-think-status');
+                if (st) st.textContent = 'Размышляю…';
+                body.style.display = 'block';
+                body._raw = '';
+            }
+            body._raw = (body._raw || '') + chunk;
+            // показываем «хвост» рассуждений, чтобы не разрастаться бесконечно
+            body.textContent = body._raw.length > 1200 ? '…' + body._raw.slice(-1200) : body._raw;
+            var ms = document.getElementById('messages');
+            if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight;
+        }
+        window._eitiThinkReasoning = _eitiThinkReasoning;
+
+        function _eitiThinkDone(liveId) {
+            var box = document.getElementById(liveId + '-think');
+            if (!box) return;
+            if (box._timer) { clearInterval(box._timer); box._timer = null; }
+            var body = box.querySelector('.eiti-think-body');
+            var hadReasoning = (box.dataset.phase === 'reasoning') && body && (body._raw || '').trim();
+            if (!hadReasoning) { box.remove(); return; } // не было реальных мыслей → убираем
+            // сворачиваем в тумблер
+            box.dataset.phase = 'done';
+            var ic = box.querySelector('.eiti-think-ic');
+            if (ic) ic.classList.remove('rne-diary-thinking');
+            var st = box.querySelector('.eiti-think-status');
+            if (st) st.textContent = 'Размышления';
+            body.style.display = 'none';
+            var tog = box.querySelector('.eiti-think-toggle');
+            if (tog) { tog.style.display = ''; tog.textContent = '▸'; }
+            var head = box.querySelector('.eiti-think-head');
+            if (head) {
+                head.style.cursor = 'pointer';
+                head.onclick = function() {
+                    var open = body.style.display === 'none';
+                    body.style.display = open ? 'block' : 'none';
+                    if (tog) tog.textContent = open ? '▾' : '▸';
+                };
+            }
+        }
+        window._eitiThinkDone = _eitiThinkDone;
+
         function eitiDetectThinkMode(userText) {
             // Pro-модели → всегда Think 🧠
             var dsModel = (typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : '';
@@ -19104,6 +19217,13 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 messagesEl.scrollTop = messagesEl.scrollHeight;
                 // Extra push to ensure bubble is visible
                 setTimeout(function(){ messagesEl.scrollTop = messagesEl.scrollHeight; }, 50);
+
+                // v13.5+: «думающий» индикатор (статус-строки + поток рассуждений)
+                try {
+                    var _thinkLang = (typeof eitiGetEffectiveReplyLang === 'function')
+                        ? eitiGetEffectiveReplyLang(userText) : 'ru';
+                    _eitiThinkStart(liveId, _thinkLang);
+                } catch(e) {}
 
                 // Detect responses that are the system prompt echoed back by the model
                 function _isSysPromptLeak(text) {
@@ -20033,6 +20153,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         window._eitiIsStreaming = false; reject(new Error('sys_prompt_leak')); return;
                                     }
                                     if (textEl) textEl.innerHTML = eitiRenderMarkdown(result);
+                                    try { _eitiThinkDone(liveId); } catch(e) {}
                                     // v12.9.78: убираем анимацию мышления — ответ готов
                                     var _senderEl = liveDiv.querySelector('.message-sender');
                                     if (_senderEl) {
@@ -20058,7 +20179,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 _orSseBuffer = _orLines.pop();
                                 _orLines.forEach(function(line) {
                                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                                        try { var delta = JSON.parse(line.slice(6)).choices[0].delta.content; if (delta) { result += delta; if (textEl) textEl.textContent = result; var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight; } } catch(e) {}
+                                        try { var _orj = JSON.parse(line.slice(6)); var _ord = (_orj.choices && _orj.choices[0] && _orj.choices[0].delta) || {}; var _orrc = _ord.reasoning_content || _ord.reasoning; if (_orrc) _eitiThinkReasoning(liveId, _orrc); var delta = _ord.content; if (delta) { result += delta; if (textEl) textEl.textContent = result; var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight; } } catch(e) {}
                                     }
                                 });
                                 return readOR();
@@ -20185,6 +20306,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     window._eitiIsStreaming = false; reject(new Error('sys_prompt_leak')); return;
                                 }
                                 if (textEl) textEl.innerHTML = eitiRenderMarkdown(result);
+                                try { _eitiThinkDone(liveId); } catch(e) {}
                                 // v12.9.78: убираем анимацию мышления — ответ готов
                                 var _senderEl2 = liveDiv.querySelector('.message-sender');
                                 if (_senderEl2) {
@@ -20254,7 +20376,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         if (_dsChunk.usage && _dsChunk.usage.prompt_cache_hit_tokens) {
                                             window._eitiLastCacheHit = _dsChunk.usage.prompt_cache_hit_tokens;
                                         }
-                                        var delta = _dsChunk.choices[0].delta.content;
+                                        var _dsd = (_dsChunk.choices && _dsChunk.choices[0] && _dsChunk.choices[0].delta) || {};
+                                        // v13.5+: поток рассуждений reasoning-моделей (deepseek-reasoner и т.п.)
+                                        var _dsrc = _dsd.reasoning_content || _dsd.reasoning;
+                                        if (_dsrc) _eitiThinkReasoning(liveId, _dsrc);
+                                        var delta = _dsd.content;
                                         if (delta) {
                                             result += delta;
                                             // v13.4.7 FIX: plain text while streaming. The v12.9.77 live-markdown
