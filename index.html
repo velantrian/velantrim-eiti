@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.6.0"; // v13.6.0: chat input grows upward (40vh) + ChatGPT-style compose mode (textarea full-width, ➕/➤ drop to a bottom row when typing)
+        var EITI_VERSION = "13.6.1"; // v13.6.1: fix chat input not growing past ~2 lines (textarea flex:0 0 auto so autogrow height applies) + bottom breathing space
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -6541,12 +6541,19 @@
         /* === AUTOGROW TEXTAREA === */
         .chat-input {
             resize: none;
+            /* v13.6.1 FIX: поле лежит в колоночном flex (.chat-center-col); базовое
+               flex:1 делало высоту управляемой flex'ом и игнорировало inline-height
+               от автроста — поле упиралось в ~2 строки. flex:0 0 auto возвращает
+               управление высотой авторосту (inline height = scrollHeight). */
+            flex: 0 0 auto;
+            width: 100%;
+            box-sizing: border-box;
             min-height: 42px;
             max-height: 40vh; /* растёт вверх по мере ввода (как в ChatGPT), потом скролл */
             overflow-y: auto;
             line-height: 1.45;
             padding-top: 10px;
-            padding-bottom: 10px;
+            padding-bottom: 18px; /* пустое пространство ~на строку между текстом и нижним краем */
             font-family: inherit;
             font-size: inherit;
             touch-action: pan-y;
