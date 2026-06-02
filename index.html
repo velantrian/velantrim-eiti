@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.5.0"; // v13.5.0: fix silent note/file/board creation — force command tags on create-intent, tolerate short [TASK_ADD], honest warning when AI claims-but-no-tag
+        var EITI_VERSION = "13.6.0"; // v13.6.0: chat input grows upward (40vh) + ChatGPT-style compose mode (textarea full-width, ➕/➤ drop to a bottom row when typing)
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
