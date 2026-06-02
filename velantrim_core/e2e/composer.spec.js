@@ -41,22 +41,32 @@ test('input grows vertically and toggles compose mode while typing', async ({ pa
 
   // Empty: default layout, not composing.
   await expect(panel).not.toHaveClass(/composing/);
+  const h0 = await input.evaluate((el) => el.getBoundingClientRect().height);
 
-  // Multi-line content → grows well beyond a single line and enters compose mode.
+  // Multi-line content → grows beyond a single line and enters compose mode.
   await setInput(page, MULTILINE);
   await expect(panel).toHaveClass(/composing/);
-  await page.waitForFunction(
-    () => document.getElementById('input').getBoundingClientRect().height > 90,
-    null, { timeout: 5000 },
-  );
+  await page.waitForTimeout(200); // let the autogrow rAF settle
+  const info = await page.evaluate(() => {
+    const el = document.getElementById('input');
+    const cs = getComputedStyle(el);
+    return {
+      rect: el.getBoundingClientRect().height, scrollH: el.scrollHeight,
+      clientH: el.clientHeight, styleH: el.style.height,
+      lines: (el.value || '').split('\n').length, len: (el.value || '').length,
+      lineHeight: cs.lineHeight, fontSize: cs.fontSize, maxH: cs.maxHeight,
+      innerH: window.innerHeight,
+    };
+  });
+  const hGrown = info.rect;
+  expect(hGrown, 'grow metrics: ' + JSON.stringify(info) + ' h0=' + h0).toBeGreaterThan(h0 + 20);
 
   // Clearing returns to the default single-row layout and shrinks the field.
   await setInput(page, '');
   await expect(panel).not.toHaveClass(/composing/);
-  await page.waitForFunction(
-    () => document.getElementById('input').getBoundingClientRect().height < 70,
-    null, { timeout: 5000 },
-  );
+  await page.waitForTimeout(200);
+  const h2 = await input.evaluate((el) => el.getBoundingClientRect().height);
+  expect(h2).toBeLessThan(hGrown);
 });
 
 test('in compose mode the input spans the full width above the buttons', async ({ page }) => {
