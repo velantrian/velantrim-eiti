@@ -29,7 +29,9 @@ async function setInput(page, value) {
   }, value);
 }
 
-const MULTILINE = Array.from({ length: 8 }, (_, i) => 'строка номер ' + (i + 1) + ' — довольно длинная для переноса').join('\n');
+// 8 short lines: multi-line (so the field grows) but UNDER the 300-char paste
+// threshold, so it is treated as typing — not collapsed into a paste chip.
+const MULTILINE = Array.from({ length: 8 }, (_, i) => 'строка ' + (i + 1)).join('\n');
 
 test('input grows vertically and toggles compose mode while typing', async ({ page }) => {
   await gotoApp(page);
