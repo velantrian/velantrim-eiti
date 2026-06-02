@@ -32722,11 +32722,17 @@ window.eitiLLMClearAll = async function() {
         function _eitiAutoGrow(el) {
             el = el || document.getElementById('input');
             if (!el || el.id !== 'input') return;
-            var cap = Math.max(120, Math.round((window.innerHeight || 600) * 0.4));
-            el.style.height = 'auto';
-            el.style.height = Math.min(el.scrollHeight, cap) + 'px';
+            // Сначала меняем compose-класс — он влияет на ширину поля (а значит на
+            // перенос строк), поэтому высоту считаем уже при новой ширине.
             var panel = el.closest ? el.closest('.chat-input-panel') : null;
             if (panel) panel.classList.toggle('composing', (el.value || '').length > 0);
+            var apply = function() {
+                var cap = Math.max(120, Math.round((window.innerHeight || 600) * 0.4));
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, cap) + 'px';
+            };
+            apply();
+            requestAnimationFrame(apply); // пересчёт после реальной раскладки/смены ширины
         }
         window._eitiAutoGrow = _eitiAutoGrow;
         document.addEventListener('input', function(e) {

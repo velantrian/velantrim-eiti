@@ -18,6 +18,19 @@ async function gotoApp(page) {
   await page.waitForFunction(() => !!document.getElementById('input'), null, { timeout: 15_000 });
 }
 
+// Set the textarea value and fire a real `input` event (reliable multi-line
+// content — Playwright's fill() can normalise newlines on some platforms).
+async function setInput(page, value) {
+  await page.evaluate((v) => {
+    const el = document.getElementById('input');
+    el.focus();
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+const MULTILINE = Array.from({ length: 8 }, (_, i) => 'строка номер ' + (i + 1) + ' — довольно длинная для переноса').join('\n');
+
 test('input grows vertically and toggles compose mode while typing', async ({ page }) => {
   await gotoApp(page);
 
@@ -26,35 +39,35 @@ test('input grows vertically and toggles compose mode while typing', async ({ pa
 
   // Empty: default layout, not composing.
   await expect(panel).not.toHaveClass(/composing/);
-  const h0 = await input.evaluate((el) => el.getBoundingClientRect().height);
 
-  // Type several lines → grows and enters compose mode.
-  await input.click();
-  await input.fill('line1\nline2\nline3\nline4\nline5\nline6');
+  // Multi-line content → grows well beyond a single line and enters compose mode.
+  await setInput(page, MULTILINE);
   await expect(panel).toHaveClass(/composing/);
-  const h1 = await input.evaluate((el) => el.getBoundingClientRect().height);
-  expect(h1).toBeGreaterThan(h0 + 10);
+  await page.waitForFunction(
+    () => document.getElementById('input').getBoundingClientRect().height > 90,
+    null, { timeout: 5000 },
+  );
 
-  // Clearing returns to the default single-row layout.
-  await input.fill('');
+  // Clearing returns to the default single-row layout and shrinks the field.
+  await setInput(page, '');
   await expect(panel).not.toHaveClass(/composing/);
-  const h2 = await input.evaluate((el) => el.getBoundingClientRect().height);
-  expect(h2).toBeLessThan(h1);
+  await page.waitForFunction(
+    () => document.getElementById('input').getBoundingClientRect().height < 70,
+    null, { timeout: 5000 },
+  );
 });
 
 test('in compose mode the input spans the full width above the buttons', async ({ page }) => {
   await gotoApp(page);
 
-  const input = page.locator('#input');
   const center = page.locator('.chat-center-col');
   const sendBtn = page.locator('#send');
 
-  await input.click();
-  await input.fill('some text that triggers compose mode');
+  await setInput(page, 'some text that triggers compose mode');
   await expect(page.locator('.chat-input-panel')).toHaveClass(/composing/);
 
   // The centre column (input) sits on its own row above the send button.
-  const centerBox = await center.evaluate((el) => el.getBoundingClientRect());
-  const sendBox = await sendBtn.evaluate((el) => el.getBoundingClientRect());
-  expect(centerBox.bottom).toBeLessThanOrEqual(sendBox.top + 2);
+  const centerBox = await center.evaluate((el) => el.getBoundingClientRect().bottom);
+  const sendTop = await sendBtn.evaluate((el) => el.getBoundingClientRect().top);
+  expect(centerBox).toBeLessThanOrEqual(sendTop + 2);
 });
