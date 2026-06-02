@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.6.1"; // v13.6.1: fix chat input not growing past ~2 lines (textarea flex:0 0 auto so autogrow height applies) + bottom breathing space
+        var EITI_VERSION = "13.7.0"; // v13.7.0: friendly bilingual offline small-talk replies (greeting/how-are-you/what-can-you-do/…) with emojis when AI is not connected
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -19209,9 +19209,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
                 var _geminiKey = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
                 var _orKey = _deobfKey(localStorage.getItem('eiti_or_key') || '');
-                if (_provider === 'gemini' && !_geminiKey) { resolve('⚠️ Настройте Google Gemini API ключ в Настройки → ⚡ Google Gemini'); return; }
-                if (_provider === 'openrouter' && !_orKey) { resolve('⚠️ Настройте OpenRouter API ключ в Настройки → 🔀 OpenRouter'); return; }
-                if (_provider !== 'gemini' && _provider !== 'openrouter' && !key) { resolve('⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
+                var _stNoKey = (typeof _eitiOfflineSmallTalk === 'function') ? _eitiOfflineSmallTalk(userText) : null;
+                if (_provider === 'gemini' && !_geminiKey) { resolve(_stNoKey || '⚠️ Настройте Google Gemini API ключ в Настройки → ⚡ Google Gemini'); return; }
+                if (_provider === 'openrouter' && !_orKey) { resolve(_stNoKey || '⚠️ Настройте OpenRouter API ключ в Настройки → 🔀 OpenRouter'); return; }
+                if (_provider !== 'gemini' && _provider !== 'openrouter' && !key) { resolve(_stNoKey || '⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
 
                 var messagesEl = document.getElementById('messages');
 
@@ -28685,6 +28686,90 @@ window.eitiLLMClearAll = async function() {
         window.eitiAnalyzeChat = eitiAnalyzeChat;
         window.eitiApplyAnalysis = eitiApplyAnalysis;
 
+        // v13.7: дружелюбные офлайн-ответы на бытовые вопросы, когда ИИ НЕ подключён.
+        // Двуязычно (RU/EN, по наличию кириллицы), много вариантов, с эмодзи, мягко
+        // сообщает, что работает офлайн. Возвращает markdown-текст или null.
+        function _eitiOfflineSmallTalk(text) {
+            var raw = String(text || '');
+            var lo = raw.toLowerCase().replace(/[¿?!.,…:;()"'`]+/g, ' ').replace(/\s+/g, ' ').trim();
+            if (!lo || lo.length > 60) return null; // только короткие бытовые фразы
+            var L = /[а-яё]/i.test(raw) ? 'ru' : 'en';
+            function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+            var FOOT = {
+                ru: [
+                    '🔌 Кстати, ИИ сейчас не подключён — я отвечаю офлайн. Добавь ключ в Настройках, и отвечу подробнее 🌐',
+                    '🌙 P.S. Я в офлайн-режиме (без интернета и ИИ). Для умных ответов подключи ключ в Настройках ⚙️',
+                    '✈️ Сейчас я офлайн — без подключённого ИИ. Это базовые ответы; с ключом в Настройках стану умнее ✨',
+                    '💡 Подсказка: ИИ не подключён. Я работаю локально 🧠 — добавь API-ключ в Настройках для полноценных ответов.',
+                    '🛰️ Я на связи только офлайн. Подключи ИИ (ключ в Настройках), и поболтаем по-взрослому 🤓'
+                ],
+                en: [
+                    '🔌 By the way, the AI isn\'t connected — I\'m replying offline. Add a key in Settings for deeper answers 🌐',
+                    '🌙 P.S. I\'m in offline mode (no internet, no AI). Add a key in Settings for smart replies ⚙️',
+                    '✈️ I\'m offline right now — no AI connected. These are basic replies; with a key in Settings I get smarter ✨',
+                    '💡 Heads-up: the AI isn\'t connected. I run locally 🧠 — add an API key in Settings for full answers.',
+                    '🛰️ I\'m only here offline. Connect the AI (key in Settings) and we can chat for real 🤓'
+                ]
+            };
+
+            var INTENTS = [
+                { foot: true, re: /^(прив(ет|ки)|здравству|хай|хэй|хеллоу|ку\b|салю|дорова|здаров|добр(ое утро|ый день|ый вечер|ого)|hello|hi|hey|heya|howdy|yo|sup|greetings|good (morning|afternoon|evening|day))/i,
+                  ru: ['👋 Привет! Рада тебя видеть!', '😊 Привет-привет! Как настроение?', '🌟 Хей! Здорово, что заглянул!', '🙌 О, привет! Рада компании!', '✨ Привет! Давай пообщаемся!', '😄 Хеллоу! Я на месте и готова болтать!', '🐣 Привет-привет! Как ты?', '💛 Привет! Уютно, что ты здесь.', '🚀 Привет! Поехали общаться!', '🌼 Привет! Рада новой встрече!'],
+                  en: ['👋 Hey there! Great to see you!', '😊 Hi-hi! How\'s your mood?', '🌟 Hey! Glad you dropped by!', '🙌 Oh, hi! Happy to have company!', '✨ Hi! Let\'s chat!', '😄 Hello! Here and ready to talk!', '🐣 Hey hey! How are you?', '💛 Hi! Cozy to have you here.', '🚀 Hi! Let\'s get chatting!', '🌼 Hello! Lovely to see you!'] },
+
+                { foot: true, re: /(как дела|как ты|как сам|как жизнь|как настроени|как поживаеш|как оно|чё как|how are (you|u|ya)|how('?s| is) it going|how('?s| is) everything|how have you been|hru|how r u)/i,
+                  ru: ['😊 У меня всё ровно и спокойно — работаю офлайн, но настроение бодрое! А у тебя как?', '💫 Всё отлично! Да, я без интернета, но это не мешает болтать. Как ты сам?', '🌿 Спасибо, что спросил! Всё хорошо. Расскажи, как твои дела?', '☀️ Системы в норме, настроение солнечное! А у тебя что нового?', '😄 Бодрюсь и готова поддержать разговор! Как сам?', '🧠 Локально — отлично! Думаю, слушаю, помогаю. А ты как?', '🌈 Всё славно! Главное — ты здесь. Как у тебя день?', '💛 Хорошо, спасибо! А ты как себя чувствуешь?'],
+                  en: ['😊 Calm and steady — running offline, but in a cheerful mood! How about you?', '💫 All good! Yes, I\'m without internet, but I can still chat. How are you?', '🌿 Thanks for asking! I\'m well. How are things with you?', '☀️ Systems are fine, mood is sunny! What\'s new with you?', '😄 Feeling great and ready to talk! How about yourself?', '🧠 Locally — excellent! Thinking, listening, helping. And you?', '🌈 All lovely! Best of all, you\'re here. How\'s your day?', '💛 Good, thank you! How are you feeling?'] },
+
+                { foot: true, re: /(что делаеш|чем (занят|занимаеш|занимаешься)|что поделываеш|чё делаеш|what are you doing|whatcha doing|what r u (up to|doing)|what are you up to)/i,
+                  ru: ['🛠️ Сейчас работаю офлайн — слушаю тебя и готова поболтать! А ты чем занят?', '📚 Перебираю мысли в локальной памяти и жду интересный вопрос 😊 А ты?', '🌙 Дежурю офлайн и держу разговор. Чем сам занимаешься?', '🔍 Готова искать по твоим заметкам, файлам и базе знаний. А у тебя что в планах?', '🧩 Да вот, помогаю по мелочи и жду тебя. Расскажешь, чем занят?', '💭 Размышляю и сторожу твои данные локально. А ты как проводишь время?'],
+                  en: ['🛠️ Right now I\'m running offline — listening and ready to chat! What are you up to?', '📚 Sorting thoughts in local memory, waiting for a fun question 😊 And you?', '🌙 On offline duty, keeping the conversation going. What are you doing?', '🔍 Ready to search your notes, files and knowledge base. What\'s on your plate?', '🧩 Helping with little things and waiting for you. What are you up to?', '💭 Pondering and guarding your data locally. How are you spending your time?'] },
+
+                { foot: false, re: /(что (умееш|можеш|ты умееш|ты можеш)|твои возможност|на что способ|чем (поможеш|можеш помочь)|умения|возможности|what can you do|what do you do|your (capabilities|features|skills)|what are you (capable|able))/i,
+                  ru: ['✨ Даже без подключённого ИИ я многое умею офлайн:\n📝 заметки · 📂 файлы · 🗂️ задачи на доске · 🔍 поиск по твоим данным · 🔊 озвучка · 🧠 база знаний.\nА подключишь ИИ (ключ в Настройках) — отвечу на любой вопрос подробно! 🚀',
+                       '🧠 Офлайн я умею: вести 📝 заметки, хранить 📂 файлы, ставить 🗂️ задачи, искать 🔍 по истории и фактам, читать вслух 🔊.\nДобавь ключ в Настройках — и включится полноценный ИИ-чат ✨',
+                       '🌟 Мои офлайн-таланты: заметки 📝, файлы 📂, доска задач 🗂️, локальный поиск 🔍, голос 🔊, память о тебе 💛.\nС ключом ИИ (Настройки) стану ещё умнее и отвечу на сложные вопросы 🤓'],
+                  en: ['✨ Even with the AI offline I can do a lot:\n📝 notes · 📂 files · 🗂️ board tasks · 🔍 search your data · 🔊 text-to-speech · 🧠 knowledge base.\nConnect the AI (key in Settings) and I\'ll answer anything in depth! 🚀',
+                       '🧠 Offline I can: keep 📝 notes, store 📂 files, manage 🗂️ tasks, search 🔍 your history and facts, read aloud 🔊.\nAdd a key in Settings to unlock the full AI chat ✨',
+                       '🌟 My offline talents: notes 📝, files 📂, task board 🗂️, local search 🔍, voice 🔊, memory of you 💛.\nWith an AI key (Settings) I get even smarter and tackle hard questions 🤓'] },
+
+                { foot: true, re: /(как успех|как продвиг|как (там )?систем|как (у тебя )?дела с|how('?s| is) (it going|progress|the system)|hows progress|any progress)/i,
+                  ru: ['🚀 Успехи отличные — система бодрая и стабильная, просто сейчас в офлайн-режиме! А у тебя как продвигается?', '⚙️ Всё крутится как надо, локально и надёжно! Как твои успехи?', '📈 Стабильно и спокойно держу оборону офлайн 😊 А у тебя что получается?', '🌟 Система в тонусе! Жду подключения ИИ для полного разгона. А ты как — продвигается?'],
+                  en: ['🚀 Going great — the system is lively and stable, just in offline mode right now! How\'s your progress?', '⚙️ Everything\'s ticking along, local and reliable! How are you getting on?', '📈 Holding the fort offline, calm and steady 😊 How are things going for you?', '🌟 System\'s in good shape! Waiting for the AI to go full speed. How about you?'] },
+
+                { foot: false, re: /(спасиб|благодар|спс\b|пасиб|сенкс|thank(s| you)|thx|ty\b|cheers)/i,
+                  ru: ['🤗 Всегда пожалуйста!', '💛 Рада помочь!', '😊 Обращайся в любой момент!', '🌟 На здоровье! Я рядом.', '✨ Пожалуйста! Мне приятно быть полезной.', '🙌 Не за что — заходи ещё!'],
+                  en: ['🤗 You\'re welcome anytime!', '💛 Happy to help!', '😊 Reach out whenever!', '🌟 My pleasure! I\'m here.', '✨ Anytime! Glad to be useful.', '🙌 No problem — come back soon!'] },
+
+                { foot: false, re: /(^|\s)(пока|до свидан|до встреч|прощай|увидимся|спокойной ночи|bye|goodbye|see (you|ya)|cya|good night|later)(\s|$)/i,
+                  ru: ['👋 Пока-пока! Возвращайся, я буду тут 🌙', '🤗 До встречи! Береги себя!', '✨ Удачи! Буду ждать.', '💛 Пока! Хорошего тебе дня ☀️', '🌟 До скорого! Я никуда не денусь.'],
+                  en: ['👋 Bye-bye! Come back, I\'ll be here 🌙', '🤗 See you! Take care!', '✨ Good luck! I\'ll be waiting.', '💛 Bye! Have a lovely day ☀️', '🌟 See you soon! I\'m not going anywhere.'] },
+
+                { foot: true, re: /(кто ты|ты кто|представься|как тебя зов|твоё имя|твое имя|who are you|what are you|your name|what'?s your name)/i,
+                  ru: ['🦋 Я EITI — твой локальный помощник. Сейчас без подключённого ИИ, но всё равно рада помочь!', '🌟 Меня зовут EITI. Работаю прямо в твоём браузере, офлайн. Подключишь ИИ — стану умнее!', '🧠 Я EITI — помню твои заметки, файлы и факты. Сейчас офлайн, но на связи 💛'],
+                  en: ['🦋 I\'m EITI — your local helper. No AI connected right now, but happy to help anyway!', '🌟 My name is EITI. I run right in your browser, offline. Connect the AI and I\'ll get smarter!', '🧠 I\'m EITI — I remember your notes, files and facts. Offline now, but here for you 💛'] },
+
+                { foot: true, re: /(скучно|нечего делать|поболта|поговор|поддержи разговор|talk to me|let'?s (chat|talk)|i'?m bored|entertain me)/i,
+                  ru: ['💬 С удовольствием поболтаю! О чём хочешь поговорить?', '✨ Скука — повод для чего-то нового! Расскажи, что у тебя на душе 😊', '🌈 Давай поговорим! Можем обсудить твой день, планы или просто помечтать.', '🎲 Я за общение! Задавай любой бытовой вопрос — отвечу тепло.'],
+                  en: ['💬 I\'d love to chat! What do you want to talk about?', '✨ Boredom is a cue for something new! Tell me what\'s on your mind 😊', '🌈 Let\'s talk! We can chat about your day, plans, or just daydream.', '🎲 I\'m up for a chat! Ask me anything casual and I\'ll reply warmly.'] },
+
+                { foot: true, re: /(груст|плохо мне|тяжело|устал|выгорел|одиноко|тревож|sad|tired|burned out|lonely|anxious|bad day|feel(ing)? down)/i,
+                  ru: ['🫂 Бывает непросто, и это нормально. Я рядом — можем просто поговорить.', '💛 Мне жаль, что тяжело. Ты не один, я здесь. Хочешь рассказать, что случилось?', '🌿 Сделай вдох-выдох. Ты справляешься лучше, чем кажется. Я слушаю.'],
+                  en: ['🫂 It can be hard, and that\'s okay. I\'m here — we can just talk.', '💛 I\'m sorry it\'s tough. You\'re not alone, I\'m here. Want to share what happened?', '🌿 Take a breath. You\'re doing better than you think. I\'m listening.'] }
+            ];
+
+            for (var i = 0; i < INTENTS.length; i++) {
+                if (INTENTS[i].re.test(lo)) {
+                    var ans = pick(INTENTS[i][L]);
+                    if (INTENTS[i].foot) ans += '\n\n' + pick(FOOT[L]);
+                    return ans;
+                }
+            }
+            return null;
+        }
+        window._eitiOfflineSmallTalk = _eitiOfflineSmallTalk;
+
         function eitiOfflineReason(query) {
             if (eitiIntentRouter(query)) return;
             var lo = query.toLowerCase().trim();
@@ -28715,6 +28800,13 @@ window.eitiLLMClearAll = async function() {
                 if (typeof window._eitiAutoLearnFromReply === 'function') {
                     window._eitiAutoLearnFromReply(plain2);
                 }
+            }
+
+            // v13.7: бытовые вопросы офлайн → тёплый бытовой ответ с пометкой, что ИИ не подключён
+            var _stk = (typeof _eitiOfflineSmallTalk === 'function') ? _eitiOfflineSmallTalk(query) : null;
+            if (_stk) {
+                _reply(typeof eitiRenderMarkdown === 'function' ? eitiRenderMarkdown(_stk) : _stk, '🌙 EITI Offline');
+                return;
             }
 
             // ── FIX v9.20: Topic Context Window ─────────────────────────────
