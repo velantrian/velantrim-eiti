@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.2"; // v13.7.2: glossy themes (gold/blue/silver) — add inner padding so message text stays inside the bubble border
+        var EITI_VERSION = "13.7.3"; // v13.7.3: glossy bubbles — less rounded corners (10px) + inner padding so text stays inside the border
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -4783,7 +4783,7 @@
         }
         body.design-glossy-gold .tab-item.active { color: #ffd700; }
         body.design-glossy-gold .message-body {
-            border-radius: 18px;
+            border-radius: 10px;
             box-shadow: 0 4px 16px rgba(255,200,0,0.2), inset 0 1px 0 rgba(255,240,100,0.15);
             border: 1px solid #3a2a00;
         }
@@ -4831,7 +4831,7 @@
         }
         body.design-glossy-blue .tab-item.active { color: #007aff; }
         body.design-glossy-blue .message-body {
-            border-radius: 18px;
+            border-radius: 10px;
             box-shadow: 0 4px 16px rgba(0,120,255,0.25), inset 0 1px 0 rgba(100,180,255,0.15);
             border: 1px solid #002060;
         }
@@ -4886,7 +4886,7 @@
         }
         body.design-glossy-violet .tab-item.active { color: #c0c0c8; }
         body.design-glossy-violet .message-body {
-            border-radius: 16px;
+            border-radius: 10px;
             box-shadow: 0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
             border: 1px solid #404045;
         }
