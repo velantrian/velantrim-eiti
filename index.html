@@ -13567,38 +13567,68 @@
                     setTimeout(function(){ if (t.value !== _before) t.value = _before; }, 0);
                 }, true);
 
-                // Android fallback #1: beforeinput с inputType=insertFromPaste —
-                // ловит вставку даже когда clipboardData недоступен (Chrome Android).
+                // Извлекает вставленный фрагмент через общий префикс/суффикс — не
+                // зависит от позиции каретки, поэтому вставка В СЕРЕДИНУ уже набранного
+                // текста тоже захватывается целиком (без «хвостов» в поле ввода).
+                function _eitiDiffInserted(oldV, newV) {
+                    if (newV.length <= oldV.length) return '';
+                    var p = 0, n = oldV.length;
+                    while (p < n && oldV.charCodeAt(p) === newV.charCodeAt(p)) p++;
+                    var i = oldV.length - 1, j = newV.length - 1;
+                    while (i >= p && oldV.charCodeAt(i) === newV.charCodeAt(j)) { i--; j--; }
+                    return newV.slice(p, j + 1);
+                }
+
+                // Android fallback #1: beforeinput / insertFromPaste.
+                // • e.data есть → обрабатываем сразу (preventDefault, текст в поле не попадает).
+                // • e.data == null (Chrome Android) → снимок текущего значения, а реальную
+                //   вырезку сделает input-монитор ниже. Значение читается «вживую» при каждой
+                //   вставке, поэтому программные очистки поля нас не рассинхронизируют.
                 document.addEventListener('beforeinput', function(e) {
-                    if (!e.target || e.target.id !== 'input') return;
+                    var el = e.target;
+                    if (!el || el.id !== 'input') return;
                     if (e.inputType !== 'insertFromPaste') return;
                     var pasted = e.data || '';
-                    if (!pasted || pasted.length < 300) return;
-                    var _beforeBI = e.target.value;
-                    e.preventDefault();
-                    window._eitiPastedTextBuffer = pasted;
-                    _eitiShowPastedChip(pasted);
-                    var _tBI = e.target;
-                    setTimeout(function(){ if (_tBI.value !== _beforeBI) _tBI.value = _beforeBI; }, 0);
+                    if (pasted && pasted.length >= 300) {
+                        var _beforeBI = el.value;
+                        e.preventDefault();
+                        window._eitiPastedTextBuffer = pasted;
+                        _eitiShowPastedChip(pasted);
+                        setTimeout(function(){ if (el.value !== _beforeBI) el.value = _beforeBI; }, 0);
+                        return;
+                    }
+                    window._eitiPasteSnapshot = el.value;
                 }, true);
 
-                // Android fallback #2: input-монитор — детектирует резкий прирост
-                // длины (gesture-вставка, голосовой ввод-сразу-блок).
-                var _prevInputLen = 0;
-                var _inputMonEl = document.getElementById('input');
-                if (_inputMonEl) {
-                    _inputMonEl.addEventListener('input', function() {
-                        var val = _inputMonEl.value || '';
-                        var delta = val.length - _prevInputLen;
-                        if (delta > 300 && !window._eitiPastedTextBuffer) {
-                            var pasted = val.slice(_prevInputLen);
-                            _inputMonEl.value = val.slice(0, _prevInputLen);
-                            window._eitiPastedTextBuffer = pasted;
-                            _eitiShowPastedChip(pasted);
-                        }
-                        _prevInputLen = _inputMonEl.value.length;
-                    });
-                }
+                // Android fallback #2: делегированный input-монитор в фазе CAPTURE.
+                // Capture срабатывает ДО autogrow-листенера, поэтому многокилобайтный блок
+                // вырезается из textarea ещё до чтения scrollHeight/раскладки — именно это
+                // убирает многосекундное зависание. Делегирование на document сохраняет
+                // работу даже если #input пересоздаётся.
+                document.addEventListener('input', function(e) {
+                    var el = e.target;
+                    if (!el || el.id !== 'input') return;
+                    var val = el.value || '';
+                    if (window._eitiPastedTextBuffer != null) { // чип уже показан
+                        window._eitiPasteSnapshot = null;
+                        window._eitiLastInputVal = val;
+                        return;
+                    }
+                    var base = (window._eitiPasteSnapshot != null)
+                        ? window._eitiPasteSnapshot
+                        : (typeof window._eitiLastInputVal === 'string' ? window._eitiLastInputVal : '');
+                    var inserted = _eitiDiffInserted(base, val);
+                    if (inserted.length >= 300) {
+                        el.value = base; // восстанавливаем набранный текст точь-в-точь
+                        window._eitiPasteSnapshot = null;
+                        window._eitiLastInputVal = el.value;
+                        window._eitiPastedTextBuffer = inserted;
+                        _eitiShowPastedChip(inserted);
+                        return;
+                    }
+                    window._eitiPasteSnapshot = null;
+                    window._eitiLastInputVal = val;
+                }, true);
             }
 
             function _eitiShowPastedChip(text) {
@@ -13936,7 +13966,9 @@
                     'width:26px;height:26px;border-radius:50%;border:none;' +
                     'background:rgba(255,255,255,0.85);color:#333;' +
                     'font-size:10px;line-height:1;cursor:pointer;padding:0;' +
-                    'margin:6px 0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,0.22);' +
+                    /* ниже и правее: больший отступ сверху + отрицательный правый */
+                    /* отступ выводит кнопку к самому краю пузыря */
+                    'margin:14px -6px 2px auto;box-shadow:0 1px 3px rgba(0,0,0,0.22);' +
                     'transition:transform 0.2s ease;';
                 chev.addEventListener('click', function(ev) {
                     ev.stopPropagation();
@@ -26204,6 +26236,8 @@ window.eitiLLMClearAll = async function() {
                     && window.eitiImgMaybeHandle(_typedCmd)) {
                     input.value = ''; input.style.height = 'auto';
                     window._eitiPastedTextBuffer = null; // chip was not part of an image request
+                    window._eitiPasteSnapshot = null;
+                    window._eitiLastInputVal = '';
                     var _chipImg = document.getElementById('eiti-paste-chip');
                     if (_chipImg) _chipImg.remove();
                     return;
@@ -26217,7 +26251,10 @@ window.eitiLLMClearAll = async function() {
                     window._eitiPastedTextBuffer = null;
                     var _chip0 = document.getElementById('eiti-paste-chip');
                     if (_chip0) _chip0.remove();
-                    window._eitiPasteExpanded = false;
+                    // сбрасываем трекинг вставки, чтобы следующая вставка после отправки
+                    // не сравнивалась с устаревшим значением поля
+                    window._eitiPasteSnapshot = null;
+                    window._eitiLastInputVal = '';
                 }
                 var txt = input.value.trim();
                 // v12.9.50: если прикреплён файл — инжектируем его в текст
