@@ -10772,6 +10772,17 @@
             return chatLog.map(m => `${m.role.toUpperCase()} [${new Date(m.ts).toLocaleString('ru')}]:\n${m.text}`).join('\n\n');
         }
 
+        // v13: единый источник «текста чата» для всех кнопок «Скопировать чат».
+        // Раньше _eitiCopyChat читал window.chatLog, которого не существует
+        // (chatLog объявлен через let → не попадает на window), поэтому копировался
+        // пустой/чужой текст (то, что оставалось в буфере, напр. ввод). Теперь все
+        // точки копирования берут текст из живого chatLog отсюда — без дублей.
+        window.eitiGetChatText = function eitiGetChatText() {
+            return (chatLog || []).map(function(m){
+                return (m.role === 'user' ? 'Я: ' : 'AI: ') + (m.text || '');
+            }).join('\n\n');
+        };
+
         function buildChatGraphJson() {
             const userId = 'person:user';
             const aiId = 'person:ai';
@@ -17929,7 +17940,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         }
                     } catch(e) {}
                     try {
-                        var _histMsgs = (window.chatLog || []).slice(-40);
+                        var _histMsgs = (typeof chatLog !== 'undefined' && chatLog ? chatLog : []).slice(-40); // v13 FIX: было window.chatLog (undefined → пусто)
                         if (_histMsgs.length > 0) {
                             _grokChatHistory += '\n\n=== ТЕКУЩИЙ ЧАТ (40 сообщ.) [кто что писал] ===\n';
                             _histMsgs.forEach(function(m) {
@@ -22693,7 +22704,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 clearInputBtn.addEventListener('click', function() {
                     if (_clearInputTapTimer) {
                         clearTimeout(_clearInputTapTimer); _clearInputTapTimer = null;
-                        var txt = chatLog.map(function(m){ return (m.role==='user'?'Я: ':'AI: ')+(m.text||''); }).join('\n\n');
+                        var txt = (typeof window.eitiGetChatText === 'function') ? window.eitiGetChatText() : '';
                         if (!txt.trim()) { showToast('Чат пуст'); return; }
                         copyText(txt).then(function(){ showToast('📋 Чат скопирован'); });
                         vibrate();
@@ -26800,7 +26811,7 @@ window.eitiLLMClearAll = async function() {
                 if (window._grokWS && window._grokWS.readyState === 1 &&
                     typeof window._grokLastInstructions !== 'undefined') {
                     // Пересобираем историю чата (последние 40 сообщений)
-                    var _liveHist = (window.chatLog || []).slice(-40);
+                    var _liveHist = (typeof chatLog !== 'undefined' && chatLog ? chatLog : []).slice(-40); // v13 FIX: было window.chatLog (undefined → пусто)
                     if (_liveHist.length > 0) {
                         var _histStr = '\n\n=== ТЕКУЩИЙ ЧАТ (live-sync) ===\n';
                         _liveHist.forEach(function(m) {
@@ -37881,24 +37892,13 @@ window.eitiApplyDesignTheme = function(theme, design) {
                     clearTimeout(_tapTimer);
                     _tapTimer = null;
 
-                    var msgs = document.getElementById('messages');
-                    if (!msgs) { typeof showToast === 'function' && showToast('Чат пуст'); return; }
-
-                    var lines = [];
-                    msgs.querySelectorAll('.message').forEach(function (bubble) {
-                        var sender = bubble.querySelector('.message-sender');
-                        var textEl = bubble.querySelector('[id$="-text"], .msg-text-display');
-                        var role = bubble.classList.contains('outgoing') ? 'Я' :
-                            (sender ? sender.textContent.trim() : 'AI');
-                        var text = textEl ? textEl.textContent.trim() : '';
-                        if (text) lines.push('[' + role + ']: ' + text);
-                    });
-
-                    var full = lines.join('\n\n');
+                    // v13: берём текст из единого источника (живой chatLog), а не скрейпим DOM —
+                    // одинаковый результат во всех кнопках «Скопировать чат».
+                    var full = (typeof window.eitiGetChatText === 'function') ? window.eitiGetChatText() : '';
                     if (!full.trim()) { typeof showToast === 'function' && showToast('Чат пуст'); return; }
 
                     navigator.clipboard.writeText(full).then(function () {
-                        typeof showToast === 'function' && showToast('📋 Чат скопирован (' + lines.length + ' сообщ.)');
+                        typeof showToast === 'function' && showToast('📋 Чат скопирован');
                     }).catch(function () {
                         // Fallback для iOS/старых браузеров
                         var ta = document.createElement('textarea');
@@ -44897,8 +44897,7 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         }
         if (fnName === '_eitiCopyChat') {
             var _t2 = typeof window.T === 'function' ? window.T : function(s){return s;};
-            var log = window.chatLog || [];
-            var txt = log.map(function(m){ return (m.role === 'user' ? 'Я: ' : 'AI: ') + (m.text || ''); }).join('\n\n');
+            var txt = (typeof window.eitiGetChatText === 'function') ? window.eitiGetChatText() : '';
             if (!txt.trim()) { if (typeof showToast === 'function') showToast(_t2('Чат пуст')); return; }
             if (typeof copyText === 'function') copyText(txt).then(function(){ if (typeof showToast === 'function') showToast('📋 ' + _t2('Чат скопирован')); });
             else navigator.clipboard && navigator.clipboard.writeText(txt).then(function(){ if (typeof showToast === 'function') showToast('📋 ' + _t2('Чат скопирован')); });
