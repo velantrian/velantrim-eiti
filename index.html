@@ -9365,14 +9365,18 @@
                             <div style="display:flex;flex-direction:column;gap:6px;">
                                 <div style="font-size:12px;font-weight:600;opacity:0.7;text-transform:uppercase;letter-spacing:0.5px;">Провайдер</div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;" id="api-provider-btns">
-                                    <button onclick="eitiSelectAPIProvider('auto')" id="apiprov-auto" style="padding:9px 8px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,200,0,0.1);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">🔮 Auto</button>
-                                    <button onclick="eitiSelectAPIProvider('openai')" id="apiprov-openai" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🟢 OpenAI</button>
-                                    <button onclick="eitiSelectAPIProvider('anthropic')" id="apiprov-anthropic" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🟠 Anthropic</button>
-                                    <button onclick="eitiSelectAPIProvider('gemini')" id="apiprov-gemini" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🔵 Gemini</button>
-                                    <button onclick="eitiSelectAPIProvider('mistral')" id="apiprov-mistral" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🟣 Mistral</button>
-                                    <button onclick="eitiSelectAPIProvider('deepseek')" id="apiprov-deepseek" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🤖 DeepSeek</button>
-                                    <button onclick="eitiSelectAPIProvider('grok')" id="apiprov-grok" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">⚡ Grok</button>
-                                    <button onclick="eitiSelectAPIProvider('qwen')" id="apiprov-qwen" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">🟡 Qwen</button>
+                                    <button onclick="eitiSelectAPIProvider('auto')" id="apiprov-auto" style="padding:9px 8px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,200,0,0.1);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;position:relative;">🔮 Auto</button>
+                                    <button onclick="eitiSelectAPIProvider('openai')" id="apiprov-openai" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <svg width="15" height="15" viewBox="0 0 41 41" fill="none" style="flex-shrink:0;"><path d="M37.532 16.87a9.963 9.963 0 0 0-.856-8.184 10.078 10.078 0 0 0-10.855-4.835 9.964 9.964 0 0 0-6.13-3.386 10.079 10.079 0 0 0-10.131 4.96 9.964 9.964 0 0 0-6.664 4.834 10.079 10.079 0 0 0 1.24 11.817 9.965 9.965 0 0 0 .856 8.185 10.079 10.079 0 0 0 10.855 4.835 9.965 9.965 0 0 0 6.129 3.386 10.079 10.079 0 0 0 10.132-4.96 9.965 9.965 0 0 0 6.664-4.834 10.079 10.079 0 0 0-1.24-11.818zm-17.533 24.693a7.474 7.474 0 0 1-4.801-1.735c.061-.033.168-.091.237-.134l7.964-4.6a1.294 1.294 0 0 0 .655-1.134V19.054l3.366 1.944a.12.12 0 0 1 .066.092v9.299a7.505 7.505 0 0 1-7.487 7.174zm-16.134-6.874a7.471 7.471 0 0 1-.894-5.023c.06.036.162.099.237.141l7.964 4.6a1.297 1.297 0 0 0 1.308 0l9.724-5.614v3.888a.12.12 0 0 1-.048.103l-8.051 4.649a7.504 7.504 0 0 1-10.24-2.744zm-2.102-17.557a7.47 7.47 0 0 1 3.91-3.293A.184.184 0 0 1 5.64 14v9.201a1.294 1.294 0 0 0 .654 1.132l9.723 5.614-3.366 1.944a.12.12 0 0 1-.114.012L4.489 27.022a7.504 7.504 0 0 1-2.726-10.27zm27.658 6.437l-9.724-5.615 3.367-1.943a.121.121 0 0 1 .114-.012l8.048 4.648a7.498 7.498 0 0 1-1.158 13.528v-9.476a1.293 1.293 0 0 0-.647-1.13zm3.35-5.043c-.059-.037-.162-.099-.236-.141l-7.965-4.6a1.298 1.298 0 0 0-1.308 0l-9.723 5.614v-3.888a.12.12 0 0 1 .048-.103l8.05-4.645a7.497 7.497 0 0 1 11.135 7.763zm-21.063 6.929l-3.367-1.944a.12.12 0 0 1-.065-.092v-9.299a7.497 7.497 0 0 1 12.293-5.756 6.94 6.94 0 0 0-.236.134l-7.965 4.6a1.294 1.294 0 0 0-.654 1.132l-.006 11.225zm1.829-3.943l4.33-2.501 4.332 2.5v4.999l-4.331 2.5-4.331-2.5V22.032z" fill="currentColor"/></svg>
+                                        ChatGPT
+                                        <span id="apiprov-openai-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span>
+                                    </button>
+                                    <button onclick="eitiSelectAPIProvider('anthropic')" id="apiprov-anthropic" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">🟠 Anthropic<span id="apiprov-anthropic-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
+                                    <button onclick="eitiSelectAPIProvider('gemini')" id="apiprov-gemini" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">🔵 Gemini<span id="apiprov-gemini-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
+                                    <button onclick="eitiSelectAPIProvider('mistral')" id="apiprov-mistral" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">🟣 Mistral<span id="apiprov-mistral-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
+                                    <button onclick="eitiSelectAPIProvider('deepseek')" id="apiprov-deepseek" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">🤖 DeepSeek<span id="apiprov-deepseek-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
+                                    <button onclick="eitiSelectAPIProvider('grok')" id="apiprov-grok" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">⚡ Grok<span id="apiprov-grok-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
+                                    <button onclick="eitiSelectAPIProvider('qwen')" id="apiprov-qwen" style="padding:9px 8px;border-radius:10px;border:2px solid rgba(255,255,255,0.15);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;position:relative;">🟡 Qwen<span id="apiprov-qwen-badge" style="display:none;position:absolute;top:4px;right:5px;width:8px;height:8px;background:#4ad700;border-radius:50%;border:1.5px solid #000;box-shadow:0 0 4px #4ad700;"></span></button>
                                 </div>
                             </div>
                             <!-- Ввод ключа -->
@@ -9404,7 +9408,7 @@
                                 <!-- заполняется JS -->
                             </div>
                             <div style="font-size:11px;opacity:0.4;line-height:1.5;">
-                                ℹ️ OpenAI: требует авторизацию через dashboard.openai.com для просмотра расходов. Anthropic/Mistral: баланс через API. Gemini: бесплатный tier — токены без лимита.
+                                ℹ️ ChatGPT (OpenAI): ключ получить на platform.openai.com → API keys. Зелёная точка 🟢 на кнопке = ключ подключён. Anthropic/Mistral: баланс через API. Gemini: бесплатный tier.
                             </div>
                         </div>
                     </div>
@@ -13904,7 +13908,7 @@
                 msg.dataset.msgid = m.id;
 
                 const time = new Date(m.ts).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
-                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
+                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
                 const senderHtml = (m.role !== 'user') ? '<div class="message-sender">' + (_pLabels[m.provider] || 'EITI AI 🤖') + '</div>' : '';
 
                 // v12.9.72: мульти-чипы — показываем все прикреплённые файлы
@@ -17137,7 +17141,7 @@
                 : eitiRenderMarkdown(m.content);
             div.innerHTML =
                 '<div class="message-row"><div class="message-body">' +
-                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
+                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
                 fileChipHtml +
                 '<div>' + rendered + '</div>' +
                 '<div class="message-time" style="font-size:11px;opacity:0.55;margin-top:3px">' + time + '</div>' +
@@ -19269,13 +19273,15 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     resolve('⚡ DeepSeek отключён. Нажми кнопку ⚡ в поле ввода чтобы включить.');
                     return;
                 }
-                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
-                var _geminiKey = _deobfKey(localStorage.getItem('eiti_gemini_key') || '');
+                var key = _deobfKey(localStorage.getItem('deepseek_api_key') || localStorage.getItem('eiti_apikey_deepseek') || '');
+                var _geminiKey = _deobfKey(localStorage.getItem('eiti_gemini_key') || localStorage.getItem('eiti_apikey_gemini') || '');
                 var _orKey = _deobfKey(localStorage.getItem('eiti_or_key') || '');
+                var _openaiKey = _deobfKey(localStorage.getItem('eiti_apikey_openai') || localStorage.getItem('eiti_openai_key') || '');
                 var _stNoKey = (typeof _eitiOfflineSmallTalk === 'function') ? _eitiOfflineSmallTalk(userText) : null;
                 if (_provider === 'gemini' && !_geminiKey) { resolve(_stNoKey || '⚠️ Настройте Google Gemini API ключ в Настройки → ⚡ Google Gemini'); return; }
                 if (_provider === 'openrouter' && !_orKey) { resolve(_stNoKey || '⚠️ Настройте OpenRouter API ключ в Настройки → 🔀 OpenRouter'); return; }
-                if (_provider !== 'gemini' && _provider !== 'openrouter' && !key) { resolve(_stNoKey || '⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
+                if (_provider === 'openai' && !_openaiKey) { resolve(_stNoKey || '⚠️ Настройте ChatGPT API ключ в Настройки → API → выбери ChatGPT'); return; }
+                if (_provider !== 'gemini' && _provider !== 'openrouter' && _provider !== 'openai' && !key) { resolve(_stNoKey || '⚠️ Настройте DeepSeek API ключ в Настройки → 🤖 DeepSeek AI'); return; }
 
                 var messagesEl = document.getElementById('messages');
 
@@ -19287,7 +19293,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var time = new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
                 // v12.9.78: авто-детект режима мышления
                 var _thinkMode = eitiDetectThinkMode(userText);
-                var _provLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
+                var _provLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
                 var _baseLabel = _provLabels[_provider] || 'EITI AI 🤖';
                 var _senderLabel = eitiThinkModeLabel(_thinkMode, _baseLabel);
                 liveDiv.innerHTML =
@@ -20151,7 +20157,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                         // v12.9.79 FIX: сбрасываем анимацию Think 🧠 — Gemini завершил ответ
                                         var _gmSenderEl = le.querySelector('.message-sender');
                                         if (_gmSenderEl) {
-                                            var _gmProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                            var _gmProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢'})[_provider] || 'EITI AI 🤖';
                                             if (_ddgWebUsed) _gmProvLabel += ' + Web🌎';
                                             _gmSenderEl.innerHTML = _gmProvLabel;
                                         }
@@ -20244,7 +20250,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     // v12.9.78: убираем анимацию мышления — ответ готов
                                     var _senderEl = liveDiv.querySelector('.message-sender');
                                     if (_senderEl) {
-                                        var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                        var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢'})[_provider] || 'EITI AI 🤖';
                                         if (_ddgWebUsed) _orProvLabel += ' + Web🌎';
                                         _senderEl.innerHTML = _orProvLabel;
                                     }
@@ -20277,6 +20283,91 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         clearTimeout(_abortTimer);
                         var d = document.getElementById(liveId);
                         if (d) { var t = d.querySelector('[id$="-text"]'); if (t) t.innerHTML = '<span style="color:#ff6b6b;">❌ OpenRouter: ' + String(e.message||'').replace(/</g,'&lt;') + '</span>'; }
+                        window._eitiIsStreaming = false; reject(e);
+                    });
+                    return;
+                }
+
+                // ── OpenAI ChatGPT SSE path ─────────────────────────
+                if (_provider === 'openai') {
+                    var _oaiModel = localStorage.getItem('eiti_openai_model') || 'gpt-4o';
+                    fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        signal: _abortCtrl.signal,
+                        headers: { 'Authorization': 'Bearer ' + _openaiKey, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: _oaiModel, messages: history, max_tokens: _maxTok, stream: true })
+                    }).then(function(r) {
+                        clearTimeout(_abortTimer);
+                        if (!r.ok) {
+                            r.text().then(function(errBody) {
+                                var errMsg = 'ChatGPT HTTP ' + r.status;
+                                try { var ej = JSON.parse(errBody); errMsg += ' — ' + ((ej.error&&(ej.error.message||ej.error.code))||errBody.slice(0,200)); } catch(e) {}
+                                var liveEl = document.getElementById(liveId);
+                                if (liveEl) { var t = liveEl.querySelector('[id$="-text"]'); if (t) t.innerHTML = '<span style="color:#ff6b6b;">❌ ' + errMsg.replace(/</g,'&lt;') + '</span>'; }
+                                reject(new Error(errMsg));
+                            }); return;
+                        }
+                        if (!r.body) { document.getElementById(liveId).remove(); reject(new Error('No response body')); return; }
+                        var reader = r.body.getReader(); var decoder = new TextDecoder(); var result = '';
+                        var _oaiSseBuffer = '';
+                        var textEl = document.getElementById(liveId + '-text');
+                        window._eitiIsStreaming = true;
+                        function readOAI() {
+                            return reader.read().then(function(chunk) {
+                                if (chunk.done) {
+                                    if (_isSysPromptLeak(result)) {
+                                        if (textEl) textEl.innerHTML = '<span style="color:#f66">⚠️ Модель вернула системный промпт.</span>';
+                                        window._eitiIsStreaming = false; reject(new Error('sys_prompt_leak')); return;
+                                    }
+                                    if (textEl) textEl.innerHTML = eitiRenderMarkdown(result);
+                                    try { _eitiThinkDone(liveId); } catch(e) {}
+                                    var _senderEl = liveDiv.querySelector('.message-sender');
+                                    if (_senderEl) { _senderEl.innerHTML = 'ChatGPT 🟢' + (_ddgWebUsed ? ' + Web🌎' : ''); }
+                                    var row = liveDiv.querySelector('.message-row');
+                                    if (row) {
+                                        var ctrl = document.createElement('div');
+                                        ctrl.className = 'message-controls';
+                                        var r2 = result;
+                                        ctrl.innerHTML = '<button class="msg-btn tts-btn" title="Озвучить">🔊</button><button class="msg-btn" title="Копировать">📋</button>';
+                                        ctrl.querySelectorAll('.msg-btn')[0].onclick = function(){ toggleSpeech(liveId, r2); };
+                                        ctrl.querySelectorAll('.msg-btn')[1].onclick = function(){ copyText(r2).then(function(){ showToast('Скопировано'); }); };
+                                        row.appendChild(ctrl);
+                                    }
+                                    chatLog.push({id: liveId, role: 'assistant', text: result, ts: Date.now(), provider: _provider});
+                                    saveChat(); eitiUpdateState(result); window._eitiIsStreaming = false;
+                                    if (eitiCurrentChatId) eitiL2Consolidate(eitiCurrentChatId);
+                                    if (typeof _eitiTrackTokens === 'function' && window._tokenEstimate) {
+                                        _eitiTrackTokens(_provider, _tokenEstimate.prompt || Math.round(sysContent.length/4), Math.round(result.length/4));
+                                    }
+                                    requestAnimationFrame(function(){ var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight; });
+                                    resolve(result); return;
+                                }
+                                _oaiSseBuffer += decoder.decode(chunk.value, {stream: true});
+                                var _oaiLines = _oaiSseBuffer.split('\n');
+                                _oaiSseBuffer = _oaiLines.pop();
+                                _oaiLines.forEach(function(line) {
+                                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                                        try {
+                                            var _oaij = JSON.parse(line.slice(6));
+                                            var _oaid = (_oaij.choices && _oaij.choices[0] && _oaij.choices[0].delta) || {};
+                                            var delta = _oaid.content;
+                                            if (delta) {
+                                                result += delta;
+                                                if (textEl) textEl.textContent = result;
+                                                var ms = document.getElementById('messages');
+                                                if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight;
+                                            }
+                                        } catch(e) {}
+                                    }
+                                });
+                                return readOAI();
+                            });
+                        }
+                        return readOAI();
+                    }).catch(function(e) {
+                        clearTimeout(_abortTimer);
+                        var d = document.getElementById(liveId);
+                        if (d) { var t = d.querySelector('[id$="-text"]'); if (t) t.innerHTML = '<span style="color:#ff6b6b;">❌ ChatGPT: ' + String(e.message||'').replace(/</g,'&lt;') + '</span>'; }
                         window._eitiIsStreaming = false; reject(e);
                     });
                     return;
@@ -20397,7 +20488,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 // v12.9.78: убираем анимацию мышления — ответ готов
                                 var _senderEl2 = liveDiv.querySelector('.message-sender');
                                 if (_senderEl2) {
-                                    var _dsProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖'})[_provider] || 'EITI AI 🤖';
+                                    var _dsProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢'})[_provider] || 'EITI AI 🤖';
                                     if (_ddgWebUsed) _dsProvLabel += ' + Web🌎';
                                     _senderEl2.innerHTML = _dsProvLabel;
                                 }
@@ -26799,7 +26890,7 @@ window.eitiLLMClearAll = async function() {
             // P6-fix: показываем источник данных рядом с меткой EITI AI
             var _kbBadge = '';
             var _providerNow = localStorage.getItem('eiti_ai_provider') || 'ai';
-            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
+            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
             var _senderLabel = _provLabelMap[_providerNow] || 'EITI AI 🤖';
             if (window._lastReplySource === 'mosc') {
                 _kbBadge = ' <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(147,197,253,0.18);color:#93c5fd;font-weight:600;vertical-align:middle;">🔷 MOSC</span>';
@@ -27156,7 +27247,7 @@ window.eitiLLMClearAll = async function() {
                             rendered=content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                         }
                         div.innerHTML='<div class="message-row"><div class="message-body">'
-                            +(m.role!=='user'?'<div class="message-sender">'+({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider]||'EITI AI 🤖')+'</div>':'')
+                            +(m.role!=='user'?'<div class="message-sender">'+({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider]||'EITI AI 🤖')+'</div>':'')
                             +'<div>'+rendered+'</div>'
                             +'<div class="message-time" style="font-size:11px;opacity:0.55;margin-top:3px">'+time+'</div>'
                             +'</div><div class="message-controls"><button class="msg-btn" title="Копировать">📋</button></div></div>';
@@ -39990,6 +40081,8 @@ window._eitiInitSQL = _initSQL;
         if (inp) {
             if (p === 'auto') { inp.placeholder = 'Вставьте любой ключ — определю сам'; inp.value = ''; inp.setAttribute('data-loaded','0'); return; }
             var saved = localStorage.getItem('eiti_apikey_' + p) || '';
+            if (p === 'deepseek' && !saved) saved = localStorage.getItem('deepseek_api_key') || '';
+            if (p === 'gemini' && !saved) saved = localStorage.getItem('eiti_gemini_key') || '';
             inp.placeholder = p==='gemini'?'AIza...':'sk-...';
             inp.value = saved ? '●'.repeat(Math.min(saved.length, 24)) : '';
             inp.setAttribute('data-loaded', saved ? '1' : '0');
@@ -40003,10 +40096,10 @@ window._eitiInitSQL = _initSQL;
             title: '🟢 Модель ChatGPT',
             key: 'eiti_openai_model',
             defs: [
-                { id: 'gpt-5.5',      label: 'GPT-5.5',   desc: 'Флагман' },
-                { id: 'gpt-5.4',      label: 'GPT-5.4',   desc: 'Топ' },
-                { id: 'gpt-5.4-mini', label: '5.4 Mini',  desc: 'Быстро' },
-                { id: 'o3',           label: 'o3',         desc: 'Reasoning' },
+                { id: 'gpt-4o',        label: 'GPT-4o',      desc: 'Флагман ✓' },
+                { id: 'gpt-4o-mini',   label: '4o Mini',      desc: 'Быстро' },
+                { id: 'o4-mini',       label: 'o4-mini',      desc: 'Reasoning' },
+                { id: 'o3',            label: 'o3',           desc: 'Deep Think' },
             ]
         },
         anthropic: {
@@ -40100,13 +40193,32 @@ window._eitiInitSQL = _initSQL;
         inp.type = inp.type === 'password' ? 'text' : 'password';
     };
 
+    // Green dot on every provider button that has a saved key
+    function _eitiRefreshProviderBadges() {
+        var _keyMap = {
+            openai: 'eiti_apikey_openai', anthropic: 'eiti_apikey_anthropic',
+            gemini: ['eiti_apikey_gemini','eiti_gemini_key'],
+            mistral: 'eiti_apikey_mistral', deepseek: ['eiti_apikey_deepseek','deepseek_api_key'],
+            grok: 'eiti_apikey_grok', qwen: 'eiti_apikey_qwen'
+        };
+        Object.keys(_keyMap).forEach(function(p) {
+            var badge = document.getElementById('apiprov-' + p + '-badge');
+            if (!badge) return;
+            var keys = Array.isArray(_keyMap[p]) ? _keyMap[p] : [_keyMap[p]];
+            var hasKey = keys.some(function(k){ return !!localStorage.getItem(k); });
+            badge.style.display = hasKey ? 'block' : 'none';
+        });
+    }
+    window._eitiRefreshProviderBadges = _eitiRefreshProviderBadges;
+
     window.eitiSaveAPIKey = function() {
         var inp = document.getElementById('api-balance-key');
         if (!inp || !inp.value.trim()) { if(typeof showToast==='function') showToast('Введите ключ'); return; }
         if (inp.getAttribute('data-loaded') === '1') { if(typeof showToast==='function') showToast('Ключ уже сохранён'); return; }
         localStorage.setItem('eiti_apikey_' + _prov, inp.value.trim());
         inp.setAttribute('data-loaded', '1');
-        if(typeof showToast==='function') showToast('✅ Ключ сохранён');
+        _eitiRefreshProviderBadges();
+        if(typeof showToast==='function') showToast('✅ Ключ сохранён — ChatGPT подключён!');
     };
 
     window.eitiClearAPIKey = function() {
@@ -40115,6 +40227,7 @@ window._eitiInitSQL = _initSQL;
         if (inp) { inp.value = ''; inp.setAttribute('data-loaded', '0'); }
         var res = document.getElementById('api-balance-result');
         if (res) res.style.display = 'none';
+        _eitiRefreshProviderBadges();
         if(typeof showToast==='function') showToast('🗑 Ключ удалён');
     };
 
@@ -40261,6 +40374,7 @@ window._eitiInitSQL = _initSQL;
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof eitiSelectAPIProvider === 'function') eitiSelectAPIProvider(_prov);
+        setTimeout(_eitiRefreshProviderBadges, 300);
     });
 })();
 </script>
