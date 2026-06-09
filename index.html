@@ -3420,7 +3420,16 @@
             var state = { locale: 'ru' };
             try {
                 var saved = localStorage.getItem('eiti_locale');
-                if (saved === 'ru' || saved === 'en' || saved === 'de') state.locale = saved;
+                if (saved === 'ru' || saved === 'en' || saved === 'de') {
+                    state.locale = saved;
+                } else {
+                    // First launch: detect from browser/OS language
+                    var _nav = (navigator.language || navigator.userLanguage || '').toLowerCase();
+                    var _navBase = _nav.split('-')[0];
+                    if (_navBase === 'ru' || _navBase === 'uk' || _navBase === 'be') state.locale = 'ru';
+                    else if (_navBase === 'de') state.locale = 'de';
+                    else state.locale = 'en';
+                }
             } catch(e) {}
 
             function T(key, vars) {
@@ -3686,17 +3695,17 @@
         window.eitiGetAiReplyLang = function() {
             try {
                 var v = localStorage.getItem('eiti_ai_reply_lang');
-                if (v === 'en' || v === 'ru' || v === 'auto') return v;
+                if (v === 'en' || v === 'ru' || v === 'de' || v === 'auto') return v;
             } catch(e) {}
             return 'auto';
         };
         window.eitiSetAiReplyLang = function(v) {
-            if (v !== 'auto' && v !== 'en' && v !== 'ru') return;
+            if (v !== 'auto' && v !== 'en' && v !== 'ru' && v !== 'de') return;
             try { localStorage.setItem('eiti_ai_reply_lang', v); } catch(e) {}
             try { if (typeof window.eitiUpdateAiReplyLangUI === 'function') window.eitiUpdateAiReplyLangUI(); } catch(e) {}
             try {
                 if (typeof window.showToast === 'function') {
-                    var labels = { auto: 'Auto · Автоопределение', en: 'English', ru: 'Русский' };
+                    var labels = { auto: 'Auto · Автоопределение', en: 'English', ru: 'Русский', de: 'Deutsch' };
                     window.showToast('🤖 AI reply: ' + labels[v], 1400);
                 }
             } catch(e) {}
@@ -3741,21 +3750,23 @@
             setTimeout(function(){ if (typeof window.eitiUpdateStrictModeUI === 'function') window.eitiUpdateStrictModeUI(); }, 200);
         });
         // Heuristic language detection: count Cyrillic vs Latin letters.
-        // Returns 'ru' | 'en'. Used only when reply-lang setting is 'auto'.
+        // Returns 'ru' | 'en' | 'de'. Used only when reply-lang setting is 'auto'.
         window.eitiDetectMessageLang = function(text) {
-            if (!text || typeof text !== 'string') return 'ru';
+            if (!text || typeof text !== 'string') return window.eitiGetLocale() || 'ru';
             var cyr = (text.match(/[Ѐ-ӿ]/g) || []).length;
             var lat = (text.match(/[A-Za-z]/g) || []).length;
             if (cyr === 0 && lat === 0) return window.eitiGetLocale() || 'ru';
-            // Cyrillic dominant if it has at least as many letters as Latin
-            return cyr >= lat ? 'ru' : 'en';
+            if (cyr >= lat) return 'ru';
+            // Latin text: if UI locale is 'de', assume German writing
+            var _loc = window.eitiGetLocale ? window.eitiGetLocale() : 'en';
+            return (_loc === 'de') ? 'de' : 'en';
         };
         // Effective reply language for a given user message.
         // If setting is 'auto' → detect from text; else honor explicit setting.
         // Falls back to UI locale if nothing else is known.
         window.eitiGetEffectiveReplyLang = function(userText) {
             var s = window.eitiGetAiReplyLang();
-            if (s === 'en' || s === 'ru') return s;
+            if (s === 'en' || s === 'ru' || s === 'de') return s;
             return window.eitiDetectMessageLang(userText || '');
         };
 
@@ -3767,7 +3778,7 @@
                 var activeColor = '#000';
                 var inactive = 'var(--secondary-color)';
                 var inactiveColor = 'var(--text-color)';
-                ['auto','en','ru'].forEach(function(opt) {
+                ['auto','en','ru','de'].forEach(function(opt) {
                     var btn = document.getElementById('eiti-ai-reply-' + opt + '-btn');
                     if (!btn) return;
                     btn.style.background = (v === opt) ? active : inactive;
@@ -7257,9 +7268,14 @@
                                         <span style="font-size:14px;">🇬🇧</span>
                                         <span>EN</span>
                                     </button>
+                                    <button id="eiti-ai-reply-de-btn" type="button" onclick="eitiSetAiReplyLang('de')"
+                                        style="flex:1;padding:10px 6px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+                                        <span style="font-size:14px;">🇩🇪</span>
+                                        <span>DE</span>
+                                    </button>
                                 </div>
                                 <div style="font-size:11px;opacity:0.5;line-height:1.5;margin-top:6px;">
-                                    <span data-i18n="Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.">Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.</span>
+                                    <span data-i18n="Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU или EN.">Авто — AI отвечает на языке вашего сообщения. Можно зафиксировать RU, EN или DE.</span>
                                 </div>
                             </div>
                         </div>
@@ -15780,7 +15796,8 @@
                 ? window.eitiGetEffectiveReplyLang(userText || '')
                 : 'ru';
             // Pick up live mutations to window.EITI_SYSTEM_KNOWLEDGE (some code paths reassign it).
-            return (lang === 'en')
+            // 'de' and other non-Russian languages fall back to the EN knowledge base.
+            return (lang === 'en' || lang === 'de')
                 ? (window.EITI_SYSTEM_KNOWLEDGE_EN || EITI_SYSTEM_KNOWLEDGE_EN)
                 : (window.EITI_SYSTEM_KNOWLEDGE || EITI_SYSTEM_KNOWLEDGE);
         };
@@ -17802,7 +17819,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     } else {
                         _grokSelfInfo += 'ЯЗЫК: Отвечай на языке пользователя. Если говорит по-русски — отвечай по-русски; если по-английски — по-английски.\n';
                     }
-                    if (_gForced === 'en') {
+                    if (_gForced === 'de') {
+                        _grokSelfInfo = '🌐 SPRACHE: Antworte IMMER auf Deutsch, unabhängig von der Sprache des Nutzers.\n\n' + _grokSelfInfo;
+                    } else if (_gForced === 'en') {
                         _grokSelfInfo = '🌐 LANGUAGE OVERRIDE: Always reply in English regardless of the user\'s speech language.\n\n' + _grokSelfInfo;
                     } else if (_gForced === 'ru') {
                         _grokSelfInfo = '🌐 ЯЗЫК: Всегда отвечай на русском независимо от языка речи пользователя.\n\n' + _grokSelfInfo;
@@ -19315,24 +19334,28 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var _sysStatic = (typeof window.eitiGetSystemKnowledge === 'function')
                     ? window.eitiGetSystemKnowledge(userText)
                     : EITI_SYSTEM_KNOWLEDGE;
-                // Explicit forced-language override (only when user set en/ru, not auto)
-                if (_forcedReplyLang === 'en') {
+                // v13.3.3: prepend user instructions
+                var _instrTop = eitiGetInstructions();
+                if (_instrTop) {
+                    var _rulePrefix = (_replyLang === 'de')
+                        ? '🔴 REGEL #1 — IMMER BEFOLGEN: '
+                        : (_replyLang === 'en')
+                            ? '🔴 RULE #1 — ALWAYS FOLLOW: '
+                            : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+                    _sysStatic = _rulePrefix + _instrTop + '\n\n' + _sysStatic;
+                }
+                // Language override at absolute TOP — must come after instructions so it has highest priority
+                if (_forcedReplyLang === 'de') {
+                    _sysStatic = '🌐 SPRACHE: Antworte IMMER auf Deutsch, unabhängig von der Sprache der Nachricht des Nutzers. Verwende Deutsch für alle Antworten, Beispiele, Kommentare und Erklärungen.\n\n' + _sysStatic;
+                } else if (_forcedReplyLang === 'en') {
                     _sysStatic = '🌐 LANGUAGE OVERRIDE: Always reply in English, regardless of the user\'s message language. Use English for all responses, examples, comments and explanations.\n\n' + _sysStatic;
                 } else if (_forcedReplyLang === 'ru') {
                     _sysStatic = '🌐 ЯЗЫК: Всегда отвечай на русском, независимо от языка сообщения пользователя. Используй русский для всех ответов, примеров, комментариев и пояснений.\n\n' + _sysStatic;
                 }
-                // v13.3.3: prepend user instructions at TOP for maximum compliance
-                var _instrTop = eitiGetInstructions();
-                if (_instrTop) {
-                    var _rulePrefix = (_replyLang === 'en')
-                        ? '🔴 RULE #1 — ALWAYS FOLLOW: '
-                        : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
-                    _sysStatic = _rulePrefix + _instrTop + '\n\n' + _sysStatic;
-                }
                 // Заменяем время один раз на округлённое до часа (меняется раз в час → кэш живёт час)
                 var _nowHour = new Date();
                 _nowHour.setMinutes(0, 0, 0);
-                if (_replyLang === 'en') {
+                if (_replyLang === 'en' || _replyLang === 'de') {
                     _sysStatic = _sysStatic.replace(/now [^\n]+/g, 'now ' + _nowHour.toLocaleString('en'));
                 } else {
                     _sysStatic = _sysStatic.replace(/сейчас [^\n]+/g, 'сейчас ' + _nowHour.toLocaleString('ru'));
@@ -42319,14 +42342,17 @@ window.eitiAskDeepSeek = function(userText) {
         // v13.3.3: inject user instructions into Qwen system prompt
         var _qInstr = (typeof eitiGetInstructions === 'function') ? eitiGetInstructions() : '';
         if (_qInstr) {
-            var _qRulePrefix = (_qReplyLang === 'en') ? '🔴 RULE #1 — ALWAYS FOLLOW: ' : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
-            var _qInstrTail = (_qReplyLang === 'en')
-                ? '\n\n=== USER INSTRUCTIONS (MANDATORY) ===\n' + _qInstr + '\n==='
-                : '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
+            var _qRulePrefix = (_qReplyLang === 'de') ? '🔴 REGEL #1 — IMMER BEFOLGEN: ' : (_qReplyLang === 'en') ? '🔴 RULE #1 — ALWAYS FOLLOW: ' : '🔴 ПРАВИЛО №1 — ВСЕГДА СОБЛЮДАТЬ: ';
+            var _qInstrTail = (_qReplyLang === 'de')
+                ? '\n\n=== NUTZERANWEISUNGEN (PFLICHT) ===\n' + _qInstr + '\n==='
+                : (_qReplyLang === 'en')
+                    ? '\n\n=== USER INSTRUCTIONS (MANDATORY) ===\n' + _qInstr + '\n==='
+                    : '\n\n=== ИНСТРУКЦИИ ПОЛЬЗОВАТЕЛЯ (ОБЯЗАТЕЛЬНО) ===\n' + _qInstr + '\n===';
             sysContent = _qRulePrefix + _qInstr + '\n\n' + sysContent + _qInstrTail;
         }
         var _qForced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
-        if (_qForced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        if (_qForced === 'de') sysContent = '🌐 SPRACHE: Antworte IMMER auf Deutsch.\n\n' + sysContent;
+        else if (_qForced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
         else if (_qForced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         history.push({ role: 'system', content: sysContent });
 
@@ -43470,7 +43496,8 @@ window.eitiAskDeepSeek = function(userText) {
             ? window.eitiGetSystemKnowledge(userText)
             : ((typeof EITI_SYSTEM_KNOWLEDGE !== 'undefined') ? EITI_SYSTEM_KNOWLEDGE : '');
         var _p3Forced = (typeof window.eitiGetAiReplyLang === 'function') ? window.eitiGetAiReplyLang() : 'auto';
-        if (_p3Forced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
+        if (_p3Forced === 'de') sysContent = '🌐 SPRACHE: Antworte IMMER auf Deutsch.\n\n' + sysContent;
+        else if (_p3Forced === 'en') sysContent = '🌐 LANGUAGE OVERRIDE: Always reply in English.\n\n' + sysContent;
         else if (_p3Forced === 'ru') sysContent = '🌐 ЯЗЫК: Всегда отвечай на русском.\n\n' + sysContent;
         var l0Msgs = window.eitiL0 || [];
         var history = [{ role: 'system', content: sysContent }];
