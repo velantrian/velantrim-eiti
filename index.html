@@ -13893,7 +13893,7 @@
                 msg.dataset.msgid = m.id;
 
                 const time = new Date(m.ts).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
-                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
+                const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
                 const senderHtml = (m.role !== 'user') ? '<div class="message-sender">' + (_pLabels[m.provider] || 'EITI AI 🤖') + '</div>' : '';
 
                 // v12.9.72: мульти-чипы — показываем все прикреплённые файлы
@@ -13939,6 +13939,7 @@
                             ${m.role !== 'user' ? '<button class="msg-btn tts-btn" title="Озвучить / Пауза / Продолжить" data-act="speak">🔊</button>' : ''}
                             ${m.role === 'user' ? '<button class="msg-btn" title="Редактировать" data-act="edit">✏️</button>' : ''}
                             <button class="msg-btn" title="Скопировать" data-act="copy">📋</button>
+                            <button class="msg-btn" title="Удалить" data-act="delete">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -13948,6 +13949,8 @@
                 if (speakBtn) speakBtn.onclick = () => toggleSpeech(m.id, m.text);
                 var editBtn = msg.querySelector('[data-act="edit"]');
                 if (editBtn) { msg.dataset.msgtxt = m.text; editBtn.onclick = function(){ eitiEditUserMsg(msg, m.id, m.text); }; }
+                var delBtn = msg.querySelector('[data-act="delete"]');
+                if (delBtn) { delBtn.onclick = function(){ if (typeof eitiDeleteMessage === 'function') eitiDeleteMessage(m.id, msg); }; }
 
                 // v13.4.0 P1 FIX #9: feedback 👍/👎 для AI-ответов (PKG/MOSC learning).
                 if (m.role !== 'user') {
@@ -16732,7 +16735,7 @@
             } catch(e) { resolve([]); }
         }
 
-        function eitiAddMessage(chatId, role, content) {
+        function eitiAddMessage(chatId, role, content, opts) {
             return new Promise(function(resolve, reject) {
                 var domain = eitiClassifyDomain(content);
                 var msg = {
@@ -16740,6 +16743,7 @@
                     chat_id: chatId, role: role, content: content, domain: domain,
                     created: new Date().toISOString()
                 };
+                if (opts && opts.provider) msg.provider = opts.provider;
                 var _chatMsgCount = 0; // v12.9.43: захватываем счётчик для периодической консолидации
                 var tx = eitiDb.transaction(['messages', 'chats'], 'readwrite');
                 tx.objectStore('messages').add(msg);
@@ -16859,6 +16863,27 @@
                 showToast('Чат удалён 🗑️');
             };
         }
+
+        // ═══════════════════════════════════════════════════
+        // DELETE SINGLE MESSAGE
+        // ═══════════════════════════════════════════════════
+        function eitiDeleteMessage(msgId, bubbleEl) {
+            // Remove from DOM
+            var el = bubbleEl || document.querySelector('[data-msgid="' + msgId + '"]');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+            // Remove from chatLog
+            chatLog = chatLog.filter(function(m) { return m.id !== msgId; });
+            // Remove from IDB — prefer data-idbid set after async save, else try msgId
+            var idbId = (el && el.dataset.idbid) ? el.dataset.idbid : msgId;
+            if (eitiDb) {
+                try {
+                    var tx = eitiDb.transaction(['messages'], 'readwrite');
+                    tx.objectStore('messages').delete(idbId);
+                } catch(e) {}
+            }
+            showToast('Сообщение удалено');
+        }
+        window.eitiDeleteMessage = eitiDeleteMessage;
 
         // ═══════════════════════════════════════════════════
         // LOAD CHAT BY ID — Mamba-style chunked summarization
@@ -17100,15 +17125,17 @@
                 : eitiRenderMarkdown(m.content);
             div.innerHTML =
                 '<div class="message-row"><div class="message-body">' +
-                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
+                (m.role !== 'user' ? '<div class="message-sender">' + ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider] || 'EITI AI 🤖') + '</div>' : '') +
                 fileChipHtml +
                 '<div>' + rendered + '</div>' +
                 '<div class="message-time" style="font-size:11px;opacity:0.55;margin-top:3px">' + time + '</div>' +
                 '</div><div class="message-controls">' +
                 (m.role !== 'user' ? '<button class="msg-btn tts-btn" title="Озвучить">🔊</button>' : '') +
-                '<button class="msg-btn" title="Копировать">📋</button></div></div>';
+                '<button class="msg-btn" title="Копировать">📋</button>' +
+                '<button class="msg-btn eiti-del-btn" title="Удалить">🗑️</button></div></div>';
             var txt = m.content;
-            var btns = div.querySelectorAll('.msg-btn');
+            div.dataset.idbid = m.id;
+            var btns = div.querySelectorAll('.msg-btn:not(.eiti-del-btn)');
             if (m.role !== 'user' && btns.length >= 2) {
                 var msgId2 = 'hist_' + m.id;
                 div.querySelector('.tts-btn').onclick = function(){ if(typeof toggleSpeech==='function') toggleSpeech(msgId2, txt); };
@@ -17116,6 +17143,8 @@
             } else if (btns.length >= 1) {
                 btns[btns.length-1].onclick = function() { copyText(txt).then(function(){ showToast('Скопировано'); }); };
             }
+            var _delBtnH = div.querySelector('.eiti-del-btn');
+            if (_delBtnH) { var _mIdH = m.id; _delBtnH.onclick = function(){ if (typeof eitiDeleteMessage === 'function') eitiDeleteMessage(_mIdH, div); }; }
             return div;
         }
         function eitiLoadChatIntoView(chatId) {
@@ -19202,17 +19231,18 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         }
 
         // Возвращает HTML для sender label в зависимости от режима
-        function eitiThinkModeLabel(mode) {
+        function eitiThinkModeLabel(mode, baseLabel) {
+            var base = baseLabel || 'EITI AI 🤖';
             if (mode === 'think_pro') {
-                return 'EITI AI 🤖 Think <span class="eiti-mode-brain">🧠</span>';
+                return base + ' Think <span class="eiti-mode-brain">🧠</span>';
             }
             if (mode === 'think') {
-                return 'EITI AI 🤖 Думаю <span class="eiti-mode-bulb">💡</span>';
+                return base + ' Думаю <span class="eiti-mode-bulb">💡</span>';
             }
             if (mode === 'contemplate') {
-                return 'EITI AI 🤖 Созерцаю <span class="eiti-mode-sway">🙇‍♂️</span>';
+                return base + ' Созерцаю <span class="eiti-mode-sway">🙇‍♂️</span>';
             }
-            return 'EITI AI 🤖';
+            return base;
         }
 
         async function eitiAskDeepSeek(userText) {
@@ -19243,7 +19273,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var time = new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'});
                 // v12.9.78: авто-детект режима мышления
                 var _thinkMode = eitiDetectThinkMode(userText);
-                var _senderLabel = eitiThinkModeLabel(_thinkMode);
+                var _provLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
+                var _baseLabel = _provLabels[_provider] || 'EITI AI 🤖';
+                var _senderLabel = eitiThinkModeLabel(_thinkMode, _baseLabel);
                 liveDiv.innerHTML =
                     '<div class="message-row"><div class="message-body">' +
                     '<div class="message-sender">' + _senderLabel + '</div>' +
@@ -23071,8 +23103,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
                 if (eitiDb) {
                     var _aiPlain = (sender ? '[' + sender + '] ' : '') + plain;
+                    var _curProv = {provider: localStorage.getItem('eiti_ai_provider') || 'deepseek'};
                     if (eitiCurrentChatId) {
-                        eitiAddMessage(eitiCurrentChatId, 'assistant', _aiPlain);
+                        eitiAddMessage(eitiCurrentChatId, 'assistant', _aiPlain, _curProv);
                     } else {
                         // Нет чата — создаём по первому сообщению пользователя
                         var _firstUserText = (chatLog.length > 0 && chatLog[chatLog.length-1].text) ? chatLog[chatLog.length-1].text : 'Чат';
@@ -23081,7 +23114,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             // Сохраняем user + ai
                             var _ut = chatLog.length > 0 ? chatLog[chatLog.length-1].text : '';
                             if (_ut) eitiAddMessage(c.id, 'user', _ut);
-                            eitiAddMessage(c.id, 'assistant', _aiPlain);
+                            eitiAddMessage(c.id, 'assistant', _aiPlain, _curProv);
                             setTimeout(eitiLoadHistory, 300);
                         });
                     }
@@ -23135,10 +23168,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     '<div class="message-controls">' +
                     '<button class="msg-btn" title="Редактировать">✏️</button>' +
                     '<button class="msg-btn" title="Копировать">📋</button>' +
+                    '<button class="msg-btn" title="Удалить">🗑️</button>' +
                     '</div></div>';
                 var btns = d.querySelectorAll('.msg-btn');
                 btns[0].onclick = function(){ eitiEditUserMsg(d, m.id, txt); };
                 btns[1].onclick = function(){ copyText(txt).then(function(){ showToast('Скопировано'); }); };
+                btns[2].onclick = function(){ if (typeof eitiDeleteMessage === 'function') eitiDeleteMessage(m.id, d); };
                 msgs.appendChild(d);
                 msgs.scrollTop = msgs.scrollHeight;
             }
@@ -26133,7 +26168,7 @@ window.eitiLLMClearAll = async function() {
                                 eitiAddMessage(eitiCurrentChatId, 'user', newTxt);
                                 eitiUpdateL0(eitiCurrentChatId).then(function(){
                                     eitiAskDeepSeek(newTxt).then(function(reply){
-                                        eitiAddMessage(eitiCurrentChatId, 'assistant', reply);
+                                        eitiAddMessage(eitiCurrentChatId, 'assistant', reply, {provider: localStorage.getItem('eiti_ai_provider')||'deepseek'});
                                         eitiUpdateL0(eitiCurrentChatId);
                                         eitiProcessCommands(reply);
                                     }).catch(function(e){ eitiReceiveReply('❌ Ошибка: ' + e.message); });
@@ -26564,7 +26599,7 @@ window.eitiLLMClearAll = async function() {
                             eitiAddMessage(chatId, 'user', txt);
                             eitiUpdateL0(chatId).then(function(){
                                 eitiAskDeepSeek(txt).then(function(reply){
-                                    eitiAddMessage(chatId, 'assistant', reply);
+                                    eitiAddMessage(chatId, 'assistant', reply, {provider: localStorage.getItem('eiti_ai_provider')||'deepseek'});
                                     eitiUpdateL0(chatId);
                                     eitiProcessCommands(reply);
                                 }).catch(function(e){ eitiReceiveReply('\u274c Ошибка: ' + e.message); });
@@ -26634,7 +26669,7 @@ window.eitiLLMClearAll = async function() {
                             eitiAddMessage(c.id, 'user', txt);
                             eitiUpdateL0(c.id).then(function(){
                                 eitiAskDeepSeek(txt).then(function(reply){
-                                    eitiAddMessage(eitiCurrentChatId, 'assistant', reply);
+                                    eitiAddMessage(eitiCurrentChatId, 'assistant', reply, {provider: localStorage.getItem('eiti_ai_provider')||'deepseek'});
                                     eitiUpdateL0(eitiCurrentChatId);
                                     eitiProcessCommands(reply);
                                     if (typeof window._eitiPassiveObserver === 'function') window._eitiPassiveObserver(txt, reply);
@@ -26647,7 +26682,7 @@ window.eitiLLMClearAll = async function() {
                         eitiAddMessage(eitiCurrentChatId, 'user', txt);
                         eitiUpdateL0(eitiCurrentChatId).then(function(){
                             eitiAskDeepSeek(txt).then(function(reply){
-                                eitiAddMessage(eitiCurrentChatId, 'assistant', reply);
+                                eitiAddMessage(eitiCurrentChatId, 'assistant', reply, {provider: localStorage.getItem('eiti_ai_provider')||'deepseek'});
                                 eitiUpdateL0(eitiCurrentChatId);
                                 eitiProcessCommands(reply);
                                 if (typeof window._eitiPassiveObserver === 'function') window._eitiPassiveObserver(txt, reply);
@@ -26746,7 +26781,7 @@ window.eitiLLMClearAll = async function() {
             // P6-fix: показываем источник данных рядом с меткой EITI AI
             var _kbBadge = '';
             var _providerNow = localStorage.getItem('eiti_ai_provider') || 'ai';
-            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',duckduckgo:'DDG 🦆'};
+            var _provLabelMap = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
             var _senderLabel = _provLabelMap[_providerNow] || 'EITI AI 🤖';
             if (window._lastReplySource === 'mosc') {
                 _kbBadge = ' <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(147,197,253,0.18);color:#93c5fd;font-weight:600;vertical-align:middle;">🔷 MOSC</span>';
@@ -26762,10 +26797,13 @@ window.eitiLLMClearAll = async function() {
                 '</div><div class="message-controls">' +
                 '<button class="msg-btn tts-btn" title="Озвучить">🔊</button>' +
                 '<button class="msg-btn" title="Копировать">📋</button>' +
+                '<button class="msg-btn eiti-del-btn" title="Удалить">🗑️</button>' +
                 '</div></div>';
-            var _replyBtns = div.querySelectorAll('.msg-btn:not(.eiti-trace-btn)');
+            var _replyBtns = div.querySelectorAll('.msg-btn:not(.eiti-trace-btn):not(.eiti-del-btn)');
             _replyBtns[0].onclick = function() { toggleSpeech(ai.id, processed); };
             _replyBtns[1].onclick = function() { copyText(processed).then(function(){ showToast('Скопировано'); }); };
+            var _delBtn = div.querySelector('.eiti-del-btn');
+            if (_delBtn) _delBtn.onclick = function() { if (typeof eitiDeleteMessage === 'function') eitiDeleteMessage(ai.id, div); };
             // Sticky bottom controls for long messages
             setTimeout(function() {
                 var body = div.querySelector('.message-body');
@@ -26783,7 +26821,9 @@ window.eitiLLMClearAll = async function() {
                 }
             }, 50);
             if (eitiDb && eitiCurrentChatId) {
-                eitiAddMessage(eitiCurrentChatId, 'assistant', processed);
+                eitiAddMessage(eitiCurrentChatId, 'assistant', processed, {provider: _providerNow}).then(function(savedMsg){
+                    if (savedMsg) div.dataset.idbid = savedMsg.id;
+                });
                 eitiUpdateL0(eitiCurrentChatId);
             }
             messages.appendChild(div);
@@ -27098,7 +27138,7 @@ window.eitiLLMClearAll = async function() {
                             rendered=content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
                         }
                         div.innerHTML='<div class="message-row"><div class="message-body">'
-                            +(m.role!=='user'?'<div class="message-sender">EITI AI 🤖</div>':'')
+                            +(m.role!=='user'?'<div class="message-sender">'+({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'🗣️ Grok Voice',openai:'OpenAI 🤖',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'}[m.provider]||'EITI AI 🤖')+'</div>':'')
                             +'<div>'+rendered+'</div>'
                             +'<div class="message-time" style="font-size:11px;opacity:0.55;margin-top:3px">'+time+'</div>'
                             +'</div><div class="message-controls"><button class="msg-btn" title="Копировать">📋</button></div></div>';
@@ -30451,7 +30491,7 @@ window.eitiLLMClearAll = async function() {
 
                 var scored = entries.map(function(e, i) {
                     var score = 0;
-                    qToks.forEach(function(qt) { score += scoreDoc(docs[i], docs[i].length, qt, avgdl, df, N); });
+                    qToks.forEach(function(qt) { score += bm25ScoreDoc(docs[i], docs[i].length, qt, avgdl, df, N); });
                     return { e: e, s: score };
                 }).filter(function(x){ return x.s > 0; })
                   .sort(function(a,b){ return b.s - a.s; });
