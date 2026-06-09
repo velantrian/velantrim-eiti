@@ -6569,16 +6569,11 @@
         }
         .chat-input-panel {
             align-items: flex-end;
-            flex-wrap: wrap; /* нужно для compose-режима (кнопки уходят на нижний ряд) */
+            /* flex-wrap убран: кнопки + и ➤ остаются по бокам textarea в одну строку */
         }
-        /* compose-режим: пока есть текст — поле занимает всю ширину сверху, а кнопки
-           ➕ и ➤ опускаются на нижний ряд (➕ слева, ➤ справа). Без текста — как было. */
+        /* compose-режим: textarea растёт вверх, кнопки остаются по бокам (как в Telegram) */
         .chat-input-panel.composing .chat-center-col {
-            flex: 1 1 100% !important;
-            order: -1;
-        }
-        .chat-input-panel.composing .chat-right-col {
-            margin-left: auto;
+            flex: 1 !important;
         }
 
         /* ═══════════════════════════════════════ NOTES ═══ */
