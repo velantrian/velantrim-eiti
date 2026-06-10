@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.3"; // v13.7.3: glossy bubbles — less rounded corners (10px) + inner padding so text stays inside the border
+        var EITI_VERSION = "13.7.4"; // v13.7.4: iOS adaptation — notch/Dynamic Island/home indicator safe areas (iPhone 11+)
         // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
         function _eitiSafeHTML(html) {
             if (html == null) return '';
@@ -63,6 +63,18 @@
                 .replace(/\s(on\w+|href\s*=\s*["']?javascript)/gi, ' data-removed=');
         }
         window._eitiSafeHTML = _eitiSafeHTML;
+        // v13.7.4: iOS detection — add is-ios class for notch/Dynamic Island/home indicator CSS
+        (function(){
+            var ua = navigator.userAgent || '';
+            var isIOS = /iPad|iPhone|iPod/.test(ua) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (isIOS) {
+                document.documentElement.classList.add('is-ios');
+                document.addEventListener('DOMContentLoaded', function(){
+                    if (document.body) document.body.classList.add('is-ios');
+                });
+            }
+        })();
         // ── v12.8: sync версии, network-first для HTML, унифицированный offline-fallback ──
         window._eitiIntentStack = [];           // последние 3 намерения пользователя
         // TODO v14: dominant_topic/mood → PersonaCard (Слой 2)
@@ -6149,6 +6161,40 @@
         body.many-tabs .tab-icon { font-size: 20px; }
         body.many-tabs .tab-label { font-size: 9px; }
         body.many-tabs .tab-item { gap: 2px; }
+
+        /* v13.7.4: iOS adaptation — iPhone 11+, notch, Dynamic Island (12–16 Pro), home indicator
+           Scoped to html.is-ios set by inline JS — does NOT affect Android/desktop */
+        html.is-ios .app-header {
+            box-sizing: border-box;
+            height: calc(88px + env(safe-area-inset-top, 0px));
+            padding-top: env(safe-area-inset-top, 0px);
+        }
+        html.is-ios .tab-bar {
+            box-sizing: border-box;
+            height: calc(110px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+        }
+        html.is-ios body.many-tabs .tab-bar {
+            height: calc(96px + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+        }
+        /* Fullscreen notes — push below notch, clear home indicator bottom */
+        html.is-ios body.notes-fullscreen #view-notes {
+            top: env(safe-area-inset-top, 0px) !important;
+            height: calc(100dvh - env(safe-area-inset-top, 0px)) !important;
+        }
+        html.is-ios body.notes-fullscreen .notes-list {
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px)) !important;
+            height: calc(100dvh - env(safe-area-inset-top, 0px) - 20px) !important;
+        }
+        html.is-ios .note-editor-overlay.editor-fullscreen {
+            top: env(safe-area-inset-top, 0px) !important;
+            height: calc(100dvh - env(safe-area-inset-top, 0px)) !important;
+        }
+        html.is-ios .note-editor-overlay.editor-fullscreen .note-editor-body {
+            height: auto !important;
+            flex: 1 !important;
+        }
 
         .tab-item {
             display: flex;
