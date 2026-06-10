@@ -7389,18 +7389,22 @@
                             <div style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">
                                 <div style="font-size:13px;font-weight:600;margin-bottom:8px;">⚡ Google Gemini</div>
                                 <!-- Выбор модели Gemini -->
-                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
-                                    <button id="gm-model-lite" onclick="eitiSetGeminiModel('gemini-2.5-flash-lite')"
-                                        style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        Flash Lite<br><span style="font-size:9px;opacity:0.6;font-weight:400;">дешево · 1000/день</span>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+                                    <button id="gm-model-35flash" onclick="eitiSetGeminiModel('gemini-3.5-flash')"
+                                        style="padding:8px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
+                                        3.5 Flash ⭐<br><span style="font-size:9px;opacity:0.6;font-weight:400;">флагман · бесплатно</span>
                                     </button>
                                     <button id="gm-model-flash" onclick="eitiSetGeminiModel('gemini-2.5-flash')"
-                                        style="padding:8px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        Flash<br><span style="font-size:9px;opacity:0.6;font-weight:400;">баланс · 250/день</span>
+                                        style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
+                                        2.5 Flash<br><span style="font-size:9px;opacity:0.6;font-weight:400;">баланс · бесплатно</span>
                                     </button>
                                     <button id="gm-model-pro" onclick="eitiSetGeminiModel('gemini-2.5-pro')"
                                         style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        Pro<br><span style="font-size:9px;opacity:0.6;font-weight:400;">лучшее · 50/день</span>
+                                        2.5 Pro<br><span style="font-size:9px;opacity:0.6;font-weight:400;">мощный · 50/день</span>
+                                    </button>
+                                    <button id="gm-model-lite" onclick="eitiSetGeminiModel('gemini-2.5-flash-lite')"
+                                        style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
+                                        2.5 Lite<br><span style="font-size:9px;opacity:0.6;font-weight:400;">быстро · бесплатно</span>
                                     </button>
                                 </div>
                                 <div id="gm-model-desc" style="font-size:11px;opacity:0.5;text-align:center;margin-bottom:8px;"></div>
@@ -10543,7 +10547,7 @@
         }
         // ── Gemini: выбор модели чата v12.9.78 ────────────────────────────────
         function eitiGetGeminiModel() {
-            return localStorage.getItem('eiti_gemini_model') || 'gemini-2.5-flash';
+            return localStorage.getItem('eiti_gemini_model') || 'gemini-3.5-flash';
         }
         function eitiSetGeminiModel(model) {
             localStorage.setItem('eiti_gemini_model', model);
@@ -10552,19 +10556,23 @@
         }
         function eitiRenderGeminiModel() {
             var cur = eitiGetGeminiModel();
-            var map = { 'gemini-2.5-flash-lite':'gm-model-lite', 'gemini-2.5-flash':'gm-model-flash', 'gemini-2.5-pro':'gm-model-pro' };
+            var map = { 'gemini-3.5-flash':'gm-model-35flash', 'gemini-2.5-flash':'gm-model-flash', 'gemini-2.5-pro':'gm-model-pro', 'gemini-2.5-flash-lite':'gm-model-lite' };
             Object.keys(map).forEach(function(m) {
                 var btn = document.getElementById(map[m]);
                 if (!btn) return;
-                // Точное сравнение: Flash-Lite не должен активировать Flash
-                var active = cur === m || (cur !== 'gemini-2.5-flash-lite' && m === 'gemini-2.5-flash' && cur.startsWith('gemini-2.5-flash') && !cur.includes('lite')) || (m === 'gemini-2.5-pro' && cur.startsWith('gemini-2.5-pro'));
+                var active = cur === m || (m === 'gemini-2.5-flash' && cur.startsWith('gemini-2.5-flash') && !cur.includes('lite')) || (m === 'gemini-2.5-pro' && cur.startsWith('gemini-2.5-pro'));
                 btn.style.borderColor = active ? 'var(--accent-color)' : 'var(--border-color)';
                 btn.style.background  = active ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)';
             });
             var desc = document.getElementById('gm-model-desc');
-            var descs = { 'gemini-2.5-flash-lite':'Flash Lite: 1000 запросов/день бесплатно · самый экономный', 'gemini-2.5-flash':'Flash: 250 запросов/день · баланс качества', 'gemini-2.5-pro':'Pro: 50 запросов/день · наилучшее качество' };
-            var matchKey = Object.keys(descs).find(function(k){ return cur === k; }) || (cur.includes('lite') ? 'gemini-2.5-flash-lite' : cur.includes('pro') ? 'gemini-2.5-pro' : 'gemini-2.5-flash');
-            if (desc) desc.textContent = descs[matchKey];
+            var descs = {
+                'gemini-3.5-flash': '3.5 Flash: новый флагман · 1000 запросов/день · бесплатно',
+                'gemini-2.5-flash': '2.5 Flash: баланс качества · 250 запросов/день · бесплатно',
+                'gemini-2.5-pro': '2.5 Pro: наилучшее качество · 50 запросов/день · бесплатно',
+                'gemini-2.5-flash-lite': '2.5 Lite: быстро и дёшево · 1000 запросов/день · бесплатно'
+            };
+            var matchKey = descs[cur] ? cur : (cur.includes('3.5') ? 'gemini-3.5-flash' : cur.includes('lite') ? 'gemini-2.5-flash-lite' : cur.includes('pro') ? 'gemini-2.5-pro' : 'gemini-2.5-flash');
+            if (desc) desc.textContent = descs[matchKey] || cur;
         }
 
         // ── Gemini TTS: модель / голос / API v12.9.78 ─────────────────────────
@@ -10708,7 +10716,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) { return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content; });
             } else {
-                var _gmModel = localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash';
+                var _gmModel = localStorage.getItem('eiti_gemini_model') || 'gemini-2.5-flash';
                 _sumPromise = fetch('https://generativelanguage.googleapis.com/v1beta/models/' + _gmModel + ':generateContent?key=' + _gmKey, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -11931,10 +11939,10 @@
             var dk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('deepseek_api_key') || '') : '';
             var gk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
             var ork = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_or_key') || '') : '';
-            if (prov === 'gemini'     && gk)  return { type: 'gemini',     key: gk,  model: localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash' };
+            if (prov === 'gemini'     && gk)  return { type: 'gemini',     key: gk,  model: localStorage.getItem('eiti_gemini_model') || 'gemini-2.5-flash' };
             if (prov === 'deepseek'   && dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
             if (prov === 'openrouter' && ork) return { type: 'openrouter', key: ork, model: localStorage.getItem('eiti_or_model') || 'openrouter/auto' };
-            if (gk)  return { type: 'gemini',     key: gk,  model: 'gemini-2.0-flash' };
+            if (gk)  return { type: 'gemini',     key: gk,  model: 'gemini-2.5-flash' };
             if (dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
             if (ork) return { type: 'openrouter', key: ork, model: 'openrouter/auto' };
             return null;
