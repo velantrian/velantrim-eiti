@@ -8381,21 +8381,13 @@
                                 <!-- Модель -->
                                 <div style="font-size:12px;font-weight:600;opacity:0.7;">Модель Gemini TTS</div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
-                                    <button onclick="eitiSetGeminiTTSModel('gemini-2.5-flash-preview-tts')" id="gtm-lite"
-                                        style="padding:7px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:10px;font-weight:700;cursor:pointer;">
-                                        Flash 2.5 ⚡<br><span style="opacity:0.55;font-weight:400;">быстро · бесплатно</span>
-                                    </button>
                                     <button onclick="eitiSetGeminiTTSModel('gemini-2.5-flash-preview-tts')" id="gtm-flash"
                                         style="padding:7px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:10px;font-weight:700;cursor:pointer;">
-                                        Flash 2.5<br><span style="opacity:0.55;font-weight:400;">~250/день</span>
+                                        Flash 2.5 ⚡<br><span style="opacity:0.55;font-weight:400;">~250/день · быстро</span>
                                     </button>
                                     <button onclick="eitiSetGeminiTTSModel('gemini-2.5-pro-preview-tts')" id="gtm-pro"
                                         style="padding:7px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:10px;font-weight:700;cursor:pointer;">
-                                        Pro 2.5<br><span style="opacity:0.55;font-weight:400;">~50/день</span>
-                                    </button>
-                                    <button onclick="eitiSetGeminiTTSModel('gemini-3.1-flash-tts-preview')" id="gtm-31"
-                                        style="padding:7px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:10px;font-weight:700;cursor:pointer;">
-                                        Flash 3.1<br><span style="opacity:0.55;font-weight:400;">Preview · new</span>
+                                        Pro 2.5 🔝<br><span style="opacity:0.55;font-weight:400;">~50/день · качество</span>
                                     </button>
                                 </div>
                                 <!-- Голос -->
@@ -10555,7 +10547,7 @@
         // ── Gemini TTS: модель / голос / API v12.9.78 ─────────────────────────
         function eitiSetGeminiTTSModel(model) {
             localStorage.setItem('eiti_tts_gemini_model', model);
-            var ids = { 'gemini-2.5-flash-preview-tts':'gtm-flash', 'gemini-2.5-pro-preview-tts':'gtm-pro', 'gemini-3.1-flash-tts-preview':'gtm-31' };
+            var ids = { 'gemini-2.5-flash-preview-tts':'gtm-flash', 'gemini-2.5-pro-preview-tts':'gtm-pro' };
             Object.keys(ids).forEach(function(m) {
                 var btn = document.getElementById(ids[m]);
                 if (!btn) return;
@@ -10693,7 +10685,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) { return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content; });
             } else {
-                var _gmModel = localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash';
+                var _gmModel = localStorage.getItem('eiti_gemini_model') || 'gemini-2.5-flash';
                 _sumPromise = fetch('https://generativelanguage.googleapis.com/v1beta/models/' + _gmModel + ':generateContent?key=' + _gmKey, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -11916,10 +11908,10 @@
             var dk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('deepseek_api_key') || '') : '';
             var gk  = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_gemini_key') || '') : '';
             var ork = (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_or_key') || '') : '';
-            if (prov === 'gemini'     && gk)  return { type: 'gemini',     key: gk,  model: localStorage.getItem('eiti_gemini_model') || 'gemini-2.0-flash' };
+            if (prov === 'gemini'     && gk)  return { type: 'gemini',     key: gk,  model: localStorage.getItem('eiti_gemini_model') || 'gemini-2.5-flash' };
             if (prov === 'deepseek'   && dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
             if (prov === 'openrouter' && ork) return { type: 'openrouter', key: ork, model: localStorage.getItem('eiti_or_model') || 'openrouter/auto' };
-            if (gk)  return { type: 'gemini',     key: gk,  model: 'gemini-2.0-flash' };
+            if (gk)  return { type: 'gemini',     key: gk,  model: 'gemini-2.5-flash' };
             if (dk)  return { type: 'deepseek',   key: dk,  model: 'deepseek-chat' };
             if (ork) return { type: 'openrouter', key: ork, model: 'openrouter/auto' };
             return null;
