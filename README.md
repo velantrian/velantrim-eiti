@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Один HTML-файл. Никаких зависимостей. Работает везде._
 
-[![Version](https://img.shields.io/badge/version-13.4.4-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![Version](https://img.shields.io/badge/version-13.7.4-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline](https://img.shields.io/badge/offline-supported-orange?style=flat-square)](#)
@@ -37,27 +37,26 @@ _(правой кнопкой → Сохранить как)_
 
 ---
 
-## 🆕 Что нового в v13.4.4
+## 🆕 Что нового в v13.7.4
 
-**🔴 Критичное (P0)**
-- 🔍 **FTS5 инкрементальный sync** — поиск по заметкам перестал тормозить (O(N²) → O(1) на заметку)
-- 🛡️ **DOMPurify XSS-защита** — санитизация AI/web/PDF-текста; работает офлайн (precache в Service Worker)
-- 🔐 **AES-GCM шифрование API-ключей** — PBKDF2-100k + AES-256, PIN при старте, синхронный RAM-кеш
+**🔴 Критичное / стабильность**
+- 📱 **iOS safe-area adaptation** — поддержка notch, Dynamic Island и home indicator для iPhone 11+.
+- 🔄 **Синхронизация PWA-версии** — `EITI_VERSION`, Service Worker cache, `SW_UPDATED`, manifest и README приведены к `13.7.4`.
+- 🧠 **Фикс BM25-поиска памяти** — устранён `scoreDoc is not defined`, из-за которого 2-е и следующие сообщения могли падать с ошибкой AI-провайдера.
 
-**🟡 Важное (P1)**
-- 🔊 **Атомарная остановка TTS** — переключение между сообщениями и провайдерами больше не зависает
-- ⚙️ **Сохранение настроек при обновлении** — апгрейд версии не сбрасывает выбор AI-провайдера/токены/инструкции
-- 👍👎 **Feedback Loop** — обучает PKG/MOSC из реакций на ответы
-- 🎚 **Canvas EQ в фоне** — плеер не жрёт CPU когда вкладка скрыта или на паузе
-- 🗄 **TTS Cache Manager** — статистика, очистка, TTL-слайдер в настройках
-- 📄 **Paste chip для больших вставок** — текст >800 символов сворачивается в чип, не засоряет ввод
-- 💡 **Умные подсказки** — параллельный AI генерирует 3 чипа после каждого ответа (Gemini Flash / DeepSeek / OpenRouter)
+**🟡 Важное / AI и языки**
+- 🟢 **ChatGPT / OpenAI provider** — добавлен как полноценный основной AI-провайдер со streaming SSE.
+- 🇩🇪 **German language support** — добавлен DE для UI/ответов AI и auto-detect через `navigator.language`.
+- 🌐 **Language override priority fix** — языковая директива теперь ставится выше пользовательских инструкций в system prompt.
+- 🔵 **Обновление моделей Gemini / ChatGPT** — picker обновлён под актуальные семейства моделей.
 
-**🟢 Чистка (P2)**
-- 🔄 IDB onblocked → toast + retry · MOSC граф вынесен в `data/mosc_default_v1.json` (-115 КБ в HTML)
-- 🗑 TTS cache LRU через openCursor · Blob URL auto-revoke через 5 мин · SW cache → `eiti-v13.4.4`
+**🟢 UX / чат**
+- 🧩 **Правильные provider labels** — Gemini, DeepSeek, OpenRouter, Qwen, ChatGPT и другие отображаются корректно в live/history/search.
+- 🗑️ **Удаление отдельных сообщений** — кнопка удаления добавлена во все основные пути рендера сообщений.
+- 💬 **Улучшена раскладка chat input** — исправлены переносы кнопок и поведение панели ввода.
+- 🎨 **Glossy theme fixes** — текст сообщений удерживается внутри bubble border, углы стали менее округлыми.
 
-📜 **Полный список изменений:** [коммиты v13.4.4](https://github.com/velantrian/velantrim-eiti/commits/main)
+📜 **Полный список изменений:** [коммиты main](https://github.com/velantrian/velantrim-eiti/commits/main)  
 🔍 **Открыть последнюю версию:** [velantrian.github.io/velantrim-eiti/](https://velantrian.github.io/velantrim-eiti/)
 
 ---
@@ -77,7 +76,7 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 | 🧠 | **DAAD FractalMemory** | Четырёхуровневая архитектура памяти L0 / L1 / L2 / KB |
 | 🔌 | **Zero Dependencies** | Один `.html` файл, никаких установок |
 | 📡 | **PWA + Offline** | Устанавливается как приложение, работает без интернета |
-| 🤖 | **Мульти-провайдер AI** | DeepSeek · Gemini · Grok Voice · OpenRouter · DDG |
+| 🤖 | **Мульти-провайдер AI** | DeepSeek · Gemini · Grok Voice · OpenRouter · DDG · ChatGPT |
 | 🔍 | **FTS5 поиск** | Полнотекстовый поиск с BM25 на SQLite WASM |
 | 🎨 | **Темы** | 10+ тем — скевоморф, стекло, минимализм |
 | 🗣️ | **Grok Voice** | Голосовой режим с поиском и контекстом чата |
@@ -133,6 +132,7 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 |---|---|
 | 🤖 **DeepSeek** | Основной ассистент, глубокая интеграция с памятью |
 | ⚡ **Google Gemini** | Быстрые ответы, мультимодальность |
+| 🟢 **ChatGPT / OpenAI** | Streaming chat, reasoning-модели, vision/file flows |
 | 🗣️ **xAI Grok Voice** | Голосовой режим реального времени с историей чатов |
 | 🔀 **OpenRouter** | 300+ моделей (Claude, GPT, Llama, Mistral...) |
 | 🦆 **DuckDuckGo AI** | Бесплатно, без API-ключа |
@@ -182,6 +182,7 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 |---|---|
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) |
 | Google Gemini | [aistudio.google.com](https://aistudio.google.com) |
+| ChatGPT / OpenAI | [platform.openai.com](https://platform.openai.com) |
 | xAI Grok | [console.x.ai](https://console.x.ai) |
 | OpenRouter | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 
