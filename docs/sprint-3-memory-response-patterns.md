@@ -4,6 +4,15 @@ Sprint 3 focuses on making Velantrim's memory behavior controllable by the user.
 
 The goal is not to force every answer through the heaviest memory path. The goal is to let the user choose when memory should be fast, grounded, or strict.
 
+## UI wireframe
+
+![Sprint 3 memory settings wireframe](assets/sprint3-memory-settings-wireframe.svg)
+
+The planned UI has two user-facing blocks:
+
+1. **Память ответа** — toggle + `Normal / Grounded / Strict` mode selector.
+2. **Паттерн следующего ответа** — quick buttons such as `Напиши другую версию`, `Помоги обдумать`, `Критик`, `План действий`.
+
 ## What this adds
 
 This PR introduces a versioned contract in:
