@@ -2,7 +2,7 @@
   "id": "velantrim-eiti",
   "name": "VELANTRIM EITI",
   "short_name": "EITI",
-  "description": "Персональная система знаний и AI-ассистент с многослойной памятью. Один HTML-файл, никаких зависимостей.",
+  "description": "VELANTRIM EITI v13.7.4 — персональная система знаний и AI-ассистент с многослойной памятью. Один HTML-файл, никаких зависимостей.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
