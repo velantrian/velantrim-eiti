@@ -42,36 +42,36 @@ ID_PATTERN = re.compile(
 )
 
 TYPE_CONFIDENCE_RULES: dict[str, tuple[float, float]] = {
-    "axiom":          (1.0,  1.0),
-    "law_of_thought": (1.0,  1.0),
-    "definition":     (1.0,  1.0),
-    "inference_rule": (1.0,  1.0),
-    "law":            (0.90, 0.99),
-    "principle":      (0.90, 0.99),
-    "postulate":      (0.90, 0.99),
-    "theorem":        (0.90, 1.0),
-    "corollary":      (0.90, 1.0),
-    "formula":        (0.90, 1.0),
-    "constant":       (0.95, 1.0),
-    "lemma":          (0.90, 1.0),
-    "conjecture":     (0.30, 0.75),
-    "fact":           (0.40, 0.95),
-    "estimate":       (0.40, 0.90),
-    "hypothesis":     (0.10, 0.65),
-    "open_problem":   (0.10, 0.60),
-    "effect":         (0.70, 0.99),
-    "model":          (0.60, 0.95),
-    "process":        (0.70, 0.99),
-    "technology":     (0.70, 0.99),
-    "method":         (0.70, 0.99),
-    "material":       (0.70, 0.99),
-    "fallacy":        (0.90, 1.0),
-    "bias":           (0.80, 0.99),
-    "paradox":        (0.85, 1.0),
-    "concept":        (0.70, 1.0),
-    "relation":       (0.60, 0.95),
-    "mechanism":      (0.50, 0.95),
-    "pattern":        (0.40, 0.90),
+    "axiom": (1.0, 1.0),
+    "law_of_thought": (1.0, 1.0),
+    "definition": (1.0, 1.0),
+    "inference_rule": (1.0, 1.0),
+    "law": (0.90, 0.99),
+    "principle": (0.90, 0.99),
+    "postulate": (0.90, 0.99),
+    "theorem": (0.90, 1.0),
+    "corollary": (0.90, 1.0),
+    "formula": (0.90, 1.0),
+    "constant": (0.95, 1.0),
+    "lemma": (0.90, 1.0),
+    "conjecture": (0.30, 0.75),
+    "fact": (0.40, 0.95),
+    "estimate": (0.40, 0.90),
+    "hypothesis": (0.10, 0.65),
+    "open_problem": (0.10, 0.60),
+    "effect": (0.70, 0.99),
+    "model": (0.60, 0.95),
+    "process": (0.70, 0.99),
+    "technology": (0.70, 0.99),
+    "method": (0.70, 0.99),
+    "material": (0.70, 0.99),
+    "fallacy": (0.90, 1.0),
+    "bias": (0.80, 0.99),
+    "paradox": (0.85, 1.0),
+    "concept": (0.70, 1.0),
+    "relation": (0.60, 0.95),
+    "mechanism": (0.50, 0.95),
+    "pattern": (0.40, 0.90),
 }
 
 PEDAGOGICAL_SIGNALS = [
@@ -81,10 +81,10 @@ PEDAGOGICAL_SIGNALS = [
     "например", "допустим", "представьте",
     "нужно вычислить", "необходимо найти", "чтобы решить",
     "шаг", "подставим", "раскроем",
-    "означает что", "иными словами",
-    "другими словами", "таким образом", "отсюда следует что",
-    "применяется в", "широко используется", "на практике",
-    "в реальной жизни", "в быту", "инженеры используют",
+    "означает что", "иными словами", "другими словами",
+    "таким образом", "отсюда следует что", "применяется в",
+    "широко используется", "на практике", "в реальной жизни",
+    "в быту", "инженеры используют",
 ]
 
 NEEDS_FORMAL_NOTATION = {"law", "theorem", "formula", "axiom", "inference_rule"}
@@ -94,7 +94,7 @@ NEEDS_DERIVES_FROM = {"theorem", "corollary", "formula"}
 
 @dataclass
 class ValidationIssue:
-    level: str  # "critical" | "warning"
+    level: str
     fact_index: int
     rule: str
     message: str
@@ -155,9 +155,9 @@ def validate_fact(
     existing_ids: set[str],
     batch_ids: set[str],
 ) -> list[ValidationIssue]:
+    """Apply semantic/business rules in addition to the mandatory JSON Schema gate."""
     issues: list[ValidationIssue] = []
 
-    # forbidden fields
     for f in FORBIDDEN_FIELDS:
         if f in fact:
             issues.append(ValidationIssue(
@@ -165,7 +165,6 @@ def validate_fact(
                 f"Запрещённое поле '{f}' присутствует",
             ))
 
-    # required fields
     missing = [f for f in REQUIRED_FIELDS if f not in fact]
     for f in missing:
         issues.append(ValidationIssue(
@@ -173,14 +172,12 @@ def validate_fact(
             f"Отсутствует обязательное поле: {f}",
         ))
 
-    # schema_version
     if "schema_version" in fact and fact["schema_version"] != "3.2":
         issues.append(ValidationIssue(
             "critical", index, "invalid_schema_version",
             f"schema_version должен быть '3.2', получен: {fact['schema_version']}",
         ))
 
-    # id format & duplicates
     fid = fact.get("id")
     if isinstance(fid, str):
         if not check_id_format(fid):
@@ -199,7 +196,6 @@ def validate_fact(
                 f"id '{fid}' уже существует в реестре",
             ))
 
-    # type
     t = fact.get("type")
     if t is not None and t not in ALLOWED_TYPES:
         issues.append(ValidationIssue(
@@ -207,7 +203,6 @@ def validate_fact(
             f"type '{t}' не из реестра допустимых значений",
         ))
 
-    # tier
     tier = fact.get("tier")
     if tier is not None and tier not in ALLOWED_TIERS:
         issues.append(ValidationIssue(
@@ -215,7 +210,6 @@ def validate_fact(
             f"tier '{tier}' не из: invariant/variant/practical/logic/frontier/abstract",
         ))
 
-    # confidence
     c = fact.get("confidence")
     if c is not None:
         if not isinstance(c, (int, float)) or isinstance(c, bool) or not (0.0 <= float(c) <= 1.0):
@@ -232,7 +226,6 @@ def validate_fact(
                     f"confidence={c} недопустим для type='{t}' (ожидается [{lo}, {hi}])",
                 ))
 
-    # statement length
     stmt = fact.get("statement", "")
     if isinstance(stmt, str) and len(stmt) > 250:
         issues.append(ValidationIssue(
@@ -240,7 +233,6 @@ def validate_fact(
             f"statement длиннее 250 символов ({len(stmt)})",
         ))
 
-    # === warnings ===
     if t in NEEDS_FORMAL_NOTATION and not fact.get("formal_notation"):
         issues.append(ValidationIssue(
             "warning", index, "missing_formal_notation",
@@ -252,53 +244,48 @@ def validate_fact(
             f"Нет limits для type='{t}' — рекомендуется",
         ))
     if not fact.get("conditions"):
-        issues.append(ValidationIssue(
-            "warning", index, "missing_conditions",
-            "Нет conditions",
-        ))
+        issues.append(ValidationIssue("warning", index, "missing_conditions", "Нет conditions"))
     if not fact.get("prereq"):
         issues.append(ValidationIssue(
-            "warning", index, "empty_prereq",
-            "Пустой prereq — факт-сирота",
+            "warning", index, "empty_prereq", "Пустой prereq — факт-сирота",
         ))
     if t in NEEDS_DERIVES_FROM and not fact.get("derives_from"):
         issues.append(ValidationIssue(
             "warning", index, "empty_derives_from",
             f"Пустой derives_from для type='{t}' — ожидается ссылка на закон",
         ))
+
     tags = fact.get("tags") or []
     if isinstance(tags, list) and len(tags) < 3:
         issues.append(ValidationIssue(
-            "warning", index, "few_tags",
-            f"Менее 3 тегов ({len(tags)})",
+            "warning", index, "few_tags", f"Менее 3 тегов ({len(tags)})",
         ))
 
-    # tier-specific extensions
     tx = fact.get("tier_extensions") or {}
-    if tier == "variant":
-        if "source" not in tx:
-            issues.append(ValidationIssue(
-                "warning", index, "missing_tier_ext_source",
-                "Нет tier_extensions.source для tier='variant'",
-            ))
-        if "valid_from" not in tx:
-            issues.append(ValidationIssue(
-                "warning", index, "missing_tier_ext_valid_from",
-                "Нет tier_extensions.valid_from для tier='variant'",
-            ))
-    if tier == "practical":
-        if "scale" not in tx:
-            issues.append(ValidationIssue(
-                "warning", index, "missing_tier_ext_scale",
-                "Нет tier_extensions.scale для tier='practical'",
-            ))
-        if "success_rate" not in tx:
-            issues.append(ValidationIssue(
-                "warning", index, "missing_tier_ext_success_rate",
-                "Нет tier_extensions.success_rate для tier='practical'",
-            ))
+    if isinstance(tx, dict):
+        if tier == "variant":
+            if "source" not in tx:
+                issues.append(ValidationIssue(
+                    "warning", index, "missing_tier_ext_source",
+                    "Нет tier_extensions.source для tier='variant'",
+                ))
+            if "valid_from" not in tx:
+                issues.append(ValidationIssue(
+                    "warning", index, "missing_tier_ext_valid_from",
+                    "Нет tier_extensions.valid_from для tier='variant'",
+                ))
+        if tier == "practical":
+            if "scale" not in tx:
+                issues.append(ValidationIssue(
+                    "warning", index, "missing_tier_ext_scale",
+                    "Нет tier_extensions.scale для tier='practical'",
+                ))
+            if "success_rate" not in tx:
+                issues.append(ValidationIssue(
+                    "warning", index, "missing_tier_ext_success_rate",
+                    "Нет tier_extensions.success_rate для tier='practical'",
+                ))
 
-    # pedagogical signals
     if isinstance(stmt, str):
         for sig in check_pedagogical_signals(stmt):
             issues.append(ValidationIssue(
@@ -309,12 +296,43 @@ def validate_fact(
     return issues
 
 
+def _schema_issues(
+    fact: object,
+    index: int,
+    validator: jsonschema.Draft202012Validator,
+    schema: dict,
+) -> list[ValidationIssue]:
+    """Return every structural schema violation as a blocking issue.
+
+    Manual validation may duplicate a friendlier diagnostic, but it must never
+    suppress a JSON Schema failure. Schema validity is the structural admission
+    gate; semantic/business checks can only add constraints.
+    """
+    issues: list[ValidationIssue] = []
+    for err in validator.iter_errors(fact):
+        path = ".".join(str(p) for p in err.absolute_path) or "<root>"
+        if err.validator == "additionalProperties" and isinstance(fact, dict):
+            extras = set(fact.keys()) - set(schema.get("properties", {}).keys())
+            if extras:
+                for extra in sorted(extras):
+                    issues.append(ValidationIssue(
+                        "critical", index, "forbidden_field",
+                        f"Недопустимое поле '{extra}' (не в схеме)",
+                    ))
+                continue
+        issues.append(ValidationIssue(
+            "critical", index, f"schema_{err.validator}",
+            f"Schema {err.validator} at {path}: {err.message}",
+        ))
+    return issues
+
+
 def validate_batch(
     facts: Iterable[dict],
     registry: dict,
     schema: dict | None = None,
 ) -> ValidationResult:
-    """Validate a batch of facts against schema + business rules."""
+    """Validate a batch against mandatory JSON Schema + semantic rules."""
     if schema is None:
         schema = load_schema()
     validator = jsonschema.Draft202012Validator(schema)
@@ -325,35 +343,17 @@ def validate_batch(
     result = ValidationResult(facts_count=len(facts_list))
 
     for i, fact in enumerate(facts_list):
-        # JSON Schema first — catches additionalProperties and shape issues
-        for err in validator.iter_errors(fact):
-            # Avoid double-reporting things our manual checks handle better
-            path = ".".join(str(p) for p in err.absolute_path) or "<root>"
-            if err.validator == "additionalProperties":
-                # forbidden_field already covered by manual check if name matches
-                # but jsonschema also catches truly unexpected keys
-                extras = set(fact.keys()) - set(schema.get("properties", {}).keys())
-                for extra in extras:
-                    if extra not in FORBIDDEN_FIELDS:
-                        result.critical.append(ValidationIssue(
-                            "critical", i, "forbidden_field",
-                            f"Недопустимое поле '{extra}' (не в схеме)",
-                        ))
-                continue
-            # Skip required/type errors we report ourselves with friendlier msgs
-            if err.validator in ("required", "type", "enum", "const", "pattern"):
-                continue
-            result.critical.append(ValidationIssue(
-                "critical", i, f"schema_{err.validator}",
-                f"Schema {err.validator} at {path}: {err.message}",
-            ))
+        result.critical.extend(_schema_issues(fact, i, validator, schema))
 
-        issues = validate_fact(fact, i, existing, batch_ids)
-        for iss in issues:
-            if iss.level == "critical":
-                result.critical.append(iss)
+        if not isinstance(fact, dict):
+            continue
+
+        for issue in validate_fact(fact, i, existing, batch_ids):
+            if issue.level == "critical":
+                result.critical.append(issue)
             else:
-                result.warnings.append(iss)
+                result.warnings.append(issue)
+
         if isinstance(fact.get("id"), str):
             batch_ids.add(fact["id"])
 
@@ -407,9 +407,7 @@ def main(path: str | None, all_batches: bool, summary: bool, strict: bool) -> No
         result = validate_batch(facts, registry, schema)
         if summary:
             status = "✅" if result.is_valid else "❌"
-            click.echo(
-                f"{status} {p.name}: 🔴 {len(result.critical)} | ⚠️  {len(result.warnings)}"
-            )
+            click.echo(f"{status} {p.name}: 🔴 {len(result.critical)} | ⚠️  {len(result.warnings)}")
         else:
             print_validation_report(result, str(p))
             click.echo()
