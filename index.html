@@ -40,7 +40,17 @@
          * [P2] SW cache → eiti-v13.4.0
          */
         var EITI_VERSION = "13.7.4"; // v13.7.4: iOS adaptation — notch/Dynamic Island/home indicator safe areas (iPhone 11+)
-        // v13.4.0 P0 FIX #2: универсальная санитизация HTML (DOMPurify + regex fallback).
+        // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
+        // or throws, fail closed by escaping the entire value as text. Regex is not a
+        // trusted HTML sanitizer and must never be used as a security downgrade path.
+        function _eitiEscapeHTML(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
         function _eitiSafeHTML(html) {
             if (html == null) return '';
             try {
@@ -56,11 +66,10 @@
                         FORBID_ATTR: ['onerror','onload','onclick','onmouseover','onfocus']
                     });
                 }
-            } catch(e) {}
-            return String(html)
-                .replace(/<script[\s\S]*?<\/script>/gi, '')
-                .replace(/<(iframe|object|embed|form|svg|math)[\s\S]*?<\/\1>/gi, '')
-                .replace(/\s(on\w+|href\s*=\s*["']?javascript)/gi, ' data-removed=');
+            } catch(e) {
+                console.warn('[EITI security] DOMPurify failed; rendering as text:', e);
+            }
+            return _eitiEscapeHTML(html);
         }
         window._eitiSafeHTML = _eitiSafeHTML;
         // v13.7.4: iOS detection — add is-ios class for notch/Dynamic Island/home indicator CSS
