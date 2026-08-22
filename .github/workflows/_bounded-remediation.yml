@@ -1,0 +1,321 @@
+name: Bounded EITI admission remediation
+
+on:
+  push:
+    branches: [fix/eiti-admission-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/eiti-admission-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Apply surgical remediation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          def replace_named_function(text, name, replacement):
+              marker = 'function ' + name + '('
+              start = text.find(marker)
+              if start < 0:
+                  raise SystemExit('missing named function: ' + name)
+              brace = text.find('{', start)
+              depth = 0
+              i = brace
+              quote = None
+              esc = False
+              while i < len(text):
+                  c = text[i]
+                  if quote:
+                      if esc:
+                          esc = False
+                      elif c == '\\':
+                          esc = True
+                      elif c == quote:
+                          quote = None
+                  else:
+                      if c in "'\"`": quote = c
+                      elif c == '{': depth += 1
+                      elif c == '}':
+                          depth -= 1
+                          if depth == 0:
+                              return text[:start] + replacement + text[i+1:]
+                  i += 1
+              raise SystemExit('unclosed function: ' + name)
+
+          def replace_window_function(text, name, replacement):
+              marker = 'window.' + name + ' = '
+              start = text.find(marker)
+              if start < 0:
+                  raise SystemExit('missing window function: ' + name)
+              brace = text.find('{', start)
+              depth = 0
+              i = brace
+              quote = None
+              esc = False
+              while i < len(text):
+                  c = text[i]
+                  if quote:
+                      if esc:
+                          esc = False
+                      elif c == '\\':
+                          esc = True
+                      elif c == quote:
+                          quote = None
+                  else:
+                      if c in "'\"`": quote = c
+                      elif c == '{': depth += 1
+                      elif c == '}':
+                          depth -= 1
+                          if depth == 0:
+                              end = i + 1
+                              if end < len(text) and text[end] == ';': end += 1
+                              return text[:start] + replacement + text[end:]
+                  i += 1
+              raise SystemExit('unclosed window function: ' + name)
+
+          helper_anchor = "window.EITI_RETENTION_FLOOR  = 0.20;\n\n"
+          if helper_anchor not in s:
+              raise SystemExit('truth gate anchor changed')
+          helper = r'''window.EITI_RETENTION_FLOOR  = 0.20;
+
+// Epistemic admission is intentionally independent from durability (L1/L2/L3),
+// salience, Guardian faithfulness, and model output. Missing metadata fails closed.
+function _eitiFactPassesStrictAdmission(f) {
+    if (!f || window.EITI_ALLOWED_STATES.indexOf(f.epistemic_state) === -1) return false;
+    if (typeof f.confidence !== 'number' || !isFinite(f.confidence)) return false;
+    if (f.confidence < 0 || f.confidence > 1) return false;
+
+    var authority = String(f.authority || '');
+    var evidenceStatus = String(f.evidence_status || '');
+    var provenance = f.provenance || f.evidence_ref || f.source_ref || null;
+    var hasProvenance = (typeof provenance === 'string') ? provenance.trim().length > 0 : !!provenance;
+
+    if (f.epistemic_state === 'ImmutableCore') {
+        return authority === 'SystemCore' && evidenceStatus === 'core' && hasProvenance;
+    }
+    if (!hasProvenance) return false;
+    if (f.epistemic_state === 'Validated') {
+        return authority === 'ExternallyVerified' && evidenceStatus === 'verified';
+    }
+    if (f.epistemic_state === 'Supported') {
+        return ['UserAsserted', 'Derived', 'ExternallyVerified'].indexOf(authority) !== -1
+            && ['supported', 'verified'].indexOf(evidenceStatus) !== -1;
+    }
+    return false;
+}
+
+'''
+          s = s.replace(helper_anchor, helper, 1)
+
+          truth_gate = r'''window.eitiTruthGate = function(facts) {
+    if (!facts || facts.length === 0) {
+        return { passed: false, reason: '⚠️ Нет фактов в памяти по этой теме', accepted_count: 0 };
+    }
+    var seenLineage = Object.create(null);
+    var valid = facts.filter(function(f){
+        if (!_eitiFactPassesStrictAdmission(f)) return false;
+        var lineage = f.evidence_lineage || f.lineage_id || f.provenance || f.evidence_ref || f.source_ref || null;
+        if (lineage) {
+            var key = String(lineage);
+            if (seenLineage[key]) return false;
+            seenLineage[key] = true;
+        }
+        return true;
+    });
+    if (valid.length === 0) {
+        return { passed: false, reason: '⚠️ Нет evidence-backed фактов для строгого ответа', accepted_count: 0 };
+    }
+    var sum = 0;
+    valid.forEach(function(f){ sum += f.confidence; });
+    var avg = sum / valid.length;
+    if (avg < window.EITI_CONF_FLOOR) {
+        return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%', accepted_count: valid.length };
+    }
+    return { passed: true, reason: null, accepted_count: valid.length };
+};'''
+          s = replace_window_function(s, 'eitiTruthGate', truth_gate)
+
+          promote = r'''window.eitiPromoteToL3 = async function(factId) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) {
+        var nf = new Error('Fact not found: ' + factId);
+        nf.code = 'fact_not_found'; throw nf;
+    }
+    // L3 is durability only. Promotion MUST NOT change epistemic state,
+    // authority, evidence status, confidence, or provenance.
+    var beforeState = fact.epistemic_state;
+    fact.memory_layer = 'L3';
+    var facts = eitiKBLoad();
+    for (var i = 0; i < facts.length; i++) {
+        if (facts[i].id === factId) {
+            facts[i].memory_layer = 'L3';
+            break;
+        }
+    }
+    eitiKBSave(facts);
+    if (typeof window.eitiLogEvent === 'function') {
+        try { await window.eitiLogEvent('memory_layer_promoted', { fact_id: factId, memory_layer: 'L3', epistemic_state: beforeState }); } catch(e) {}
+    }
+    return { promoted: true, memory_layer: 'L3', epistemic_state: beforeState };
+};'''
+          s = replace_window_function(s, 'eitiPromoteToL3', promote)
+
+          apply_analysis = r'''function eitiApplyAnalysis() {
+            var pending = window._eitiPendingAnalysis;
+            if (!pending || typeof pending !== 'object') return null;
+
+            // Model/dialogue analysis is a proposal, never authority. This function
+            // deliberately performs zero KB/VB/MOSC/retrieval-policy writes.
+            var payload;
+            try { payload = JSON.parse(JSON.stringify(pending)); }
+            catch(e) {
+                if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Анализ не принят: предложение невозможно безопасно сериализовать.');
+                return null;
+            }
+            var createdAt = new Date().toISOString();
+            var proposal = Object.freeze({
+                proposal_id: 'learn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                proposal_type: 'LearningProposal',
+                source: 'chat_analysis',
+                authority: 'ModelProposed',
+                status: 'PENDING_ADMISSION',
+                created_at: createdAt,
+                payload: payload
+            });
+            window._eitiLearningProposal = proposal;
+            window._eitiPendingAnalysis = null;
+            if (typeof window.eitiLogEvent === 'function') {
+                try { window.eitiLogEvent('learning_proposal_staged', { proposal_id: proposal.proposal_id, source: proposal.source, authority: proposal.authority }); } catch(e2) {}
+            }
+            if (typeof eitiReceiveReply === 'function') {
+                eitiReceiveReply('Предложение обучения создано, но долговременная память и политики НЕ изменены. Требуется отдельный admission. 🔒');
+            }
+            return proposal;
+        }'''
+          s = replace_named_function(s, 'eitiApplyAnalysis', apply_analysis)
+
+          p.write_text(s, encoding='utf-8')
+
+          Path('velantrim_core/tests_js/apply_analysis.test.js').write_text(r'''\'use strict\';
+const test = require('node:test');
+const assert = require('node:assert');
+const { loadFunctions } = require('./harness');
+
+function makeApply() {
+  const state = { kbWrites: 0, vbWrites: 0, moscWrites: 0, cfgWrites: 0, replies: [], window: {} };
+  const sb = loadFunctions(['eitiApplyAnalysis'], {
+    window: state.window,
+    Date,
+    Math,
+    eitiKBLoad: () => [],
+    eitiKBSave: () => { state.kbWrites++; },
+    _vbSaveToIDB: () => { state.vbWrites++; },
+    eitiDb: { transaction: () => ({ objectStore: () => ({ put: () => { state.moscWrites++; } }) }) },
+    localStorage: { setItem: () => { state.cfgWrites++; }, getItem: () => null },
+    eitiReceiveReply: (m) => state.replies.push(m),
+  });
+  state.apply = (analysis) => { state.window._eitiPendingAnalysis = analysis; return sb.eitiApplyAnalysis(); };
+  return state;
+}
+
+test('no pending analysis performs no mutation', () => {
+  const s = makeApply();
+  assert.strictEqual(s.apply(null), null);
+  assert.strictEqual(s.kbWrites + s.vbWrites + s.moscWrites + s.cfgWrites, 0);
+});
+
+test('model analysis becomes a LearningProposal only', () => {
+  const s = makeApply();
+  const input = {
+    kb: [{ triggers: ['tea'], answer: 'likes tea' }],
+    vb: [{ intent: 'greet', pattern: 'hello' }],
+    mosc: [{ word: 'tea', concept: 'drink', weight: 0.9 }],
+    fl: { threshold: 0.9 }
+  };
+  const proposal = s.apply(input);
+  assert.strictEqual(proposal.proposal_type, 'LearningProposal');
+  assert.strictEqual(proposal.authority, 'ModelProposed');
+  assert.strictEqual(proposal.status, 'PENDING_ADMISSION');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(proposal.payload)), input);
+  assert.strictEqual(s.kbWrites, 0);
+  assert.strictEqual(s.vbWrites, 0);
+  assert.strictEqual(s.moscWrites, 0);
+  assert.strictEqual(s.cfgWrites, 0);
+  assert.strictEqual(s.window._eitiPendingAnalysis, null);
+  assert.strictEqual(s.window._eitiLearningProposal, proposal);
+  assert.match(s.replies.at(-1), /НЕ изменены/);
+});
+
+test('proposal payload is detached from subsequent input mutation', () => {
+  const s = makeApply();
+  const input = { kb: [{ triggers: ['x'], answer: 'original' }] };
+  const proposal = s.apply(input);
+  input.kb[0].answer = 'tampered';
+  assert.strictEqual(proposal.payload.kb[0].answer, 'original');
+});
+''', encoding='utf-8')
+
+          Path('velantrim_core/tests_js/epistemic_admission.test.js').write_text(r'''\'use strict\';
+const test = require('node:test');
+const assert = require('node:assert');
+const { loadFunctions } = require('./harness');
+
+function gateFn() {
+  const window = { EITI_ALLOWED_STATES: ['Validated', 'Supported', 'ImmutableCore'] };
+  return loadFunctions(['_eitiFactPassesStrictAdmission'], { window })._eitiFactPassesStrictAdmission;
+}
+
+test('missing confidence fails closed', () => {
+  const gate = gateFn();
+  assert.strictEqual(gate({ epistemic_state: 'Validated', authority: 'ExternallyVerified', evidence_status: 'verified', provenance: 'src:1' }), false);
+});
+
+test('manual Supported without evidence/provenance cannot pass strict admission', () => {
+  const gate = gateFn();
+  assert.strictEqual(gate({ epistemic_state: 'Supported', confidence: 0.9, authority: 'UserAsserted' }), false);
+});
+
+test('Guardian faithfulness is not epistemic evidence', () => {
+  const gate = gateFn();
+  assert.strictEqual(gate({ epistemic_state: 'Supported', confidence: 0.9, guardian_verified: 1, authority: 'UserAsserted' }), false);
+});
+
+test('L3 Hypothesized remains inadmissible regardless of durability', () => {
+  const gate = gateFn();
+  assert.strictEqual(gate({ epistemic_state: 'Hypothesized', memory_layer: 'L3', confidence: 0.99, authority: 'ExternallyVerified', evidence_status: 'verified', provenance: 'src:2' }), false);
+});
+
+test('externally verified evidence-backed Validated fact passes', () => {
+  const gate = gateFn();
+  assert.strictEqual(gate({ epistemic_state: 'Validated', confidence: 0.8, authority: 'ExternallyVerified', evidence_status: 'verified', provenance: 'src:3' }), true);
+});
+''', encoding='utf-8')
+          PY
+
+          node --test velantrim_core/tests_js/*.test.js
+          python -m pip install -r velantrim_core/requirements.txt >/dev/null
+          (cd velantrim_core && pytest tests/ -q)
+
+          rm .github/workflows/_bounded-remediation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html velantrim_core/tests_js/apply_analysis.test.js velantrim_core/tests_js/epistemic_admission.test.js .github/workflows/_bounded-remediation.yml
+          git commit -m 'fix(architecture): separate learning proposals from epistemic admission'
+          git push origin HEAD:fix/eiti-admission-hardening
