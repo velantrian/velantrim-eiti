@@ -1,0 +1,231 @@
+from pathlib import Path
+
+
+def replace_braced(text, start, replacement, semicolon=False):
+    brace = text.find('{', start)
+    if brace < 0:
+        raise SystemExit('opening brace not found')
+    depth = 0
+    i = brace
+    quote = None
+    esc = False
+    line_comment = False
+    block_comment = False
+    while i < len(text):
+        c = text[i]
+        n = text[i + 1] if i + 1 < len(text) else ''
+        if line_comment:
+            if c == '\n':
+                line_comment = False
+        elif block_comment:
+            if c == '*' and n == '/':
+                block_comment = False
+                i += 1
+        elif quote:
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == quote:
+                quote = None
+        else:
+            if c == '/' and n == '/':
+                line_comment = True
+                i += 1
+            elif c == '/' and n == '*':
+                block_comment = True
+                i += 1
+            elif c in "'\"`":
+                quote = c
+            elif c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    if semicolon and end < len(text) and text[end] == ';':
+                        end += 1
+                    return text[:start] + replacement + text[end:]
+        i += 1
+    raise SystemExit('unclosed function')
+
+
+def replace_named_function(text, name, replacement):
+    marker = 'function ' + name + '('
+    start = text.find(marker)
+    if start < 0:
+        raise SystemExit('missing named function: ' + name)
+    return replace_braced(text, start, replacement)
+
+
+def replace_window_function(text, name, replacement):
+    marker = 'window.' + name + ' = '
+    start = text.find(marker)
+    if start < 0:
+        raise SystemExit('missing window function: ' + name)
+    return replace_braced(text, start, replacement, True)
+
+
+p = Path('index.html')
+s = p.read_text(encoding='utf-8')
+
+anchor = "window.EITI_RETENTION_FLOOR  = 0.20;\n\n"
+if anchor not in s:
+    raise SystemExit('truth gate anchor changed')
+
+helper = """window.EITI_RETENTION_FLOOR  = 0.20;
+
+// Strict epistemic admission is independent from durability, salience, Guardian
+// faithfulness, and model output. Missing metadata fails closed.
+function _eitiFactPassesStrictAdmission(f) {
+    if (!f || window.EITI_ALLOWED_STATES.indexOf(f.epistemic_state) === -1) return false;
+    if (typeof f.confidence !== 'number' || !Number.isFinite(f.confidence)) return false;
+    if (f.confidence < 0 || f.confidence > 1) return false;
+    var authority = String(f.authority || '');
+    var evidenceStatus = String(f.evidence_status || '');
+    var provenance = f.provenance || f.evidence_ref || f.source_ref || null;
+    var hasProvenance = (typeof provenance === 'string') ? provenance.trim().length > 0 : !!provenance;
+    if (!hasProvenance) return false;
+    if (f.epistemic_state === 'ImmutableCore') return authority === 'SystemCore' && evidenceStatus === 'core';
+    if (f.epistemic_state === 'Validated') return authority === 'ExternallyVerified' && evidenceStatus === 'verified';
+    if (f.epistemic_state === 'Supported') {
+        return ['UserAsserted', 'Derived', 'ExternallyVerified'].indexOf(authority) !== -1
+            && ['supported', 'verified'].indexOf(evidenceStatus) !== -1;
+    }
+    return false;
+}
+
+"""
+s = s.replace(anchor, helper, 1)
+
+s = replace_window_function(s, 'eitiTruthGate', """window.eitiTruthGate = function(facts) {
+    if (!facts || facts.length === 0) return { passed: false, reason: '⚠️ Нет фактов в памяти по этой теме', accepted_count: 0 };
+    var seenLineage = Object.create(null);
+    var valid = facts.filter(function(f){
+        if (!_eitiFactPassesStrictAdmission(f)) return false;
+        var lineage = f.evidence_lineage || f.lineage_id || f.provenance || f.evidence_ref || f.source_ref || null;
+        if (lineage) {
+            var key = String(lineage);
+            if (seenLineage[key]) return false;
+            seenLineage[key] = true;
+        }
+        return true;
+    });
+    if (valid.length === 0) return { passed: false, reason: '⚠️ Нет evidence-backed фактов для строгого ответа', accepted_count: 0 };
+    var sum = 0;
+    valid.forEach(function(f){ sum += f.confidence; });
+    var avg = sum / valid.length;
+    if (avg < window.EITI_CONF_FLOOR) return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%', accepted_count: valid.length };
+    return { passed: true, reason: null, accepted_count: valid.length };
+};""")
+
+s = replace_window_function(s, 'eitiPromoteToL3', """window.eitiPromoteToL3 = async function(factId) {
+    var fact = _eitiFindFactById(factId);
+    if (!fact) { var nf = new Error('Fact not found: ' + factId); nf.code = 'fact_not_found'; throw nf; }
+    var beforeState = fact.epistemic_state;
+    var facts = eitiKBLoad();
+    var found = false;
+    for (var i = 0; i < facts.length; i++) {
+        if (facts[i].id === factId) { facts[i].memory_layer = 'L3'; found = true; break; }
+    }
+    if (!found) { var nf2 = new Error('Fact not found: ' + factId); nf2.code = 'fact_not_found'; throw nf2; }
+    eitiKBSave(facts);
+    if (typeof window.eitiLogEvent === 'function') {
+        try { await window.eitiLogEvent('memory_layer_promoted', { fact_id: factId, memory_layer: 'L3', epistemic_state: beforeState }); } catch(e) {}
+    }
+    return { promoted: true, memory_layer: 'L3', epistemic_state: beforeState };
+};""")
+
+s = replace_named_function(s, 'eitiApplyAnalysis', """function eitiApplyAnalysis() {
+            var pending = window._eitiPendingAnalysis;
+            if (!pending || typeof pending !== 'object') return null;
+            var payload;
+            try { payload = JSON.parse(JSON.stringify(pending)); }
+            catch(e) {
+                if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Анализ не принят: предложение невозможно безопасно сериализовать.');
+                return null;
+            }
+            var proposal = Object.freeze({
+                proposal_id: 'learn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                proposal_type: 'LearningProposal',
+                source: 'chat_analysis',
+                authority: 'ModelProposed',
+                status: 'PENDING_ADMISSION',
+                created_at: new Date().toISOString(),
+                payload: payload
+            });
+            window._eitiLearningProposal = proposal;
+            window._eitiPendingAnalysis = null;
+            if (typeof window.eitiLogEvent === 'function') {
+                try { window.eitiLogEvent('learning_proposal_staged', { proposal_id: proposal.proposal_id, source: proposal.source, authority: proposal.authority }); } catch(e2) {}
+            }
+            if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Предложение обучения создано, но долговременная память и политики НЕ изменены. Требуется отдельный admission. 🔒');
+            return proposal;
+        }""")
+
+p.write_text(s, encoding='utf-8')
+
+Path('velantrim_core/tests_js/apply_analysis.test.js').write_text("""'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { loadFunctions } = require('./harness');
+function makeApply() {
+  const state = { kbWrites: 0, vbWrites: 0, moscWrites: 0, cfgWrites: 0, replies: [], window: {} };
+  const sb = loadFunctions(['eitiApplyAnalysis'], {
+    window: state.window, Date, Math,
+    eitiKBLoad: () => [], eitiKBSave: () => { state.kbWrites++; },
+    _vbSaveToIDB: () => { state.vbWrites++; },
+    eitiDb: { transaction: () => ({ objectStore: () => ({ put: () => { state.moscWrites++; } }) }) },
+    localStorage: { setItem: () => { state.cfgWrites++; }, getItem: () => null },
+    eitiReceiveReply: (m) => state.replies.push(m),
+  });
+  state.apply = (analysis) => { state.window._eitiPendingAnalysis = analysis; return sb.eitiApplyAnalysis(); };
+  return state;
+}
+test('no pending analysis performs no mutation', () => {
+  const s = makeApply(); assert.strictEqual(s.apply(null), null);
+  assert.strictEqual(s.kbWrites + s.vbWrites + s.moscWrites + s.cfgWrites, 0);
+});
+test('model analysis becomes a LearningProposal only', () => {
+  const s = makeApply();
+  const input = { kb:[{triggers:['tea'],answer:'likes tea'}], vb:[{intent:'greet',pattern:'hello'}], mosc:[{word:'tea',concept:'drink',weight:0.9}], fl:{threshold:0.9} };
+  const proposal = s.apply(input);
+  assert.strictEqual(proposal.proposal_type, 'LearningProposal');
+  assert.strictEqual(proposal.authority, 'ModelProposed');
+  assert.strictEqual(proposal.status, 'PENDING_ADMISSION');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(proposal.payload)), input);
+  assert.strictEqual(s.kbWrites, 0); assert.strictEqual(s.vbWrites, 0); assert.strictEqual(s.moscWrites, 0); assert.strictEqual(s.cfgWrites, 0);
+  assert.strictEqual(s.window._eitiPendingAnalysis, null); assert.strictEqual(s.window._eitiLearningProposal, proposal);
+  assert.match(s.replies.at(-1), /НЕ изменены/);
+});
+test('proposal payload is detached from subsequent input mutation', () => {
+  const s = makeApply(); const input = { kb:[{triggers:['x'],answer:'original'}] };
+  const proposal = s.apply(input); input.kb[0].answer = 'tampered';
+  assert.strictEqual(proposal.payload.kb[0].answer, 'original');
+});
+""", encoding='utf-8')
+
+Path('velantrim_core/tests_js/epistemic_admission.test.js').write_text("""'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { loadFunctions } = require('./harness');
+function gateFn() {
+  const window = { EITI_ALLOWED_STATES: ['Validated','Supported','ImmutableCore'] };
+  return loadFunctions(['_eitiFactPassesStrictAdmission'], { window })._eitiFactPassesStrictAdmission;
+}
+test('missing confidence fails closed', () => {
+  assert.strictEqual(gateFn()({epistemic_state:'Validated',authority:'ExternallyVerified',evidence_status:'verified',provenance:'src:1'}), false);
+});
+test('manual Supported without provenance fails closed', () => {
+  assert.strictEqual(gateFn()({epistemic_state:'Supported',confidence:0.9,authority:'UserAsserted',evidence_status:'supported'}), false);
+});
+test('Guardian PASS is not epistemic evidence', () => {
+  assert.strictEqual(gateFn()({epistemic_state:'Supported',confidence:0.9,guardian_verified:1,authority:'UserAsserted'}), false);
+});
+test('L3 Hypothesized remains inadmissible', () => {
+  assert.strictEqual(gateFn()({epistemic_state:'Hypothesized',memory_layer:'L3',confidence:0.99,authority:'ExternallyVerified',evidence_status:'verified',provenance:'src:2'}), false);
+});
+test('evidence-backed externally verified Validated fact passes', () => {
+  assert.strictEqual(gateFn()({epistemic_state:'Validated',confidence:0.8,authority:'ExternallyVerified',evidence_status:'verified',provenance:'src:3'}), true);
+});
+""", encoding='utf-8')
