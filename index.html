@@ -28853,66 +28853,30 @@ window.eitiLLMClearAll = async function() {
 
         // Применить результат анализа
         function eitiApplyAnalysis() {
-            var p = window._eitiPendingAnalysis;
-            if (!p) { if (typeof showToast === 'function') showToast('Нет данных для применения'); return; }
-            var applied = [];
-            // KB
-            if (p.kb && p.kb.length) {
-                var facts = eitiKBLoad();
-                var ts = Date.now();
-                p.kb.forEach(function(f, i) {
-                    if (!f.triggers || !f.answer) return;
-                    facts.push({ id: 'kb_analyze_' + ts + '_' + i, triggers: f.triggers, answer: f.answer, category: f.category || 'other', ts: ts, source: 'chat_analysis' });
-                });
-                eitiKBSave(facts);
-                if (typeof _kbActiveCache !== 'undefined') window._kbActiveCache = null;
-                applied.push('KB +' + p.kb.length);
+            var pending = window._eitiPendingAnalysis;
+            if (!pending || typeof pending !== 'object') return null;
+            var payload;
+            try { payload = JSON.parse(JSON.stringify(pending)); }
+            catch(e) {
+                if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Анализ не принят: предложение невозможно безопасно сериализовать.');
+                return null;
             }
-            // VB
-            if (p.vb && p.vb.length) {
-                p.vb.forEach(function(v) {
-                    try {
-                        _vbIntentPatterns.push({ intent: v.intent, re: new RegExp(v.pattern, 'i') });
-                    } catch(e) {}
-                });
-                var stored = _vbIntentPatterns.map(function(pt){ return { intent: pt.intent, pattern: pt.re.source }; });
-                _vbSaveToIDB(stored);
-                applied.push('VB +' + p.vb.length);
-            }
-            // MOSC
-            if (p.mosc && p.mosc.length && eitiDb) {
-                try {
-                    var tx = eitiDb.transaction('reasoning', 'readwrite');
-                    var store = tx.objectStore('reasoning');
-                    var req = store.get('graph');
-                    req.onsuccess = function() {
-                        var graph = req.result ? req.result.data : {};
-                        p.mosc.forEach(function(m) {
-                            var w = (m.word || '').trim().toLowerCase();
-                            if (!w) return;
-                            if (!graph[w]) graph[w] = {};
-                            graph[w][m.concept] = parseFloat(m.weight) || 0.5;
-                        });
-                        store.put({ id: 'graph', data: graph });
-                        window._moscGraph = graph;
-                    };
-                } catch(e) {}
-                applied.push('MOSC +' + p.mosc.length);
-            }
-            // FL
-            if (p.fl) {
-                var cfg = (typeof eitiGetRetrievalConfig === 'function') ? eitiGetRetrievalConfig() : {};
-                if (p.fl.threshold) cfg.threshold = p.fl.threshold;
-                if (p.fl.maxFacts) cfg.maxFacts = p.fl.maxFacts;
-                if (p.fl.mode) cfg.mode = p.fl.mode;
-                cfg._source = 'chat_analysis'; cfg._savedAt = new Date().toISOString();
-                localStorage.setItem('eiti_retrieval_cfg', JSON.stringify(cfg));
-                if (typeof eitiLoadRetrievalConfigUI === 'function') eitiLoadRetrievalConfigUI();
-                applied.push('FL обновлён');
-            }
+            var proposal = Object.freeze({
+                proposal_id: 'learn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                proposal_type: 'LearningProposal',
+                source: 'chat_analysis',
+                authority: 'ModelProposed',
+                status: 'PENDING_ADMISSION',
+                created_at: new Date().toISOString(),
+                payload: payload
+            });
+            window._eitiLearningProposal = proposal;
             window._eitiPendingAnalysis = null;
-            if (typeof eitiKBRenderStats === 'function') setTimeout(eitiKBRenderStats, 400);
-            if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Применено: ' + applied.join(', ') + ' ✅');
+            if (typeof window.eitiLogEvent === 'function') {
+                try { window.eitiLogEvent('learning_proposal_staged', { proposal_id: proposal.proposal_id, source: proposal.source, authority: proposal.authority }); } catch(e2) {}
+            }
+            if (typeof eitiReceiveReply === 'function') eitiReceiveReply('Предложение обучения создано, но долговременная память и политики НЕ изменены. Требуется отдельный admission. 🔒');
+            return proposal;
         }
         window.eitiAnalyzeChat = eitiAnalyzeChat;
         window.eitiApplyAnalysis = eitiApplyAnalysis;
@@ -39009,27 +38973,49 @@ window.EITI_PENDING_STATES   = ['Observed', 'Hypothesized'];
 window.EITI_CONF_FLOOR       = 0.35;
 window.EITI_RETENTION_FLOOR  = 0.20;
 
+// Strict epistemic admission is independent from durability, salience, Guardian
+// faithfulness, and model output. Missing metadata fails closed.
+function _eitiFactPassesStrictAdmission(f) {
+    if (!f || window.EITI_ALLOWED_STATES.indexOf(f.epistemic_state) === -1) return false;
+    if (typeof f.confidence !== 'number' || !Number.isFinite(f.confidence)) return false;
+    if (f.confidence < 0 || f.confidence > 1) return false;
+    var authority = String(f.authority || '');
+    var evidenceStatus = String(f.evidence_status || '');
+    var provenance = f.provenance || f.evidence_ref || f.source_ref || null;
+    var hasProvenance = (typeof provenance === 'string') ? provenance.trim().length > 0 : !!provenance;
+    if (!hasProvenance) return false;
+    if (f.epistemic_state === 'ImmutableCore') return authority === 'SystemCore' && evidenceStatus === 'core';
+    if (f.epistemic_state === 'Validated') return authority === 'ExternallyVerified' && evidenceStatus === 'verified';
+    if (f.epistemic_state === 'Supported') {
+        return ['UserAsserted', 'Derived', 'ExternallyVerified'].indexOf(authority) !== -1
+            && ['supported', 'verified'].indexOf(evidenceStatus) !== -1;
+    }
+    return false;
+}
+
 // Pure gate. Returns { passed, reason }.
 //   passed=false → answer should be blocked / Pending UI should warn.
 //   passed=true  → the supplied facts pass the verification floor.
 // Caller is responsible for deciding what "passed=true" enables.
 window.eitiTruthGate = function(facts) {
-    if (!facts || facts.length === 0) {
-        return { passed: false, reason: '⚠️ Нет фактов в памяти по этой теме' };
-    }
+    if (!facts || facts.length === 0) return { passed: false, reason: '⚠️ Нет фактов в памяти по этой теме', accepted_count: 0 };
+    var seenLineage = Object.create(null);
     var valid = facts.filter(function(f){
-        return window.EITI_ALLOWED_STATES.indexOf(f.epistemic_state) !== -1;
+        if (!_eitiFactPassesStrictAdmission(f)) return false;
+        var lineage = f.evidence_lineage || f.lineage_id || f.provenance || f.evidence_ref || f.source_ref || null;
+        if (lineage) {
+            var key = String(lineage);
+            if (seenLineage[key]) return false;
+            seenLineage[key] = true;
+        }
+        return true;
     });
-    if (valid.length === 0) {
-        return { passed: false, reason: '⚠️ Все факты в статусе Pending — не верифицированы' };
-    }
+    if (valid.length === 0) return { passed: false, reason: '⚠️ Нет evidence-backed фактов для строгого ответа', accepted_count: 0 };
     var sum = 0;
-    valid.forEach(function(f){ sum += (typeof f.confidence === 'number') ? f.confidence : 0.5; });
+    valid.forEach(function(f){ sum += f.confidence; });
     var avg = sum / valid.length;
-    if (avg < window.EITI_CONF_FLOOR) {
-        return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%' };
-    }
-    return { passed: true, reason: null };
+    if (avg < window.EITI_CONF_FLOOR) return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%', accepted_count: valid.length };
+    return { passed: true, reason: null, accepted_count: valid.length };
 };
 
 // Manual / programmatic promotion: takes a Pending/Supported fact and tries
@@ -39037,40 +39023,19 @@ window.eitiTruthGate = function(facts) {
 // promotes on pass. Audit log captures every attempted promotion.
 window.eitiPromoteToL3 = async function(factId) {
     var fact = _eitiFindFactById(factId);
-    if (!fact) {
-        var nf = new Error('Fact not found: ' + factId);
-        nf.code = 'fact_not_found'; throw nf;
+    if (!fact) { var nf = new Error('Fact not found: ' + factId); nf.code = 'fact_not_found'; throw nf; }
+    var beforeState = fact.epistemic_state;
+    var facts = eitiKBLoad();
+    var found = false;
+    for (var i = 0; i < facts.length; i++) {
+        if (facts[i].id === factId) { facts[i].memory_layer = 'L3'; found = true; break; }
     }
-    var allowed = ['Supported', 'Validated'];
-    if (allowed.indexOf(fact.epistemic_state) === -1) {
-        var bad = new Error('Promote requires Supported|Validated, got ' + fact.epistemic_state);
-        bad.code = 'wrong_state'; throw bad;
-    }
-    var gate = window.eitiTruthGate([fact]);
-    if (!gate.passed) {
-        if (typeof window.eitiLogEvent === 'function') {
-            await window.eitiLogEvent(factId, 'promote_rejected', { reason: gate.reason });
-        }
-        return { promoted: false, reason: gate.reason };
-    }
-    // Promote: memory_layer L3, epistemic_state Validated (idempotent if already).
-    fact.memory_layer = 'L3';
-    if (fact.epistemic_state !== 'Validated') fact.epistemic_state = 'Validated';
-    var allFacts = eitiKBLoad();
-    eitiKBSave(allFacts);
-    if (window._db && window.eitiSQLReady) {
-        try {
-            window._db.run("UPDATE kb_idx SET memory_layer='L3', epistemic_state='Validated' WHERE id=?", [String(factId)]);
-            if (typeof _persistSQLDebounced === 'function') _persistSQLDebounced();
-        } catch(e) {}
-    }
+    if (!found) { var nf2 = new Error('Fact not found: ' + factId); nf2.code = 'fact_not_found'; throw nf2; }
+    eitiKBSave(facts);
     if (typeof window.eitiLogEvent === 'function') {
-        await window.eitiLogEvent(factId, 'promoted_to_l3', {
-            confidence: fact.confidence,
-            source: fact.source || 'manual'
-        });
+        try { await window.eitiLogEvent('memory_layer_promoted', { fact_id: factId, memory_layer: 'L3', epistemic_state: beforeState }); } catch(e) {}
     }
-    return { promoted: true, factId: String(factId) };
+    return { promoted: true, memory_layer: 'L3', epistemic_state: beforeState };
 };
 
 // Convenience for the Pending UI: approve a single Pending fact. Observed
