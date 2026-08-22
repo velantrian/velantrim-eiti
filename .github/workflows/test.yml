@@ -6,37 +6,7 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
-  bounded-followup:
-    name: Bounded admission consistency delivery
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/eiti-admission-hardening' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/eiti-admission-hardening
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Apply consistency follow-up
-        run: python .github/bounded_followup.py
-      - name: Run JS regression suite
-        run: node --test velantrim_core/tests_js/*.test.js
-      - name: Clean delivery scaffolding and push
-        run: |
-          git fetch origin main
-          git show origin/main:.github/workflows/test.yml > .github/workflows/test.yml
-          rm -f .github/bounded_followup.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html velantrim_core/tests_js/l3_durability_boundary.test.js .github/workflows/test.yml .github/bounded_followup.py
-          git commit -m 'fix(memory): preserve L3 durability without epistemic promotion'
-          git push origin HEAD:fix/eiti-admission-hardening
-
   js-unit:
     name: JS unit tests (index.html pure logic)
     runs-on: ubuntu-latest
