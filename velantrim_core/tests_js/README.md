@@ -23,7 +23,7 @@ node --test velantrim_core/tests_js/*.test.js
 
 ## Coverage today (P0)
 
-| Suite | Function | What it protects |
+| Suite | Function / contract | What it protects |
 |---|---|---|
 | `salience.test.js` | `eitiCalcSalience` | memory importance scoring |
 | `cosine.test.js` | `_cosineSim` | semantic-search similarity metric |
@@ -31,6 +31,7 @@ node --test velantrim_core/tests_js/*.test.js
 | `embed_offline.test.js` | `_embedOffline` | offline embedding contract |
 | `ranking.test.js` | `tfScore` | local-search term-frequency scoring |
 | `parse_commands.test.js` | `eitiTaskParseAICommands` | parsing `[TASK_*]` directives from LLM replies |
+| `sprint3_memory_response_contract.test.js` | Sprint 3 memory/response contract | Normal/Grounded/Strict modes, memory lookup toggle, ESM statuses, response patterns |
 
 Notes pinned by these tests: the `eitiCalcSalience` 4.0 cap is currently
 unreachable (max multiplier is 2.73), and `_cosineSim` degrades to `0` on a
