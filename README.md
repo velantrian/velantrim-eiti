@@ -3,12 +3,12 @@
 # 𓆩 VELANTRIM EITI 𓆪
 
 **Персональный AI-ассистент с многослойной памятью**  
-_Один HTML-файл. Никаких зависимостей. Работает везде._
+_Клиентское PWA без backend и build step. Основной интерфейс — один HTML-файл._
 
-[![Version](https://img.shields.io/badge/version-13.7.4-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
-[![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-13.7.5-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![No Build Step](https://img.shields.io/badge/build-none-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
-[![Offline](https://img.shields.io/badge/offline-supported-orange?style=flat-square)](#)
+[![Offline Core](https://img.shields.io/badge/offline-core-orange?style=flat-square)](#)
 
 </div>
 
@@ -28,33 +28,30 @@ _Один HTML-файл. Никаких зависимостей. Работае
 
 ---
 
-## ⬇️ Скачать локально
+## ⬇️ Локальный запуск
 
-**[→ Скачать index.html](https://raw.githubusercontent.com/velantrian/velantrim-eiti/main/index.html)**  
-_(правой кнопкой → Сохранить как)_
+Скачайте [полный репозиторий](https://github.com/velantrian/velantrim-eiti/archive/refs/heads/main.zip) и запустите его через статический HTTP-сервер:
 
-Открой скачанный файл в браузере — всё работает без сервера и интернета.
+```bash
+python3 -m http.server 8080
+```
+
+Откройте `http://localhost:8080/index.html`. Для полного функционала нужны companion-файлы `sw.js`, `manifest.json`, иконки, `sql-wasm.js/.wasm` и `data/`. Один `index.html`, открытый через `file://`, может показать базовый UI, но Service Worker, SQLite-поиск и часть импорта документов не гарантируются.
 
 ---
 
-## 🆕 Что нового в v13.7.4
+## 🆕 Что нового в v13.7.5
 
-**🔴 Критичное / стабильность**
-- 📱 **iOS safe-area adaptation** — поддержка notch, Dynamic Island и home indicator для iPhone 11+.
-- 🔄 **Синхронизация PWA-версии** — `EITI_VERSION`, Service Worker cache, `SW_UPDATED`, manifest и README приведены к `13.7.4`.
-- 🧠 **Фикс BM25-поиска памяти** — устранён `scoreDoc is not defined`, из-за которого 2-е и следующие сообщения могли падать с ошибкой AI-провайдера.
+**🔴 Безопасность и корректность**
+- 🛡️ Экранированы user/model-controlled поля в Trace, KB и PKG перед HTML-рендером.
+- 🔁 Устранено повторное исполнение AI-команд и двойное/четверное усиление PKG.
+- 👎 Отрицательная обратная связь теперь ослабляет узлы, а не усиливает их.
+- 🔒 Strict Memory закрывается при отказе Trace/Truth Gate и требует явной confidence.
 
-**🟡 Важное / AI и языки**
-- 🟢 **ChatGPT / OpenAI provider** — добавлен как полноценный основной AI-провайдер со streaming SSE.
-- 🇩🇪 **German language support** — добавлен DE для UI/ответов AI и auto-detect через `navigator.language`.
-- 🌐 **Language override priority fix** — языковая директива теперь ставится выше пользовательских инструкций в system prompt.
-- 🔵 **Обновление моделей Gemini / ChatGPT** — picker обновлён под актуальные семейства моделей.
-
-**🟢 UX / чат**
-- 🧩 **Правильные provider labels** — Gemini, DeepSeek, OpenRouter, Qwen, ChatGPT и другие отображаются корректно в live/history/search.
-- 🗑️ **Удаление отдельных сообщений** — кнопка удаления добавлена во все основные пути рендера сообщений.
-- 💬 **Улучшена раскладка chat input** — исправлены переносы кнопок и поведение панели ввода.
-- 🎨 **Glossy theme fixes** — текст сообщений удерживается внутри bubble border, углы стали менее округлыми.
+**🟡 Стабильность**
+- 📖 Сброс лемматизатора использует встроенный базовый словарь без отсутствующего `lemma.json`.
+- 📡 Service Worker ожидает cache writes и не принимает неполный CORE cache за успешную установку.
+- 🧹 Удалены запросы к отсутствующим legacy-файлам и необязательному DE patch.
 
 📜 **Полный список изменений:** [коммиты main](https://github.com/velantrian/velantrim-eiti/commits/main)  
 🔍 **Открыть последнюю версию:** [velantrian.github.io/velantrim-eiti/](https://velantrian.github.io/velantrim-eiti/)
@@ -63,7 +60,7 @@ _(правой кнопкой → Сохранить как)_
 
 ## 🌟 Что это
 
-VELANTRIM EITI — монолитный AI-ассистент в **одном HTML-файле**. Никакого Node.js, никакого Python, никакого бэкенда.
+VELANTRIM EITI — клиентский AI-ассистент, основной UI и runtime которого находятся в **одном HTML-файле**. Для запуска приложения не нужны Node.js, Python, build step или собственный backend; SQLite/PWA и импорт документов используют companion-файлы и внешние библиотеки.
 
 Внутри — многоуровневая память, reasoning-движок, база знаний, музыкальный плеер, заметки и файловый менеджер.
 
@@ -74,8 +71,8 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 | | Особенность | Описание |
 |---|---|---|
 | 🧠 | **DAAD FractalMemory** | Четырёхуровневая архитектура памяти L0 / L1 / L2 / KB |
-| 🔌 | **Zero Dependencies** | Один `.html` файл, никаких установок |
-| 📡 | **PWA + Offline** | Устанавливается как приложение, работает без интернета |
+| 🔌 | **Без сборки** | Нет build step и runtime backend; приложение раздаётся как статические файлы |
+| 📡 | **PWA + Offline Core** | Основной интерфейс и кешированные локальные данные доступны офлайн; AI-провайдеры требуют сеть |
 | 🤖 | **Мульти-провайдер AI** | DeepSeek · Gemini · Grok Voice · OpenRouter · DDG · ChatGPT |
 | 🔍 | **FTS5 поиск** | Полнотекстовый поиск с BM25 на SQLite WASM |
 | 🎨 | **Темы** | 10+ тем — скевоморф, стекло, минимализм |
@@ -118,11 +115,9 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Эпистемические статусы KB:**
-- `accepted` — проверенный факт
-- `hypothesis` — рабочая гипотеза
-- `unverified` — требует проверки
-- `deprecated` — устаревшая информация
+**Текущие runtime-статусы KB:** `Observed`, `Hypothesized`, `Supported`, `Validated`, `ImmutableCore`, `Contradicted`, `Deprecated`, `Retracted`.
+
+> Sprint 3 определяет целевой lowercase-контракт статусов и режимов памяти, но его UI/pipeline wiring пока остаётся отдельным следующим шагом.
 
 ---
 
@@ -186,7 +181,7 @@ VELANTRIM EITI — монолитный AI-ассистент в **одном HT
 | xAI Grok | [console.x.ai](https://console.x.ai) |
 | OpenRouter | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
 
-> Все ключи хранятся **локально** в браузере. Никакой передачи на сторонние серверы.
+> Ключи хранятся **локально** в браузере и не отправляются на backend EITI. При AI-запросе выбранный ключ передаётся непосредственно соответствующему API-провайдеру для авторизации.
 
 ---
 
