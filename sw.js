@@ -13,9 +13,7 @@ var CORE = [
     BASE + 'icon-192.png',
     BASE + 'icon-192-maskable.png',
     BASE + 'icon-512.png',
-    BASE + 'icon-512-maskable.png',
-    // v13.4.0 P0 #2: DOMPurify в CORE — XSS-защита должна работать офлайн
-    'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js'
+    BASE + 'icon-512-maskable.png'
 ];
 
 // Тяжёлые файлы — кешируем в той же install цепочке, но не блокируем
@@ -40,10 +38,12 @@ self.addEventListener('install', function(e) {
                 });
             }).catch(function(err) {
                 console.warn('[SW] critical cache error:', err);
-                self.clients.matchAll().then(function(clients) {
+                return self.clients.matchAll().then(function(clients) {
                     clients.forEach(function(c) {
                         c.postMessage({ type: 'SW_CACHE_ERROR', error: String(err) });
                     });
+                    // Reject installation: an incomplete CORE cache must not look healthy.
+                    throw err;
                 });
             });
         })
@@ -75,7 +75,10 @@ function swr(req) {
     return caches.open(CACHE).then(function(cache) {
         return cache.match(req).then(function(cached) {
             var fresh = fetch(req).then(function(r) {
-                if (r && r.ok) cache.put(req, r.clone());
+                if (r && r.ok) {
+                    return cache.put(req, r.clone()).then(function() { return r; })
+                        .catch(function() { return r; });
+                }
                 return r;
             }).catch(function() { return cached; });
             return cached || fresh;
@@ -98,7 +101,10 @@ self.addEventListener('fetch', function(e) {
                 return fetch(e.request).then(function(resp) {
                     if (resp && (resp.status === 200 || resp.type === 'opaque')) {
                         var clone = resp.clone();
-                        caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                        return caches.open(CACHE)
+                            .then(function(c) { return c.put(e.request, clone); })
+                            .then(function() { return resp; })
+                            .catch(function() { return resp; });
                     }
                     return resp;
                 });
@@ -117,8 +123,10 @@ self.addEventListener('fetch', function(e) {
         e.respondWith(
             fetch(e.request).then(function(resp) {
                 var clone = resp.clone();
-                caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
-                return resp;
+                return caches.open(CACHE)
+                    .then(function(c) { return c.put(e.request, clone); })
+                    .then(function() { return resp; })
+                    .catch(function() { return resp; });
             }).catch(function() {
                 return caches.match(e.request).then(function(m) {
                     return m || caches.match(BASE + 'index.html');
@@ -144,7 +152,10 @@ self.addEventListener('fetch', function(e) {
             return fetch(e.request).then(function(resp) {
                 if (resp && resp.status === 200) {
                     var clone = resp.clone();
-                    caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+                    return caches.open(CACHE)
+                        .then(function(c) { return c.put(e.request, clone); })
+                        .then(function() { return resp; })
+                        .catch(function() { return resp; });
                 }
                 return resp;
             });
@@ -159,13 +170,17 @@ self.addEventListener('message', function(e) {
         self.skipWaiting();
     }
     if (e.data.type === 'SHOW_NOTIFICATION') {
-        self.registration.showNotification(
-            e.data.title || '🔔 VELANTRIM EITI',
-            {
-                body: e.data.body || '',
-                icon: BASE + 'icon-192.png',
-                badge: BASE + 'icon-192-maskable.png'
-            }
+        e.waitUntil(
+            self.registration.showNotification(
+                e.data.title || '🔔 VELANTRIM EITI',
+                {
+                    body: e.data.body || '',
+                    icon: BASE + 'icon-192.png',
+                    badge: BASE + 'icon-192-maskable.png'
+                }
+            ).catch(function(err) {
+                console.warn('[SW] notification failed:', err);
+            })
         );
     }
 });
