@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.4"; // v13.7.4: iOS adaptation — notch/Dynamic Island/home indicator safe areas (iPhone 11+)
+        var EITI_VERSION = "13.7.5"; // v13.7.5: audit remediation — exact-once commands, fail-closed memory, safe HTML sinks
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -156,7 +156,6 @@
                 } catch(e) {}
             }
         });
-        var EITI_BUILD_DATE = "2026-05-19T12:00"; // v13.4.0 — Layer 1: 16 surgical fixes (FTS5, DOMPurify, AES, TTS, MOSC JSON, etc.)
 
         // ───────────────────────────────────────────────────────────────
         // i18n CORE — runtime локализация UI (ru/en). Не трогает данные пользователя (заметки, KB, чаты).
