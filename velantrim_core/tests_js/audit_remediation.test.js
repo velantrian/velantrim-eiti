@@ -8,6 +8,8 @@ const { extractFunction, loadFunctions, INDEX_HTML } = require('./harness');
 
 const INDEX = fs.readFileSync(INDEX_HTML, 'utf8');
 const SW = fs.readFileSync(path.join(__dirname, '..', '..', 'sw.js'), 'utf8');
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'manifest.json'), 'utf8'));
+const README = fs.readFileSync(path.join(__dirname, '..', '..', 'README.md'), 'utf8');
 
 test('Trace line renderer escapes labels and values before innerHTML', () => {
   const s = loadFunctions(['eitiEsc', 'eitiTraceLineHTML']);
@@ -92,4 +94,19 @@ test('service worker does not report a healthy install with incomplete CORE', ()
   assert.match(SW, /Reject installation: an incomplete CORE cache must not look healthy/);
   assert.match(SW, /throw err;/);
   assert.match(SW, /e\.waitUntil\(\s*self\.registration\.showNotification/);
+});
+
+test('runtime, service worker, manifest, and README versions stay synchronized', () => {
+  const runtime = INDEX.match(/var EITI_VERSION = "([^"]+)"/);
+  const cache = SW.match(/var CACHE = 'eiti-v([^']+)'/);
+  const updated = SW.match(/SW_UPDATED', version: '([^']+)'/);
+  const manifest = MANIFEST.description.match(/v(\d+\.\d+\.\d+)/);
+  const readme = README.match(/version-(\d+\.\d+\.\d+)-gold/);
+
+  assert.ok(runtime && cache && updated && manifest && readme);
+  assert.deepEqual(
+    [runtime[1], cache[1], updated[1], manifest[1], readme[1]],
+    ['13.7.5', '13.7.5', '13.7.5', '13.7.5', '13.7.5']
+  );
+  assert.equal(INDEX.includes('EITI_BUILD_DATE'), false);
 });
