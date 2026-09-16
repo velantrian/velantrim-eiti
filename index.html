@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.4"; // v13.7.4: iOS adaptation — notch/Dynamic Island/home indicator safe areas (iPhone 11+)
+        var EITI_VERSION = "13.7.5"; // v13.7.5: audit remediation — exact-once commands, fail-closed memory, safe HTML sinks
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -156,7 +156,6 @@
                 } catch(e) {}
             }
         });
-        var EITI_BUILD_DATE = "2026-05-19T12:00"; // v13.4.0 — Layer 1: 16 surgical fixes (FTS5, DOMPurify, AES, TTS, MOSC JSON, etc.)
 
         // ───────────────────────────────────────────────────────────────
         // i18n CORE — runtime локализация UI (ru/en). Не трогает данные пользователя (заметки, KB, чаты).
@@ -3854,12 +3853,7 @@
          относительно inline-скриптов. defer выполняется строго после парсинга DOM и
          до DOMContentLoaded, что соответствует guard-логике внутри _initSQL. -->
     <script src="./sql-wasm.js" defer></script>
-    <!-- T7: optional German i18n patch. File is not required — if absent the
-         404 is harmless, DE locale falls back to RU source strings until the
-         patch lands. The patch should call:
-           window.EITI_I18N.addDict('de', { 'Чат': 'Chat', 'Дневник': 'Tagebuch', ... });
-    -->
-    <script src="./EITI_DE_i18n_patch.js" defer onerror="this.remove()"></script>
+    <!-- German translations are embedded in EITI_I18N; no external patch request. -->
     <!-- PDF.js CDN — для парсинга PDF файлов в браузере (v12.9.50) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -14140,7 +14134,8 @@
                 if (typeof pkgSaveNode === 'function' && entities && entities.length) {
                     entities.forEach(function(e) {
                         try {
-                            pkgSaveNode({ concept: e, category: 'feedback', weight: pkgBoost, emotional: true });
+                            // Negative feedback must weaken a node; emotional salience is positive-only.
+                            pkgSaveNode({ concept: e, category: 'feedback', weight: pkgBoost, emotional: positive });
                         } catch(_) {}
                     });
                 }
@@ -16231,19 +16226,18 @@
                         rows.forEach(function(r){ window._eitiLemma[r.k] = r.v; });
                         eitiLemmaRenderStats('IDB');
                     } else {
-                        // IDB пуст — подгружаем lemma.json; fallback → inline EITI_LEMMA_DEFAULTS (v12.2)
-                        fetch('./lemma.json').then(function(r){ return r.json(); }).then(function(d){
-                            window._eitiLemma = d;
-                            eitiLemmaRenderStats('lemma.json');
-                        }).catch(function(){
-                            if (typeof EITI_LEMMA_DEFAULTS !== 'undefined') {
-                                window._eitiLemma = EITI_LEMMA_DEFAULTS;
-                                eitiLemmaRenderStats('inline');
-                            } else { eitiLemmaRenderStats('—'); }
-                        });
+                        // IDB пуст — используем versioned inline base dictionary.
+                        if (typeof EITI_LEMMA_DEFAULTS !== 'undefined') {
+                            window._eitiLemma = Object.assign({}, EITI_LEMMA_DEFAULTS);
+                            eitiLemmaRenderStats('inline');
+                        } else { eitiLemmaRenderStats('—'); }
                     }
                 };
-                req.onerror = function(){ fetch('./lemma.json').then(function(r){ return r.json(); }).then(function(d){ window._eitiLemma = d; eitiLemmaRenderStats('lemma.json'); }).catch(function(){}); };
+                req.onerror = function(){
+                    window._eitiLemma = (typeof EITI_LEMMA_DEFAULTS !== 'undefined')
+                        ? Object.assign({}, EITI_LEMMA_DEFAULTS) : {};
+                    eitiLemmaRenderStats('inline');
+                };
             } catch(e) { console.warn('[EITI Lemma] IDB init error:', e); }
         }
 
@@ -16303,19 +16297,19 @@
             setTimeout(function(){ URL.revokeObjectURL(_lemmaUrl); }, 1000); // v12.9.7 FIX H3: blob URL leak
         }
 
-        // Сброс к базовому lemma.json (очищает IDB)
+        // Сброс к встроенному базовому словарю (очищает IDB)
         function eitiClearLemma() {
-            if (!confirm('Сбросить лемматизатор к базовому lemma.json?\nВсе AI-обогащения будут удалены.')) return;
+            if (!confirm('Сбросить лемматизатор к встроенному базовому словарю?\nВсе AI-обогащения будут удалены.')) return;
             if (!window.eitiDb) return;
             try {
                 var tx = eitiDb.transaction(['lemma'], 'readwrite');
                 tx.objectStore('lemma').clear();
                 tx.oncomplete = function() {
-                    window._eitiLemma = {};
-                    fetch('./lemma.json').then(function(r){ return r.json(); }).then(function(d){
-                        window._eitiLemma = d;
-                        eitiLemmaRenderStats('lemma.json');
-                        if (typeof showToast === 'function') showToast('📖 Сброшено к базовому ✅');
+                    window._eitiLemma = (typeof EITI_LEMMA_DEFAULTS !== 'undefined')
+                        ? Object.assign({}, EITI_LEMMA_DEFAULTS) : {};
+                    _eitiLemmaSaveIDB(window._eitiLemma, function() {
+                        eitiLemmaRenderStats('inline');
+                        if (typeof showToast === 'function') showToast('📖 Сброшено к встроенному словарю ✅');
                     });
                 };
             } catch(e) { if (typeof showToast === 'function') showToast('❌ ' + e.message); }
@@ -23457,8 +23451,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     }
                     eitiReceiveReply('⏳ Обогащаю базу KB по «' + _uq + '»…');
                     eitiAskDeepSeek(_enrichPrompt).then(function(reply){
+                        // eitiReceiveReply is the single command-dispatch entrypoint.
                         eitiReceiveReply(reply);
-                        eitiProcessCommands(reply);
                         if (typeof eitiKBRenderStats === 'function') setTimeout(eitiKBRenderStats, 500);
                     }).catch(function(e){ eitiReceiveReply('❌ Ошибка обогащения: ' + e.message); });
                     return true;
@@ -26893,7 +26887,7 @@ window.eitiLLMClearAll = async function() {
         }
 
         function eitiReceiveReply(reply, origText) {
-            // eitiProcessCommands — единственный парсер тегов. eitiReceiveReply только рендерит UI.
+            // Single entrypoint for command dispatch before rendering the reply.
             eitiProcessCommands(reply);
 
             // Очищаем теги из отображаемого текста (заменяем на user-friendly сообщения)
@@ -27173,23 +27167,7 @@ window.eitiLLMClearAll = async function() {
             }).then(function() {
                 return eitiKBInit();
             }).then(function() {
-                if (_kbMemCache && _kbMemCache.length === 0) {
-                    fetch('./eiti_kb_v3.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
-                        if (!data) return;
-                        var facts = Array.isArray(data) ? data : (data.facts || []);
-                        if (facts.length > 0) {
-                            eitiKBSave(facts);
-                            console.info('[EITI] ✅ KB auto-loaded:', facts.length, 'фактов');
-                        }
-                    }).catch(function(){});
-                }
-                if (!window._moscGraph || Object.keys(window._moscGraph).length === 0) {
-                    fetch('./mosc_graph_v3.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
-                        if (!data || !data.graph) return;
-                        window._moscGraph = data.graph;
-                        console.info('[EITI] ✅ MOSC auto-loaded:', Object.keys(data.graph).length, 'узлов');
-                    }).catch(function(){});
-                }
+                // KB and MOSC defaults are initialized from their current inline/versioned sources.
             }).then(function() {
             // KB loaded into _kbMemCache — ready for sync calls
             eitiPatchSendButton();eitiUpdateFileCount();
@@ -28650,8 +28628,6 @@ window.eitiLLMClearAll = async function() {
                     if (typeof showToast === 'function') showToast('FL: веса обновлены');
                 } catch(e) {}
             });
-            // v12.9.40: PKG — парсим команды из любого AI-ответа (DeepSeek, Grok, OpenRouter)
-            if (typeof pkgParseAICommands === 'function') pkgParseAICommands(reply);
         }
 
         // ═══════════════════════════════════════════════════
@@ -29514,7 +29490,7 @@ window.eitiLLMClearAll = async function() {
                     wrap.style.cssText = 'margin-bottom:4px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,215,0,0.18);';
                     var btn = document.createElement('div');
                     btn.style.cssText = 'padding:9px 12px;background:rgba(255,215,0,0.07);cursor:pointer;display:flex;justify-content:space-between;align-items:center;-webkit-tap-highlight-color:transparent;user-select:none;';
-                    btn.innerHTML = '<span style="font-size:13px;">' + icon + ' <b>' + ruLabel + '</b></span><span style="opacity:0.55;font-size:12px;">' + cats[c] + ' ▸</span>';
+                    btn.innerHTML = '<span style="font-size:13px;">' + icon + ' <b>' + eitiEsc(String(ruLabel)) + '</b></span><span style="opacity:0.55;font-size:12px;">' + cats[c] + ' ▸</span>';
                     var inner = document.createElement('div');
                     inner.style.cssText = 'display:none;background:rgba(0,0,0,0.2);max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;';
                     btn.onclick = function() {
@@ -29532,11 +29508,12 @@ window.eitiLLMClearAll = async function() {
                                     // T1: ESM badge — colour-coded epistemic state per fact.
                                     var st = f.epistemic_state || 'Observed';
                                     var col = (window.EITI_ESM_COLORS && window.EITI_ESM_COLORS[st]) || { bg:'#5a5a5a', fg:'#fff', icon:'👁' };
-                                    var badge = '<span title="ESM: ' + st + '" style="display:inline-block;padding:1px 7px;border-radius:8px;background:' + col.bg + ';color:' + col.fg + ';font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;">'
-                                        + col.icon + ' ' + st + '</span>';
+                                    var safeState = eitiEsc(String(st));
+                                    var badge = '<span title="ESM: ' + safeState + '" style="display:inline-block;padding:1px 7px;border-radius:8px;background:' + col.bg + ';color:' + col.fg + ';font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle;">'
+                                        + col.icon + ' ' + safeState + '</span>';
                                     return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;line-height:1.5;">'
-                                        + '<div style="color:rgba(255,215,0,0.55);font-size:11px;margin-bottom:3px;">🔍 ' + trigs.slice(0,70) + (trigs.length>70?'…':'') + badge + '</div>'
-                                        + '<div style="line-height:1.4;">' + (f.answer||'').slice(0,150) + (f.answer&&f.answer.length>150?'…':'') + '</div>'
+                                        + '<div style="color:rgba(255,215,0,0.55);font-size:11px;margin-bottom:3px;">🔍 ' + eitiEsc(trigs.slice(0,70)) + (trigs.length>70?'…':'') + badge + '</div>'
+                                        + '<div style="line-height:1.4;">' + eitiEsc((f.answer||'').slice(0,150)) + (f.answer&&f.answer.length>150?'…':'') + '</div>'
                                         + '</div>';
                                 }).join('') || '<div style="padding:10px;opacity:0.4;text-align:center;">Пусто</div>';
                             }
@@ -29992,7 +29969,7 @@ window.eitiLLMClearAll = async function() {
             var node;
             if (existing) {
                 node = existing;
-                node.weight = parseFloat((node.weight + addWeight).toFixed(3));
+                node.weight = Math.max(0.1, parseFloat((node.weight + addWeight).toFixed(3)));
                 node.seenCount = (node.seenCount || 0) + 1;
                 node.lastSeen = now;
                 if (category !== 'general') node.category = category; // upgrade category
@@ -30000,7 +29977,7 @@ window.eitiLLMClearAll = async function() {
             } else {
                 node = {
                     id: nodeId, concept: concept, category: category,
-                    weight: addWeight, seenCount: 1,
+                    weight: Math.max(0.1, addWeight), seenCount: 1,
                     created: now, lastSeen: now, lastDecay: now,
                     emotionalBoost: isEmotional ? PKG_EMOTIONAL_BOOST : 0,
                     relatedTo: []
@@ -30252,15 +30229,17 @@ window.eitiLLMClearAll = async function() {
         // path, Truth Gate verdict, Guardian verdict, plus the original
         // facts_used / facts_discarded blocks. Blocked answers get a red
         // banner explaining which gate refused.
+        function eitiTraceLineHTML(label, value) {
+            return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">'
+                + '<span style="opacity:0.6;">' + eitiEsc(String(label == null ? '' : label)) + '</span>'
+                + '<span style="font-weight:600;">' + eitiEsc(String(value == null ? '' : value)) + '</span>'
+                + '</div>';
+        }
+
         window.eitiTraceRenderHTML = function(t) {
             if (!t) return '';
             var col = window.EITI_ESM_COLORS || {};
-            var line = function(label, value) {
-                return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">'
-                    + '<span style="opacity:0.6;">' + label + '</span>'
-                    + '<span style="font-weight:600;">' + value + '</span>'
-                    + '</div>';
-            };
+            var line = eitiTraceLineHTML;
             var html = '<div style="font-size:11px;line-height:1.4;">';
             // Blocked banner — appears at the top so it can't be missed.
             if (t.answer_allowed === false && t.answer_blocked) {
@@ -30981,8 +30960,8 @@ window.eitiLLMClearAll = async function() {
                         var proactive = n.weight >= PKG_PROACTIVE_THRESHOLD && days >= PKG_PROACTIVE_DAYS;
                         return '<div style="margin-bottom:8px;padding:6px;border-radius:8px;background:'+(proactive?'rgba(255,200,0,0.07)':'transparent')+';border:'+(proactive?'1px solid rgba(255,200,0,0.2)':'1px solid transparent')+'">'
                             + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-                            + '<span style="font-size:13px;">' + em + ' <b>' + n.concept + '</b>'+(proactive?' ⚡':'')+'</span>'
-                            + '<span style="font-size:11px;opacity:0.5;">' + n.category + ' · w:' + n.weight.toFixed(1) + ' · ×' + n.seenCount + (days>0?' · '+days+'д':'') + '</span>'
+                            + '<span style="font-size:13px;">' + em + ' <b>' + eitiEsc(String(n.concept || '')) + '</b>'+(proactive?' ⚡':'')+'</span>'
+                            + '<span style="font-size:11px;opacity:0.5;">' + eitiEsc(String(n.category || '')) + ' · w:' + n.weight.toFixed(1) + ' · ×' + n.seenCount + (days>0?' · '+days+'д':'') + '</span>'
                             + '</div>'
                             + '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;">'
                             + '<div style="height:4px;width:'+barW+'%;background:'+(proactive?'#ffd700':n.emotionalBoost>0?'#e040fb':'var(--accent-color)')+';border-radius:2px;transition:width 0.4s;"></div>'
@@ -31005,7 +30984,7 @@ window.eitiLLMClearAll = async function() {
                         var ltp = e.ltp_count || 0, ltd = e.ltd_count || 0;
                         return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;">'
                             + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-                            +   '<span>🔗 <b>' + e.a + '</b> ↔ <b>' + e.b + '</b></span>'
+                            +   '<span>🔗 <b>' + eitiEsc(String(e.a || '')) + '</b> ↔ <b>' + eitiEsc(String(e.b || '')) + '</b></span>'
                             +   '<span style="opacity:0.55;font-size:11px;">'
                             +     'сила: <b>' + s.toFixed(2) + '</b>'
                             +     ' · <span title="LTP (потенциация)">↑' + ltp + '</span>'
@@ -39024,7 +39003,11 @@ window.eitiTruthGate = function(facts) {
         return { passed: false, reason: '⚠️ Все факты в статусе Pending — не верифицированы' };
     }
     var sum = 0;
-    valid.forEach(function(f){ sum += (typeof f.confidence === 'number') ? f.confidence : 0.5; });
+    var missingConfidence = valid.some(function(f){ return typeof f.confidence !== 'number'; });
+    if (missingConfidence) {
+        return { passed: false, reason: '⚠️ Нет явной confidence у проверяемых фактов' };
+    }
+    valid.forEach(function(f){ sum += f.confidence; });
     var avg = sum / valid.length;
     if (avg < window.EITI_CONF_FLOOR) {
         return { passed: false, reason: '⚠️ Низкая уверенность: ' + Math.round(avg * 100) + '%' };
@@ -39045,6 +39028,17 @@ window.eitiPromoteToL3 = async function(factId) {
     if (allowed.indexOf(fact.epistemic_state) === -1) {
         var bad = new Error('Promote requires Supported|Validated, got ' + fact.epistemic_state);
         bad.code = 'wrong_state'; throw bad;
+    }
+    if (fact.epistemic_state === 'Supported') {
+        var evidencePresent = !!fact.source || !!fact.provenance
+            || (Array.isArray(fact.evidence) ? fact.evidence.length > 0 : !!fact.evidence);
+        if (!evidencePresent) {
+            var noEvidence = '⚠️ Supported-факт нельзя повысить без source/provenance/evidence';
+            if (typeof window.eitiLogEvent === 'function') {
+                await window.eitiLogEvent(factId, 'promote_rejected', { reason: noEvidence });
+            }
+            return { promoted: false, reason: noEvidence };
+        }
     }
     var gate = window.eitiTruthGate([fact]);
     if (!gate.passed) {
@@ -44513,6 +44507,10 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
             var pct = (reason.match(/\d+/) || [''])[0];
             return _i18nMsg('⚠️ Low confidence: ' + pct + '%', '⚠️ Низкая уверенность: ' + pct + '%');
         }
+        if (reason.indexOf('Нет явной confidence') !== -1)
+            return _i18nMsg('⚠️ Verified facts have no explicit confidence', '⚠️ Нет явной confidence у проверяемых фактов');
+        if (reason.indexOf('Truth Gate недоступен') !== -1)
+            return _i18nMsg('⚠️ Truth Gate is unavailable', '⚠️ Truth Gate недоступен');
         return reason;
     }
     // Renders the wrapper's resolved string into the chat as a normal assistant
@@ -44570,8 +44568,12 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
 
         // ─── Strict mode ON: original v14 enforced flow ─────────────
         if (!trace) {
-            // Fail-open if tracing broke for any reason.
-            return _origAsk_v14(userText);
+            var traceBlocked = _i18nMsg(
+                '🔒 Strict Memory blocked the answer: reasoning trace is unavailable',
+                '🔒 Строгий режим заблокировал ответ: reasoning trace недоступен'
+            );
+            _renderIntoChat(traceBlocked);
+            return traceBlocked;
         }
 
         // 1. Recursive retrieval
@@ -44585,12 +44587,13 @@ console.log('%c📷 Vision chip fix loaded', 'color:#4CAF50;font-weight:bold;');
         } catch(e) { console.warn('[v14 T9] retrieval failed:', e); }
 
         // 2. Truth Gate over allowed-state facts
-        var allowed = window.EITI_ALLOWED_STATES || ['Validated', 'Supported', 'ImmutableCore'];
+        // Sprint 3 strict contract: only validated canon may support an answer.
+        var allowed = ['Validated', 'ImmutableCore'];
         var allowedFacts = retrieval.facts.filter(function(f){ return allowed.indexOf(f.epistemic_state) !== -1; });
         var discardedFacts = retrieval.facts.filter(function(f){ return allowed.indexOf(f.epistemic_state) === -1; });
         var gate = (typeof window.eitiTruthGate === 'function')
             ? window.eitiTruthGate(allowedFacts)
-            : { passed: true, reason: null };
+            : { passed: false, reason: '⚠️ Truth Gate недоступен' };
 
         // 3. Populate trace
         trace.query_type = (typeof window.eitiClassifyQueryLevel === 'function')
