@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.7"; // v13.7.7: Gemini 3.8 models + Qwen key confirm/status
+        var EITI_VERSION = "13.7.8"; // v13.7.8: exclusive AI provider + Gemini thinking toggle
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -7465,6 +7465,13 @@
                                     </button>
                                 </div>
                                 <div id="gm-model-desc" style="font-size:11px;opacity:0.5;text-align:center;margin-bottom:8px;"></div>
+                                <label id="gm-thinking-row" onclick="eitiToggleGeminiThinking()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:8px;border-radius:12px;border:1px solid var(--border-color);background:var(--secondary-color);cursor:pointer;user-select:none;">
+                                    <span id="gm-thinking-check" style="font-size:18px;line-height:1;">⬜</span>
+                                    <span style="flex:1;">
+                                        <span style="display:block;font-size:13px;font-weight:700;">🧠 Thinking</span>
+                                        <span style="display:block;font-size:11px;opacity:0.55;">Вкл — думающая · Выкл — быстрый fast для всех Gemini</span>
+                                    </span>
+                                </label>
                                 <!-- Ключ Gemini -->
                                 <div style="display:flex;gap:6px;align-items:stretch;">
                                     <input type="password" id="gemini-key" placeholder="AIza..."
@@ -10767,7 +10774,48 @@
                 'gemini-3.5-flash-lite': '3.5 Lite: максимум скорости · минимум цены'
             };
             if (desc) desc.textContent = descs[cur] || cur;
+            if (typeof eitiRenderGeminiThinking === 'function') eitiRenderGeminiThinking();
         }
+
+        // ── Gemini Thinking toggle (applies to all Gemini chat models) ────────
+        // Docs: generationConfig.thinkingConfig.thinkingLevel
+        // ON  → high + includeThoughts; OFF → low/minimal (fast)
+        function eitiIsGeminiThinking() {
+            return localStorage.getItem('eiti_gemini_thinking') === '1';
+        }
+        function eitiToggleGeminiThinking() {
+            localStorage.setItem('eiti_gemini_thinking', eitiIsGeminiThinking() ? '0' : '1');
+            eitiRenderGeminiThinking();
+            showToast(eitiIsGeminiThinking() ? '🧠 Gemini Thinking вкл' : '⚡ Gemini Fast режим', 1800);
+        }
+        function eitiRenderGeminiThinking() {
+            var on = eitiIsGeminiThinking();
+            var check = document.getElementById('gm-thinking-check');
+            var row = document.getElementById('gm-thinking-row');
+            if (check) check.textContent = on ? '✅' : '⬜';
+            if (row) {
+                row.style.borderColor = on ? 'var(--accent-color)' : 'var(--border-color)';
+                row.style.background = on ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)';
+            }
+        }
+        /** Mutate generationConfig with official thinkingConfig for current model */
+        function eitiApplyGeminiThinkingConfig(generationConfig) {
+            var cfg = generationConfig || {};
+            var model = (typeof eitiGetGeminiModel === 'function') ? eitiGetGeminiModel() : '';
+            var on = eitiIsGeminiThinking();
+            var level;
+            if (on) {
+                level = 'high';
+                cfg.thinkingConfig = { thinkingLevel: level, includeThoughts: true };
+            } else {
+                // Fast: lowest supported level (3.8/3.7 have no "minimal"; Pro cannot fully disable)
+                if (/gemini-3\.[87]/.test(model) || /pro/i.test(model)) level = 'low';
+                else level = 'minimal';
+                cfg.thinkingConfig = { thinkingLevel: level };
+            }
+            return cfg;
+        }
+        try { eitiRenderGeminiThinking(); } catch (e) {}
 
         // ── Gemini TTS: модель / голос / API v12.9.78 ─────────────────────────
         function eitiSetGeminiTTSModel(model) {
@@ -19104,7 +19152,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
         function eitiSetProvider(p, silent) {
             if (!silent) {
-                var iconMap = { deepseek:'eiti-picon-ds', gemini:'eiti-picon-gm', openrouter:'eiti-picon-or', none:'eiti-picon-none' };
+                var iconMap = { deepseek:'eiti-picon-ds', gemini:'eiti-picon-gm', openrouter:'eiti-picon-or', qwen:'eiti-picon-qwen', none:'eiti-picon-none' };
                 if (iconMap[p]) _eitiPopIcon(iconMap[p]);
             }
             localStorage.setItem('eiti_ai_provider', p);
@@ -19130,9 +19178,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             if (dsBtn) { dsBtn.style.border = p==='deepseek' ? accent : normal; dsBtn.style.background = p==='deepseek' ? accentBg : normalBg; }
             if (gmBtn) { gmBtn.style.border = p==='gemini'   ? accent : normal; gmBtn.style.background = p==='gemini'   ? accentBg : normalBg; }
             if (orBtn) { orBtn.style.border = p==='openrouter' ? accent : normal; orBtn.style.background = p==='openrouter' ? accentBg : normalBg; }
-            // Update all provider cards including none
-            var cards = { deepseek: 'eiti-provider-card-ds', gemini: 'eiti-provider-card-gm', openrouter: 'eiti-provider-card-or', none: 'eiti-provider-card-none' };
-            var checks = { deepseek: 'eiti-pcheck-ds', gemini: 'eiti-pcheck-gm', openrouter: 'eiti-pcheck-or', none: 'eiti-pcheck-none' };
+            // Update ALL provider cards (including Qwen) — mutually exclusive single selection
+            var cards = { deepseek: 'eiti-provider-card-ds', gemini: 'eiti-provider-card-gm', openrouter: 'eiti-provider-card-or', qwen: 'eiti-provider-card-qwen', none: 'eiti-provider-card-none' };
+            var checks = { deepseek: 'eiti-pcheck-ds', gemini: 'eiti-pcheck-gm', openrouter: 'eiti-pcheck-or', qwen: 'eiti-pcheck-qwen', none: 'eiti-pcheck-none' };
             Object.keys(cards).forEach(function(key) {
                 var card = document.getElementById(cards[key]);
                 var check = document.getElementById(checks[key]);
@@ -19146,9 +19194,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var orModel = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
                 orModelCard.textContent = orModel;
             }
-            var labels = { deepseek: 'Активен: 🤖 DeepSeek', gemini: 'Активен: ⚡ Gemini', openrouter: 'Активен: 🔀 OpenRouter', none: '🚫 AI отключён' };
+            var labels = { deepseek: 'Активен: 🤖 DeepSeek', gemini: 'Активен: ⚡ Gemini', openrouter: 'Активен: 🔀 OpenRouter', qwen: 'Активен: 🟣 Qwen AI', none: '🚫 AI отключён' };
             if (lbl) lbl.textContent = labels[p] || labels.deepseek;
-            var toasts = { deepseek: '🤖 DeepSeek активирован', gemini: '⚡ Gemini активирован', openrouter: '🔀 OpenRouter активирован', none: '🚫 AI провайдер отключён' };
+            var toasts = { deepseek: '🤖 DeepSeek активирован', gemini: '⚡ Gemini активирован', openrouter: '🔀 OpenRouter активирован', qwen: '🟣 Qwen AI активирован', none: '🚫 AI провайдер отключён' };
             if (!silent) showToast(toasts[p] || toasts.deepseek);
         }
 
@@ -20321,7 +20369,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         _gmContents.push({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] });
                     });
                     // Use proper systemInstruction field (Gemini 1.5+) instead of prepending to user message
-                    var _gmBody = { contents: _gmContents, generationConfig: { maxOutputTokens: _maxTok } };
+                    var _gmBody = { contents: _gmContents, generationConfig: (typeof eitiApplyGeminiThinkingConfig === 'function')
+                        ? eitiApplyGeminiThinkingConfig({ maxOutputTokens: _maxTok })
+                        : { maxOutputTokens: _maxTok } };
                     if (_sysMsg) _gmBody.systemInstruction = { parts: [{ text: _sysMsg }] };
                     var _gmModel = (typeof eitiGetGeminiModel==='function') ? eitiGetGeminiModel() : 'gemini-2.5-flash';
                     var _gmUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + _gmModel + ':streamGenerateContent?alt=sse&key=' + _geminiKey;
@@ -20388,10 +20438,17 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     if (!d || d === '[DONE]') return;
                                     try {
                                         var j = JSON.parse(d);
-                                        var delta = j.candidates && j.candidates[0] && j.candidates[0].content &&
-                                                    j.candidates[0].content.parts && j.candidates[0].content.parts[0] &&
-                                                    j.candidates[0].content.parts[0].text || '';
-                                        if (delta) {
+                                        var _parts = j.candidates && j.candidates[0] && j.candidates[0].content &&
+                                                     j.candidates[0].content.parts || [];
+                                        for (var _pi = 0; _pi < _parts.length; _pi++) {
+                                            var _part = _parts[_pi] || {};
+                                            var delta = _part.text || '';
+                                            if (!delta) continue;
+                                            // Thought summaries (thinkingConfig.includeThoughts) — not answer text
+                                            if (_part.thought) {
+                                                if (typeof _eitiThinkReasoning === 'function') _eitiThinkReasoning(liveId, delta);
+                                                continue;
+                                            }
                                             gResult += delta;
                                             var le2 = document.getElementById(liveId);
                                             // v13.4.7 FIX: plain text while streaming. Rendering markdown on every
@@ -42787,27 +42844,9 @@ window.eitiAskDeepSeek = function(userText) {
     });
 };
 
-// ── Расширяем eitiSetProvider ──────────────────────────────────────────────────
+// ── Qwen provider: now handled by core eitiSetProvider (mutually exclusive) ──
 var _origSetProvider = window.eitiSetProvider;
 window.eitiSetProvider = function(p, silent) {
-    if (p === 'qwen') {
-        localStorage.setItem('eiti_ai_provider', 'qwen');
-        // Обновляем все карточки
-        document.querySelectorAll('[id^="eiti-provider-card-"]').forEach(function(c) {
-            c.style.border    = '2px solid var(--border-color)';
-            c.style.background = 'var(--secondary-color)';
-        });
-        var card = document.getElementById('eiti-provider-card-qwen');
-        if (card) { card.style.border = '2px solid var(--accent-color)'; card.style.background = 'rgba(255,200,0,0.12)'; }
-        document.querySelectorAll('[id^="eiti-pcheck-"]').forEach(function(c) { c.textContent = '⬜'; c.style.opacity = '0.2'; });
-        var check = document.getElementById('eiti-pcheck-qwen');
-        if (check) { check.textContent = '✅'; check.style.opacity = '1'; }
-        var lbl = document.getElementById('eiti-provider-label');
-        if (lbl) lbl.textContent = 'Активен: 🟣 Qwen AI';
-        if (!silent && typeof _eitiPopIcon === 'function') _eitiPopIcon('eiti-picon-qwen');
-        if (!silent && typeof showToast === 'function') showToast('🟣 Qwen AI активирован');
-        return;
-    }
     if (typeof _origSetProvider === 'function') _origSetProvider(p, silent);
 };
 
