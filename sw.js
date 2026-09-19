@@ -1,8 +1,8 @@
-// VELANTRIM EITI — Service Worker v13.7.5
+// VELANTRIM EITI — Service Worker v13.7.6
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
-// Sync: CACHE + SW_UPDATED now match EITI_VERSION 13.7.5
+// Sync: CACHE + SW_UPDATED now match EITI_VERSION 13.7.6
 
-var CACHE = 'eiti-v13.7.5'; // v13.7.5: audit remediation + current app version sync
+var CACHE = 'eiti-v13.7.6'; // v13.7.6: DeepSeek V4.1 Flash + Pro Low/High/Max
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится
@@ -62,7 +62,7 @@ self.addEventListener('activate', function(e) {
                     if (!isUpdate) return; // v12.9.79: не отправляем при первой установке
                     return self.clients.matchAll().then(function(clients) {
                         clients.forEach(function(c) {
-                            c.postMessage({ type: 'SW_UPDATED', version: '13.7.5' });
+                            c.postMessage({ type: 'SW_UPDATED', version: '13.7.6' });
                         });
                     });
                 });
