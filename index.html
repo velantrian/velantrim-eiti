@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.6"; // v13.7.6: DeepSeek V4.1 Flash + Pro Low/High/Max reasoning_effort
+        var EITI_VERSION = "13.7.7"; // v13.7.7: Gemini 3.8 models + Qwen key confirm/status
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -7447,21 +7447,21 @@
                                 <div style="font-size:13px;font-weight:600;margin-bottom:8px;">⚡ Google Gemini</div>
                                 <!-- Выбор модели Gemini -->
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
-                                    <button id="gm-model-35flash" onclick="eitiSetGeminiModel('gemini-3.5-flash')"
+                                    <button id="gm-model-38flash" onclick="eitiSetGeminiModel('gemini-3.8-flash')"
                                         style="padding:8px 4px;border-radius:10px;border:2px solid var(--accent-color);background:rgba(255,215,0,0.12);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        3.5 Flash ⭐<br><span style="font-size:9px;opacity:0.6;font-weight:400;">флагман · бесплатно</span>
+                                        3.8 Flash ⭐<br><span style="font-size:9px;opacity:0.6;font-weight:400;">флагман · актуальный</span>
                                     </button>
-                                    <button id="gm-model-flash" onclick="eitiSetGeminiModel('gemini-2.5-flash')"
+                                    <button id="gm-model-35flash" onclick="eitiSetGeminiModel('gemini-3.5-flash')"
                                         style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        2.5 Flash<br><span style="font-size:9px;opacity:0.6;font-weight:400;">баланс · бесплатно</span>
+                                        3.5 Flash<br><span style="font-size:9px;opacity:0.6;font-weight:400;">стабильный · бесплатно</span>
                                     </button>
-                                    <button id="gm-model-pro" onclick="eitiSetGeminiModel('gemini-2.5-pro')"
+                                    <button id="gm-model-pro" onclick="eitiSetGeminiModel('gemini-3.1-pro-preview')"
                                         style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        2.5 Pro<br><span style="font-size:9px;opacity:0.6;font-weight:400;">мощный · 50/день</span>
+                                        3.1 Pro<br><span style="font-size:9px;opacity:0.6;font-weight:400;">мощный · reasoning</span>
                                     </button>
-                                    <button id="gm-model-lite" onclick="eitiSetGeminiModel('gemini-2.5-flash-lite')"
+                                    <button id="gm-model-lite" onclick="eitiSetGeminiModel('gemini-3.5-flash-lite')"
                                         style="padding:8px 4px;border-radius:10px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:11px;font-weight:700;cursor:pointer;">
-                                        2.5 Lite<br><span style="font-size:9px;opacity:0.6;font-weight:400;">быстро · бесплатно</span>
+                                        3.5 Lite<br><span style="font-size:9px;opacity:0.6;font-weight:400;">быстро · дёшево</span>
                                     </button>
                                 </div>
                                 <div id="gm-model-desc" style="font-size:11px;opacity:0.5;text-align:center;margin-bottom:8px;"></div>
@@ -7473,6 +7473,21 @@
                                 </div>
                                 <button onclick="eitiConfirmGeminiKey()" style="margin-top:6px;padding:9px;border-radius:10px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--accent-color);font-weight:600;font-size:13px;cursor:pointer;width:100%;">✓ Подтвердить ключ Gemini</button>
                                 <div id="gemini-key-status" style="font-size:12px;min-height:18px;text-align:center;"></div>
+                            </div>
+                            <!-- v13.7.7: Qwen DashScope key next to Gemini -->
+                            <div style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">
+                                <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🟣 Qwen AI — DashScope API</div>
+                                <div style="display:flex;gap:6px;align-items:stretch;">
+                                    <input type="password" id="qwen-key-main" placeholder="sk-… (DashScope API Key)"
+                                           style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:15px;-webkit-appearance:none;"
+                                           oninput="eitiSyncQwenKeyInputs(this)">
+                                    <button onclick="eitiClearKey('qwen-key-main','eiti_qwen_key'); eitiSyncQwenKeyInputs({value:''});" title="Очистить" style="padding:0 12px;border-radius:12px;border:1px solid rgba(255,80,80,0.4);background:rgba(255,80,80,0.08);color:#ff6b6b;font-size:18px;cursor:pointer;flex-shrink:0;">🗑</button>
+                                </div>
+                                <div style="display:flex;gap:6px;margin-top:6px;">
+                                    <button onclick="eitiConfirmQwenKey()" style="flex:1;padding:9px;border-radius:10px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--accent-color);font-weight:600;font-size:13px;cursor:pointer;">✓ Подтвердить ключ Qwen</button>
+                                    <button onclick="eitiCheckQwenStatus()" style="flex:1;padding:9px;border-radius:10px;border:1px solid rgba(100,200,100,0.35);background:rgba(100,200,100,0.08);color:#8f8;font-weight:600;font-size:13px;cursor:pointer;">🔌 Проверить статус</button>
+                                </div>
+                                <div id="qwen-key-status-main" style="font-size:12px;min-height:18px;text-align:center;margin-top:4px;"></div>
                             </div>
                             <div style="border-top:1px solid var(--border-color);padding-top:14px;margin-top:4px;">
                                 <div style="font-size:13px;font-weight:700;margin-bottom:10px;letter-spacing:0.5px;">📡 Активный провайдер</div>
@@ -7503,7 +7518,7 @@
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
                                         <span id="eiti-picon-qwen" style="font-size:20px;flex-shrink:0;display:inline-block;">🟣</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">Qwen AI</span>
-                                        <span style="display:block;font-size:11px;opacity:0.55;">Alibaba · поиск · 235B</span></span>
+                                        <span style="display:block;font-size:11px;opacity:0.55;">DashScope · ключ выше · 235B</span></span>
                                         <span id="eiti-pcheck-qwen" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <!-- v13.3.5: Web Search — Google Grounding / Tavily / Off -->
@@ -7786,11 +7801,15 @@
                                 </div>
                                 <div id="qvl-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;"></div>
                             </div>
-                            <div style="display:flex;gap:6px;">
+                            <div style="display:flex;gap:6px;align-items:stretch;">
                                 <input type="password" id="qwen-api-key-input" placeholder="sk-… (DashScope API Key)"
                                     style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;"
-                                    oninput="localStorage.setItem('eiti_qwen_key',typeof _obfKey==='function'?_obfKey(this.value):this.value)">
-                                <button onclick="eitiQwenTestAPI()" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(100,200,100,0.4);background:rgba(100,200,100,0.08);color:#8f8;font-size:12px;font-weight:700;cursor:pointer;">✓ Тест</button>
+                                    oninput="eitiSyncQwenKeyInputs(this)">
+                                <button onclick="eitiClearKey('qwen-api-key-input','eiti_qwen_key'); eitiSyncQwenKeyInputs({value:''});" title="Очистить" style="padding:0 12px;border-radius:10px;border:1px solid rgba(255,80,80,0.4);background:rgba(255,80,80,0.08);color:#ff6b6b;font-size:18px;cursor:pointer;flex-shrink:0;">🗑</button>
+                            </div>
+                            <div style="display:flex;gap:6px;">
+                                <button onclick="eitiConfirmQwenKey()" style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.08);color:var(--accent-color);font-weight:700;font-size:12px;cursor:pointer;">✓ Подтвердить ключ</button>
+                                <button onclick="eitiCheckQwenStatus()" style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(100,200,100,0.4);background:rgba(100,200,100,0.08);color:#8f8;font-weight:700;font-size:12px;cursor:pointer;">🔌 Проверить статус</button>
                             </div>
                             <div id="eiti-qwen-status" style="font-size:11px;min-height:14px;text-align:center;"></div>
                             <div style="display:flex;gap:8px;">
@@ -10507,6 +10526,113 @@
             });
         }
 
+        function _eitiQwenStatusEls() {
+            return [
+                document.getElementById('qwen-key-status-main'),
+                document.getElementById('eiti-qwen-status')
+            ].filter(Boolean);
+        }
+        function _eitiQwenSetStatus(msg, color) {
+            var text = (msg == null) ? '' : String(msg);
+            _eitiQwenStatusEls().forEach(function(st) {
+                st.textContent = text;
+                if (color) st.style.color = color;
+            });
+        }
+        function _eitiQwenKeyInputs() {
+            return [
+                document.getElementById('qwen-key-main'),
+                document.getElementById('qwen-api-key-input')
+            ].filter(Boolean);
+        }
+        /** Keep both Qwen key fields + localStorage on one effective value */
+        function eitiSyncQwenKeyInputs(sourceEl) {
+            var inputs = _eitiQwenKeyInputs();
+            var key = '';
+            if (sourceEl && typeof sourceEl.value === 'string') {
+                key = sourceEl.value.trim();
+            } else {
+                // Prefer the focused/edited field, else first non-empty
+                var active = document.activeElement;
+                if (active && inputs.indexOf(active) !== -1 && active.value.trim()) {
+                    key = active.value.trim();
+                } else {
+                    for (var i = 0; i < inputs.length; i++) {
+                        if (inputs[i].value && inputs[i].value.trim()) { key = inputs[i].value.trim(); break; }
+                    }
+                }
+            }
+            inputs.forEach(function(inp) {
+                if (inp.value !== key) inp.value = key;
+            });
+            try {
+                if (key) localStorage.setItem('eiti_qwen_key', (typeof _obfKey === 'function') ? _obfKey(key) : key);
+                else localStorage.removeItem('eiti_qwen_key');
+            } catch (e) {}
+            return key;
+        }
+        function _eitiQwenReadKeyFromInputs() {
+            var key = eitiSyncQwenKeyInputs(document.activeElement && _eitiQwenKeyInputs().indexOf(document.activeElement) !== -1 ? document.activeElement : null);
+            if (key) return key;
+            try {
+                return (typeof _deobfKey === 'function') ? _deobfKey(localStorage.getItem('eiti_qwen_key') || '') : (localStorage.getItem('eiti_qwen_key') || '');
+            } catch (e) { return ''; }
+        }
+        function eitiConfirmQwenKey() {
+            var key = _eitiQwenReadKeyFromInputs();
+            if (!key) { showToast('⚠️ Введите Qwen / DashScope API ключ'); _eitiQwenSetStatus('⚠️ Введите ключ', '#f66'); return; }
+            eitiSyncQwenKeyInputs({ value: key });
+            _eitiQwenSetStatus('⏳ Сохраняю и проверяю…', 'rgba(255,215,0,0.7)');
+            eitiCheckQwenStatus(true);
+        }
+        function eitiCheckQwenStatus(fromConfirm) {
+            var key = _eitiQwenReadKeyFromInputs();
+            if (!key) { showToast('⚠️ Нет Qwen ключа'); _eitiQwenSetStatus('⚠️ Нет ключа', '#f66'); return; }
+            eitiSyncQwenKeyInputs({ value: key });
+            if (!fromConfirm) _eitiQwenSetStatus('⏳ Проверяю статус…', 'rgba(255,215,0,0.7)');
+            // Singapore (intl) then Beijing — keys are region-bound; 401 on first must not abort fallback
+            var endpoints = [
+                'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models',
+                'https://dashscope.aliyuncs.com/compatible-mode/v1/models'
+            ];
+            var lastAuthMsg = '';
+            function finishAuthFail() {
+                _eitiQwenSetStatus('❌ ' + (lastAuthMsg || 'Ошибка авторизации на всех регионах'), '#f44336');
+            }
+            function tryOne(i) {
+                if (i >= endpoints.length) {
+                    if (lastAuthMsg) finishAuthFail();
+                    else _eitiQwenSetStatus('❌ Не удалось проверить статус', '#f44336');
+                    return;
+                }
+                fetch(endpoints[i], { headers: { 'Authorization': 'Bearer ' + key } })
+                .then(function(r) {
+                    if (r.ok) {
+                        return r.json().then(function(d) {
+                            var n = (d && d.data && d.data.length) ? d.data.length : '?';
+                            _eitiQwenSetStatus('✅ Подключено · моделей: ' + n, '#4caf50');
+                            showToast(fromConfirm ? '✅ Qwen ключ подтверждён' : '✅ Qwen подключён');
+                        });
+                    }
+                    // Auth errors are region-specific — try next endpoint before declaring invalid
+                    if (r.status === 401 || r.status === 403) {
+                        return r.json().then(function(d) {
+                            lastAuthMsg = (d.error && (d.error.message || d.error.code)) || ('HTTP ' + r.status);
+                            tryOne(i + 1);
+                        }).catch(function() {
+                            lastAuthMsg = 'HTTP ' + r.status;
+                            tryOne(i + 1);
+                        });
+                    }
+                    tryOne(i + 1);
+                }).catch(function() { tryOne(i + 1); });
+            }
+            tryOne(0);
+        }
+        window.eitiSyncQwenKeyInputs = eitiSyncQwenKeyInputs;
+        window.eitiConfirmQwenKey = eitiConfirmQwenKey;
+        window.eitiCheckQwenStatus = eitiCheckQwenStatus;
+
         // ── Confirm TTS API keys ───────────────────────────────────────────────
         function eitiConfirmTTSKey(provider) {
             var stEl = document.getElementById('tts-key-status-' + provider);
@@ -10603,33 +10729,44 @@
             if (!silent) showToast(model === 'tts-1-hd' ? '🎙 OpenAI HD — высокое качество' : '⚡ OpenAI tts-1 — быстрый', 1800);
         }
         // ── Gemini: выбор модели чата v12.9.78 ────────────────────────────────
+        function eitiNormalizeGeminiModel(raw) {
+            if (!raw) return 'gemini-3.8-flash';
+            if (raw === 'gemini-2.5-flash' || raw === 'gemini-2.0-flash' || raw === 'gemini-1.5-flash') return 'gemini-3.5-flash';
+            if (raw === 'gemini-2.5-pro' || raw === 'gemini-1.5-pro') return 'gemini-3.1-pro-preview';
+            if (raw === 'gemini-2.5-flash-lite' || raw === 'gemini-2.0-flash-lite') return 'gemini-3.5-flash-lite';
+            return raw;
+        }
         function eitiGetGeminiModel() {
-            return localStorage.getItem('eiti_gemini_model') || 'gemini-3.5-flash';
+            return eitiNormalizeGeminiModel(localStorage.getItem('eiti_gemini_model'));
         }
         function eitiSetGeminiModel(model) {
-            localStorage.setItem('eiti_gemini_model', model);
+            localStorage.setItem('eiti_gemini_model', eitiNormalizeGeminiModel(model));
             eitiRenderGeminiModel();
             showToast('⚡ Gemini: ' + model.replace('gemini-','').replace(/-preview.*/,''), 1800);
         }
         function eitiRenderGeminiModel() {
             var cur = eitiGetGeminiModel();
-            var map = { 'gemini-3.5-flash':'gm-model-35flash', 'gemini-2.5-flash':'gm-model-flash', 'gemini-2.5-pro':'gm-model-pro', 'gemini-2.5-flash-lite':'gm-model-lite' };
+            var map = {
+                'gemini-3.8-flash': 'gm-model-38flash',
+                'gemini-3.5-flash': 'gm-model-35flash',
+                'gemini-3.1-pro-preview': 'gm-model-pro',
+                'gemini-3.5-flash-lite': 'gm-model-lite'
+            };
             Object.keys(map).forEach(function(m) {
                 var btn = document.getElementById(map[m]);
                 if (!btn) return;
-                var active = cur === m || (m === 'gemini-2.5-flash' && cur.startsWith('gemini-2.5-flash') && !cur.includes('lite')) || (m === 'gemini-2.5-pro' && cur.startsWith('gemini-2.5-pro'));
+                var active = cur === m;
                 btn.style.borderColor = active ? 'var(--accent-color)' : 'var(--border-color)';
                 btn.style.background  = active ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)';
             });
             var desc = document.getElementById('gm-model-desc');
             var descs = {
-                'gemini-3.5-flash': '3.5 Flash: новый флагман · 1000 запросов/день · бесплатно',
-                'gemini-2.5-flash': '2.5 Flash: баланс качества · 250 запросов/день · бесплатно',
-                'gemini-2.5-pro': '2.5 Pro: наилучшее качество · 50 запросов/день · бесплатно',
-                'gemini-2.5-flash-lite': '2.5 Lite: быстро и дёшево · 1000 запросов/день · бесплатно'
+                'gemini-3.8-flash': '3.8 Flash: актуальный флагман · быстро и сильно',
+                'gemini-3.5-flash': '3.5 Flash: стабильный баланс · бесплатный tier',
+                'gemini-3.1-pro-preview': '3.1 Pro: глубокий reasoning · сложные задачи',
+                'gemini-3.5-flash-lite': '3.5 Lite: максимум скорости · минимум цены'
             };
-            var matchKey = descs[cur] ? cur : (cur.includes('3.5') ? 'gemini-3.5-flash' : cur.includes('lite') ? 'gemini-2.5-flash-lite' : cur.includes('pro') ? 'gemini-2.5-pro' : 'gemini-2.5-flash');
-            if (desc) desc.textContent = descs[matchKey] || cur;
+            if (desc) desc.textContent = descs[cur] || cur;
         }
 
         // ── Gemini TTS: модель / голос / API v12.9.78 ─────────────────────────
@@ -42676,6 +42813,7 @@ window.eitiSetProvider = function(p, silent) {
 
 // ── Тест Qwen API ──────────────────────────────────────────────────────────────
 window.eitiQwenTestAPI = function() {
+    if (typeof eitiCheckQwenStatus === 'function') return eitiCheckQwenStatus(false);
     var status = document.getElementById('eiti-qwen-status');
     if (!status) return;
     status.innerHTML = '⏳ Проверяю Qwen…';
