@@ -104,9 +104,9 @@ test('runtime, service worker, manifest, and README versions stay synchronized',
   const readme = README.match(/version-(\d+\.\d+\.\d+)-gold/);
 
   assert.ok(runtime && cache && updated && manifest && readme);
-  assert.deepEqual(
-    [runtime[1], cache[1], updated[1], manifest[1], readme[1]],
-    ['13.7.7', '13.7.7', '13.7.7', '13.7.7', '13.7.7']
-  );
+  const versions = [runtime[1], cache[1], updated[1], manifest[1], readme[1]];
+  assert.ok(versions.every((v) => v === runtime[1]),
+    'runtime/SW/manifest/README versions must match, got ' + JSON.stringify(versions));
+  assert.match(runtime[1], /^\d+\.\d+\.\d+$/);
   assert.equal(INDEX.includes('EITI_BUILD_DATE'), false);
 });
