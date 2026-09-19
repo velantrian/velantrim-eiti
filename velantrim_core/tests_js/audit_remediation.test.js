@@ -106,7 +106,7 @@ test('runtime, service worker, manifest, and README versions stay synchronized',
   assert.ok(runtime && cache && updated && manifest && readme);
   assert.deepEqual(
     [runtime[1], cache[1], updated[1], manifest[1], readme[1]],
-    ['13.7.5', '13.7.5', '13.7.5', '13.7.5', '13.7.5']
+    ['13.7.7', '13.7.7', '13.7.7', '13.7.7', '13.7.7']
   );
   assert.equal(INDEX.includes('EITI_BUILD_DATE'), false);
 });
