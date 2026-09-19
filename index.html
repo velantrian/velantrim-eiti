@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.5"; // v13.7.5: audit remediation — exact-once commands, fail-closed memory, safe HTML sinks
+        var EITI_VERSION = "13.7.6"; // v13.7.6: DeepSeek V4.1 Flash + Pro Low/High/Max reasoning_effort
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -427,7 +427,7 @@
                 '~250/день': '~250/Tag',
                 '~50/день': '~50/Tag',
                 '📡 Активный провайдер': '📡 Aktiver Provider',
-                'v4-flash (быстро) · v4-pro (точно)': 'v4-flash (schnell) · v4-pro (präzise)',
+                'v4-flash (быстро) · v4-pro (точно)': 'V4.1 Flash · V4 Pro Low/High/Max',
                 'Flash / Pro — введи ключ ниже': 'Flash / Pro — Schlüssel unten eingeben',
                 'Flash-Lite · Flash · Pro · 3.1 — бесплатно': 'Flash-Lite · Flash · Pro · 3.1 — kostenlos',
                 'Alibaba · поиск · 235B': 'Alibaba · Suche · 235B',
@@ -2065,7 +2065,7 @@
                 '~250/день': '~250/day',
                 '~50/день': '~50/day',
                 '📡 Активный провайдер': '📡 Active provider',
-                'v4-flash (быстро) · v4-pro (точно)': 'v4-flash (fast) · v4-pro (accurate)',
+                'v4-flash (быстро) · v4-pro (точно)': 'V4.1 Flash · V4 Pro Low/High/Max',
                 'Flash / Pro — введи ключ ниже': 'Flash / Pro — enter key below',
                 'Flash-Lite · Flash · Pro · 3.1 — бесплатно': 'Flash-Lite · Flash · Pro · 3.1 — free',
                 'Alibaba · поиск · 235B': 'Alibaba · search · 235B',
@@ -7408,17 +7408,25 @@
                                     💡 <b>Суть</b> → ответ в 1-3 предложения, только главное
                                 </div>
                             </div>
-                            <!-- v12.9.77: Выбор модели DeepSeek -->
+                            <!-- v13.7.6: DeepSeek V4.1 Flash + Pro Low/High/Max -->
                             <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;">
                                 <div style="font-size:13px;font-weight:600;margin-bottom:8px;">⚡ Модель DeepSeek</div>
-                                <div style="display:flex;gap:8px;">
-                                    <button id="ds-model-flash" onclick="eitiSetDsModel('deepseek-v4-flash')"
-                                        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;">
-                                        ⚡ V4 Flash<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Быстро · дешево</span>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                    <button id="ds-model-flash" onclick="eitiSetDsModel('deepseek-flash')"
+                                        style="padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">
+                                        ⚡ DeepSeek V4.1 Flash<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Быстро · дешево</span>
                                     </button>
-                                    <button id="ds-model-pro" onclick="eitiSetDsModel('deepseek-v4-pro')"
-                                        style="flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:700;cursor:pointer;">
-                                        🔬 V4 Pro<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Точнее · дороже</span>
+                                    <button id="ds-model-pro-high" onclick="eitiSetDsModel('deepseek-v4-pro-high')"
+                                        style="padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">
+                                        🧠 DeepSeek V4 Pro — High<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Default · reasoning</span>
+                                    </button>
+                                    <button id="ds-model-pro-low" onclick="eitiSetDsModel('deepseek-v4-pro-low')"
+                                        style="padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">
+                                        🔹 DeepSeek V4 Pro — Low<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Лёгкий reasoning</span>
+                                    </button>
+                                    <button id="ds-model-pro-max" onclick="eitiSetDsModel('deepseek-v4-pro-max')"
+                                        style="padding:10px 6px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">
+                                        🔥 DeepSeek V4 Pro — Max<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Макс. reasoning</span>
                                     </button>
                                 </div>
                                 <div id="ds-model-desc" style="font-size:11px;opacity:0.5;margin-top:6px;text-align:center;"></div>
@@ -7473,7 +7481,7 @@
                                         style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;border:2px solid var(--border-color);background:var(--secondary-color);cursor:pointer;transition:all 0.2s;">
                                         <span id="eiti-picon-ds" style="font-size:20px;flex-shrink:0;display:inline-block;">🤖</span>
                                         <span style="flex:1;"><span style="font-size:14px;font-weight:700;">DeepSeek</span>
-                                        <span style="display:block;font-size:11px;opacity:0.55;">v4-flash (быстро) · v4-pro (точно)</span></span>
+                                        <span style="display:block;font-size:11px;opacity:0.55;">V4.1 Flash · V4 Pro Low/High/Max</span></span>
                                         <span id="eiti-pcheck-ds" style="font-size:20px;opacity:0.2;">⬜</span>
                                     </div>
                                     <div id="eiti-provider-card-gm" onclick="eitiSetProvider('gemini')"
@@ -10757,7 +10765,7 @@
                 _sumPromise = fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + _dsKey, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 180,
+                    body: JSON.stringify({ model: 'deepseek-flash', max_tokens: 180,
                         messages: [
                             { role: 'system', content: 'Сделай краткий дайджест диалога в 2-3 предложениях. Сохрани ключевые факты, решения, имена и контекст. Пиши на русском.' },
                             { role: 'user', content: dialogText }
@@ -16119,7 +16127,7 @@
             // 1️⃣ DeepSeek — прямой и дешевле всего
             var dk = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
             if (dk) {
-                var dsBody = { model: 'deepseek-v4-flash', max_tokens: maxTok, messages: msgs };
+                var dsBody = { model: 'deepseek-flash', max_tokens: maxTok, messages: msgs };
                 if (needJson) dsBody.response_format = { type: 'json_object' };
                 return fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
@@ -16129,7 +16137,7 @@
                     if (d.error) {
                         // Guard: preview-модель могла переименоваться
                         if (d.error.code === 'model_not_found' || (d.error.message && d.error.message.indexOf('model_not_found') !== -1)) {
-                            if (typeof showToast === 'function') showToast('❌ deepseek-v4-flash не найдена — проверь API или смени модель', 4000);
+                            if (typeof showToast === 'function') showToast('❌ deepseek-flash не найдена — проверь API или смени модель', 4000);
                         }
                         throw new Error(JSON.stringify(d.error));
                     }
@@ -19035,7 +19043,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + dk, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'deepseek-v4-flash', messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
+                    body: JSON.stringify({ model: 'deepseek-flash', messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
                 }).then(function(r) {
                     if (r.ok) { status.innerHTML = '<span style="color:#0f0">✅ DeepSeek подключён!</span>'; showToast('AI активен 🤖'); }
                     else { status.innerHTML = '<span style="color:#f66">❌ HTTP ' + r.status + '</span>'; }
@@ -19269,7 +19277,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             var dsModel = (typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : '';
             var provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
             var geminiModel = localStorage.getItem('eiti_gemini_model') || '';
-            if (dsModel === 'deepseek-v4-pro' ||
+            if (dsModel === 'deepseek-v4-pro' || (typeof eitiIsDsReasoningMode === 'function' && eitiIsDsReasoningMode()) ||
                 geminiModel.indexOf('pro') !== -1 ||
                 geminiModel.indexOf('1.5') !== -1 ||
                 geminiModel.indexOf('ultra') !== -1) {
@@ -20431,17 +20439,14 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 }
 
                 // ── DeepSeek SSE path (default) ────────────────────
-                var _aiModel = (typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : 'deepseek-v4-flash';
+                var _dsChatBody = (typeof eitiApplyDsChatParams === 'function')
+                    ? eitiApplyDsChatParams({ messages: history, max_tokens: _maxTok, stream: true })
+                    : { model: ((typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : 'deepseek-flash'), messages: history, max_tokens: _maxTok, stream: true };
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     signal: _abortCtrl.signal,
                     headers: {'Authorization':'Bearer ' + key, 'Content-Type':'application/json'},
-                    body: JSON.stringify({
-                        model: _aiModel,
-                        messages: history,
-                        max_tokens: _maxTok,
-                        stream: true
-                    })
+                    body: JSON.stringify(_dsChatBody)
                 }).then(function(r) {
                     clearTimeout(_abortTimer);
                     if (!r.ok) {
@@ -21006,7 +21011,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     .then(function(d){ return d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts[0].text || ''; });
                 } else {
                     var _l2Url = _l2Provider === 'deepseek' ? 'https://api.deepseek.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
-                    var _l2Model = _l2Provider === 'deepseek' ? 'deepseek-v4-flash' : (localStorage.getItem('eiti_or_model') || 'openrouter/auto');
+                    var _l2Model = _l2Provider === 'deepseek' ? 'deepseek-flash' : (localStorage.getItem('eiti_or_model') || 'openrouter/auto');
                     var _l2Headers = {'Authorization': 'Bearer ' + _l2Key, 'Content-Type': 'application/json'};
                     if (_l2Provider === 'openrouter') { _l2Headers['HTTP-Referer'] = 'https://velantrim.eiti'; _l2Headers['X-Title'] = 'VELANTRIM EITI'; }
                     _l2FetchPromise = fetch(_l2Url, {
@@ -23035,7 +23040,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 1500,
+                    body: JSON.stringify({ model: 'deepseek-flash', max_tokens: 1500,
                         messages: [{ role: 'user', content: prompt }] })
                 }).then(function(r){ return r.json(); }).then(function(data) {
                     var text = (data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -28791,7 +28796,7 @@ window.eitiLLMClearAll = async function() {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'deepseek-v4-flash',
+                    model: 'deepseek-flash',
                     max_tokens: 3000,
                     messages: [
                         { role: 'system', content: 'Отвечай только валидным JSON без markdown, без пояснений.' },
@@ -31128,7 +31133,7 @@ window.eitiLLMClearAll = async function() {
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _dsKey },
-                    body: JSON.stringify({ model: 'deepseek-v4-flash', max_tokens: 800,
+                    body: JSON.stringify({ model: 'deepseek-flash', max_tokens: 800,
                         messages: [{ role:'system', content: sysTxt },
                                    { role:'user', content: prompt }] })
                 }).then(function(r){ return r.json(); })
@@ -31157,7 +31162,7 @@ window.eitiLLMClearAll = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:2000,
+                body: JSON.stringify({ model:'deepseek-flash', max_tokens:2000,
                     messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = (data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
@@ -31326,7 +31331,7 @@ window.eitiLLMClearAll = async function() {
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST',
                     headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                    body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:3000,
+                    body: JSON.stringify({ model:'deepseek-flash', max_tokens:3000,
                         messages:[
                             {role:'system', content:'Ты верификатор базы знаний. Проверяй факты строго. Возвращай только JSON массив без markdown и пояснений.'},
                             {role:'user', content:prompt}
@@ -31378,7 +31383,7 @@ window.eitiLLMClearAll = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:3000,
+                body: JSON.stringify({ model:'deepseek-flash', max_tokens:3000,
                     messages:[
                         {role:'system', content:'Ты точная база знаний. Отвечай ТОЛЬКО достоверными фактами. Никогда не путай похожие понятия (например: столица Венгрии — Будапешт, НЕ Бухарест; Бухарест — столица Румынии). Возвращай только JSON массив без пояснений.'},
                         {role:'user', content:prompt}
@@ -31461,27 +31466,85 @@ window.eitiLLMClearAll = async function() {
             var pool = (lang === 'en') ? _CMODE_PROMPTS_EN : _CMODE_PROMPTS;
             return pool[mode] || '';
         };
-        // v12.9.77: выбор модели DeepSeek
+        // v13.7.6: DeepSeek selection → API model + reasoning_effort
+        // Selection keys: deepseek-flash | deepseek-v4-pro-low | deepseek-v4-pro-high | deepseek-v4-pro-max
+        // API models: deepseek-flash | deepseek-v4-pro  (legacy deepseek-v4-flash → deepseek-flash)
+        // XHigh is NOT an official DeepSeek UI mode; compatibility xhigh maps to high.
+        function eitiNormalizeDsSelection(raw) {
+            if (!raw) return 'deepseek-v4-pro-high';
+            if (raw === 'deepseek-flash') return 'deepseek-flash';
+            if (raw === 'deepseek-v4-pro' || raw === 'deepseek-v4-pro-xhigh' || raw === 'deepseek-v4-pro:xhigh') return 'deepseek-v4-pro-high';
+            if (raw === 'deepseek-v4-pro:low') return 'deepseek-v4-pro-low';
+            if (raw === 'deepseek-v4-pro:high') return 'deepseek-v4-pro-high';
+            if (raw === 'deepseek-v4-pro:max') return 'deepseek-v4-pro-max';
+            if (raw === 'deepseek-flash' || raw === 'deepseek-v4-pro-low' || raw === 'deepseek-v4-pro-high' || raw === 'deepseek-v4-pro-max') return raw;
+            return 'deepseek-v4-pro-high';
+        }
+        function eitiGetDsSelection() {
+            return eitiNormalizeDsSelection(localStorage.getItem('eiti_ds_model'));
+        }
+        /** Canonical DeepSeek API model id for chat/completions */
         function eitiGetDsModel() {
-            return localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash';
+            var sel = eitiGetDsSelection();
+            return (sel.indexOf('deepseek-v4-pro') === 0) ? 'deepseek-v4-pro' : 'deepseek-flash';
+        }
+        /** Official reasoning_effort for Pro variants; null for Flash */
+        function eitiGetDsReasoningEffort() {
+            var sel = eitiGetDsSelection();
+            if (sel === 'deepseek-v4-pro-low') return 'low';
+            if (sel === 'deepseek-v4-pro-high') return 'high';
+            if (sel === 'deepseek-v4-pro-max') return 'max';
+            return null;
+        }
+        function eitiIsDsReasoningMode() {
+            return eitiGetDsReasoningEffort() !== null;
+        }
+        /** Mutate a DeepSeek chat body with model + reasoning_effort + thinking */
+        function eitiApplyDsChatParams(body) {
+            body = body || {};
+            body.model = eitiGetDsModel();
+            var effort = eitiGetDsReasoningEffort();
+            if (effort) {
+                body.reasoning_effort = effort;
+                body.thinking = { type: 'enabled' };
+            }
+            return body;
         }
         function eitiSetDsModel(model) {
-            localStorage.setItem('eiti_ds_model', model);
+            var sel = eitiNormalizeDsSelection(model);
+            localStorage.setItem('eiti_ds_model', sel);
             eitiRenderDsModel();
-            showToast(model === 'deepseek-v4-pro' ? '🔬 V4 Pro: точнее, медленнее' : '⚡ V4 Flash: быстро и дёшево', 2000);
+            var toastMap = {
+                'deepseek-flash': '⚡ DeepSeek V4.1 Flash',
+                'deepseek-v4-pro-low': '🔹 V4 Pro — Low',
+                'deepseek-v4-pro-high': '🧠 V4 Pro — High',
+                'deepseek-v4-pro-max': '🔥 V4 Pro — Max'
+            };
+            showToast(toastMap[sel] || sel, 2000);
         }
         function eitiRenderDsModel() {
-            var cur = eitiGetDsModel();
-            ['flash','pro'].forEach(function(m) {
+            var cur = eitiGetDsSelection();
+            ['flash','pro-low','pro-high','pro-max'].forEach(function(m) {
                 var btn = document.getElementById('ds-model-' + m);
-                var isActive = (m === 'flash') ? cur === 'deepseek-v4-flash' : cur === 'deepseek-v4-pro';
                 if (!btn) return;
+                var isActive = (m === 'flash' && cur === 'deepseek-flash') ||
+                    (m === 'pro-low' && cur === 'deepseek-v4-pro-low') ||
+                    (m === 'pro-high' && cur === 'deepseek-v4-pro-high') ||
+                    (m === 'pro-max' && cur === 'deepseek-v4-pro-max');
                 btn.style.borderColor = isActive ? 'var(--accent-color)' : 'var(--border-color)';
                 btn.style.background  = isActive ? 'rgba(255,215,0,0.15)' : 'var(--secondary-color)';
                 btn.style.color       = isActive ? 'var(--accent-color)' : 'var(--text-color)';
             });
             var desc = document.getElementById('ds-model-desc');
-            if (desc) desc.textContent = cur === 'deepseek-v4-pro' ? '🔬 Pro: глубже анализ, выше цена токена' : '⚡ Flash: оптимально для большинства задач';
+            if (desc) {
+                var descs = {
+                    'deepseek-flash': '⚡ V4.1 Flash: быстро и дёшево (model: deepseek-flash)',
+                    'deepseek-v4-pro-low': '🔹 Pro Low: model deepseek-v4-pro · reasoning_effort=low',
+                    'deepseek-v4-pro-high': '🧠 Pro High: model deepseek-v4-pro · reasoning_effort=high (default)',
+                    'deepseek-v4-pro-max': '🔥 Pro Max: model deepseek-v4-pro · reasoning_effort=max'
+                };
+                desc.textContent = descs[cur] || '';
+            }
         }
         function eitiGetCogMode() {
             return localStorage.getItem('eiti_cog_mode') || 'balanced';
@@ -34149,7 +34212,7 @@ window.eitiLLMClearAll = async function() {
             try {
                 var resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-                    body: JSON.stringify({ model:'deepseek-v4-flash', max_tokens:4096, temperature:0.3, messages:[{role:'user',content:prompt}] })
+                    body: JSON.stringify({ model:'deepseek-flash', max_tokens:4096, temperature:0.3, messages:[{role:'user',content:prompt}] })
                 });
                 var data = await resp.json();
                 var raw = ((data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').replace(/```json|```/g,'').trim();
@@ -34726,7 +34789,7 @@ window.eitiLLMClearAll = async function() {
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST',
                 headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:1500,
+                body:JSON.stringify({ model:'deepseek-flash', max_tokens:1500,
                     messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'';
@@ -34837,7 +34900,7 @@ window.eitiLLMClearAll = async function() {
                     'Только JSON, без пояснений.';
                 fetch('https://api.deepseek.com/v1/chat/completions', {
                     method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                    body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:800, messages:[{role:'user',content:prompt}] })
+                    body:JSON.stringify({ model:'deepseek-flash', max_tokens:800, messages:[{role:'user',content:prompt}] })
                 }).then(function(r){ return r.json(); }).then(function(data) {
                     if (_moscFixCancelled) return;
                     var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'{}';
@@ -34923,7 +34986,7 @@ window.eitiLLMClearAll = async function() {
                 'Только JSON, без пояснений.';
             fetch('https://api.deepseek.com/v1/chat/completions', {
                 method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-                body:JSON.stringify({ model:'deepseek-v4-flash', max_tokens:1200, messages:[{role:'user',content:prompt}] })
+                body:JSON.stringify({ model:'deepseek-flash', max_tokens:1200, messages:[{role:'user',content:prompt}] })
             }).then(function(r){ return r.json(); }).then(function(data) {
                 var text = ((data.choices||[])[0]||{}).message&&data.choices[0].message.content||'{}';
                 var obj = JSON.parse(text.replace(/```json|```/g,'').trim());
@@ -35585,7 +35648,7 @@ window.eitiLLMClearAll = async function() {
             if (provider === 'deepseek') {
                 var dk = _deobfKey(localStorage.getItem('deepseek_api_key') || '');
                 var dsBody = {
-                    model: 'deepseek-v4-flash',
+                    model: 'deepseek-flash',
                     messages: [{ role: 'user', content: prompt }],
                     max_tokens: isChat ? 800 : 1500,
                     temperature: isChat ? 0.5 : 0.1
@@ -37069,9 +37132,9 @@ window.eitiLLMClearAll = async function() {
 
                 <div>
                     <div style="font-size:14px;font-weight:700;color:var(--accent-color,#ffd700);margin-bottom:4px;">🧬 Режимы мышления AI</div>
-                    <b>🎯 Точность</b> — факты и код. Модель <b>deepseek-v4-flash</b>: строгий режим, минимум фантазий.<br>
-                    <b>⚖️ Баланс</b> — стандартный режим. Модель <b>deepseek-v4-flash</b>: быстро и точно.<br>
-                    <b>🔭 Идеи</b> — творческий режим, гипотезы и нестандартные решения. Модель <b>deepseek-v4-flash</b>.<br>
+                    <b>🎯 Точность</b> — факты и код. Модель <b>deepseek-flash</b>: строгий режим, минимум фантазий.<br>
+                    <b>⚖️ Баланс</b> — стандартный режим. Модель <b>deepseek-flash</b>: быстро и точно.<br>
+                    <b>🔭 Идеи</b> — творческий режим, гипотезы и нестандартные решения. Модель <b>deepseek-flash</b>.<br>
                     <b>🌐 Поиск</b> — онлайн-режим: запрос ищется через DuckDuckGo, результаты передаются AI как контекст.
                 </div>
 
@@ -37666,7 +37729,7 @@ window.moscFreeTextSend = function() {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: 'deepseek-v4-flash',
+            model: 'deepseek-flash',
             messages: [{ role: 'user', content: sysPrompt }],
             max_tokens: 800,
             temperature: 0.2
@@ -37776,7 +37839,7 @@ window.moscFreeTextSend = function() {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'deepseek-v4-flash',
+                model: 'deepseek-flash',
                 messages: [{ role: 'user', content: prompt }],
                 max_tokens: 400,
                 temperature: 0.1
@@ -43346,12 +43409,9 @@ function _eitiDeepSeekVision(userText, images, history, liveId) {
             'Authorization': 'Bearer ' + key,
             'Content-Type':  'application/json',
         },
-        body: JSON.stringify({
-            model:      (typeof eitiGetDsModel === 'function' ? eitiGetDsModel() : localStorage.getItem('eiti_ds_model') || 'deepseek-v4-flash'),
-            messages:   apiMsgs,
-            max_tokens: 2000,
-            stream:     false,
-        }),
+        body: JSON.stringify((typeof eitiApplyDsChatParams === 'function')
+            ? eitiApplyDsChatParams({ messages: apiMsgs, max_tokens: 2000, stream: false })
+            : { model: ((typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : 'deepseek-flash'), messages: apiMsgs, max_tokens: 2000, stream: false }),
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) {
             throw new Error('DS Vision ' + r.status + ': ' + JSON.stringify(e.error || e));
