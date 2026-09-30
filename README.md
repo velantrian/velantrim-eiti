@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Клиентское PWA без backend и build step. Основной интерфейс — один HTML-файл._
 
-[![Version](https://img.shields.io/badge/version-13.7.9-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![Version](https://img.shields.io/badge/version-13.7.10-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![No Build Step](https://img.shields.io/badge/build-none-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline Core](https://img.shields.io/badge/offline-core-orange?style=flat-square)](#)
@@ -129,7 +129,7 @@ VELANTRIM EITI — клиентский AI-ассистент, основной 
 | ⚡ **Google Gemini** | Быстрые ответы, мультимодальность |
 | 🟢 **ChatGPT / OpenAI** | Streaming chat, reasoning-модели, vision/file flows |
 | 🗣️ **xAI Grok Voice** | Голосовой режим реального времени с историей чатов |
-| 🔀 **OpenRouter** | 300+ моделей + отдельный 🆓 Free version каталог с live-списком бесплатных endpoints |
+| 🔀 **OpenRouter** | 300+ моделей + 🆓 Free version live-каталог + переключатель 🧠 Thinking ON/OFF |
 | 🦆 **DuckDuckGo AI** | Бесплатно, без API-ключа |
 | ⛔ **None** | Полностью офлайн, только локальный поиск |
 
