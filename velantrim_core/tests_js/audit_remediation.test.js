@@ -110,3 +110,26 @@ test('runtime, service worker, manifest, and README versions stay synchronized',
   assert.match(runtime[1], /^\d+\.\d+\.\d+$/);
   assert.equal(INDEX.includes('EITI_BUILD_DATE'), false);
 });
+
+
+test('OpenRouter thinking toggle persists and disables reasoning on all OR request paths', () => {
+  assert.match(INDEX, /id="or-thinking-row"/);
+  assert.match(INDEX, /localStorage\.getItem\('eiti_or_thinking'\) !== '0'/);
+  assert.match(INDEX, /out\.reasoning_effort = 'none'/);
+  assert.match(INDEX, /function eitiApplyORThinking\(body\)/);
+
+  const endpoints = INDEX.match(/https:\/\/openrouter\.ai\/api\/v1\/chat\/completions/g) || [];
+  assert.equal(endpoints.length, 8, 'unexpected OpenRouter chat endpoint count');
+
+  const callSites = [
+    /eitiApplyORThinking\(suggBody\)/,
+    /eitiApplyORThinking\(orBody\)/,
+    /eitiApplyORThinking\(\{ model: model, messages: \[\{ role: 'user', content: 'hi' \}\], max_tokens: 5 \}\)/,
+    /eitiApplyORThinking\(\{ model: _orModel, messages: history, max_tokens: _maxTok, stream: true \}\)/,
+    /if \(_l2Provider === 'openrouter'\) eitiApplyORThinking\(_l2Body\)/,
+    /eitiApplyORThinking\(\{\s*model: 'deepseek\/deepseek-chat'/,
+    /eitiApplyORThinking\(orBody\);\s*var orr = await fetch\('https:\/\/openrouter\.ai\/api\/v1\/chat\/completions'/,
+    /eitiApplyORThinking\(\{ model: model, messages: apiMsgs, max_tokens: 2000 \}\)/
+  ];
+  callSites.forEach((re) => assert.match(INDEX, re));
+});
