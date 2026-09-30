@@ -1,8 +1,8 @@
-// VELANTRIM EITI — Service Worker v13.7.11
+// VELANTRIM EITI — Service Worker v13.7.12
 // Fixes: LAZY_FILES await race, cross-origin CDN cache, updatefound wiring, SWR for data/*.json
-// Sync: CACHE + SW_UPDATED now match EITI_VERSION 13.7.11
+// Sync: CACHE + SW_UPDATED now match EITI_VERSION 13.7.12
 
-var CACHE = 'eiti-v13.7.11'; // v13.7.11: OpenRouter model logos + true Thinking OFF
+var CACHE = 'eiti-v13.7.12'; // v13.7.12: OR model list icons, 429 details, speed badge
 var BASE = self.location.pathname.replace(/sw\.js$/, '');
 
 // Критическое ядро — без них app не запустится
@@ -62,7 +62,7 @@ self.addEventListener('activate', function(e) {
                     if (!isUpdate) return; // v12.9.79: не отправляем при первой установке
                     return self.clients.matchAll().then(function(clients) {
                         clients.forEach(function(c) {
-                            c.postMessage({ type: 'SW_UPDATED', version: '13.7.11' });
+                            c.postMessage({ type: 'SW_UPDATED', version: '13.7.12' });
                         });
                     });
                 });

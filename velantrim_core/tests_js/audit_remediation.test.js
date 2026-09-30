@@ -197,7 +197,7 @@ test('OpenRouter brand mapping is prefix-first with neutral fallback', () => {
     'xiaomi/mimo-v2.6-pro': 'mimo', 'z-ai/glm-5.3-flash': 'glm', 'moonshotai/kimi-k3': 'kimi',
     'nvidia/nemotron-3-ultra:free': 'nvidia', 'google/gemma-4:free': 'google', 'qwen/qwen3:free': 'qwen',
     'meta-llama/llama-3.3-70b-instruct': 'meta', 'mistralai/mistral-large': 'mistral', 'x-ai/grok-4': 'xai',
-    'minimax/minimax-m2': 'minimax', 'unknown/foo': 'openrouter', 'openrouter/auto': 'openrouter', '': 'openrouter'
+    'minimax/minimax-m2': 'minimax', 'cohere/north-mini-code:free': 'cohere', 'poolside/laguna-s-2.1:free': 'poolside', 'liquid/lfm2.5:free': 'liquid', 'inclusionai/ling-3.0:free': 'inclusion', 'thinkingmachines/inkling:free': 'thinking', 'unknown/foo': 'openrouter', 'openrouter/auto': 'openrouter', '': 'openrouter'
   };
   for (const [id, brand] of Object.entries(cases)) assert.equal(b(id), brand, id);
   assert.equal(b('someone/kimi-clone'), 'kimi'); // family matcher fallback
@@ -210,4 +210,12 @@ test('OR model names are escaped before innerHTML; icons come from local table',
   assert.equal(h.includes('<img'), false);
   assert.match(h, /&lt;img/);
   assert.equal(/<img|href=|xlink|https?:/.test(sb.eitiORModelIconHtml('x/y')), false);
+});
+
+test('OpenRouter errors expose provider detail and escape it; speed badge and custom list exist', () => {
+  assert.match(INDEX, /_em\.provider_name/);
+  assert.match(INDEX, /eitiOREscape\(errMsg\)/);
+  assert.match(INDEX, /ток\/с/);
+  assert.match(INDEX, /function eitiRenderORFreeList\(\)/);
+  assert.match(INDEX, /t\.textContent = opt\.textContent/);
 });
