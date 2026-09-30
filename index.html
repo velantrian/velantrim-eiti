@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.10"; // v13.7.10: OpenRouter Thinking ON/OFF control
+        var EITI_VERSION = "13.7.11"; // v13.7.11: OpenRouter model logos + true Thinking OFF
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -7685,7 +7685,7 @@
                                         <span id="or-thinking-check" style="font-size:18px;line-height:1;">✅</span>
                                         <span style="flex:1;">
                                             <span style="display:block;font-size:13px;font-weight:700;">🧠 OpenRouter Thinking</span>
-                                            <span style="display:block;font-size:11px;opacity:0.55;">Вкл — режим модели по умолчанию · Выкл — reasoning_effort: none</span>
+                                            <span id="or-thinking-note" style="display:block;font-size:11px;opacity:0.55;">Вкл — режим модели по умолчанию · Выкл — reasoning отключается запросом</span>
                                         </span>
                                     </label>
                                     <div id="openrouter-free-section" style="margin-top:10px;padding:10px;border:1px solid rgba(80,200,120,0.28);border-radius:12px;background:rgba(60,180,100,0.06);">
@@ -7701,9 +7701,10 @@
                                                 style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:12px;">
                                             <option value="">Загрузить список бесплатных моделей…</option>
                                         </select>
+                                        <div id="or-free-current" style="font-size:12px;margin-top:6px;display:flex;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
                                         <div id="or-free-status" style="font-size:10px;opacity:0.5;margin-top:5px;line-height:1.4;">Список ещё не загружен</div>
                                     </div>
-                                    <div id="or-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;">Модель: openrouter/auto</div>
+                                    <div id="or-model-label" style="font-size:11px;opacity:0.6;margin-top:5px;display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Модель: openrouter/auto</div>
                                 </div>
                                 <button onclick="eitiTestOpenRouter()"
                                         style="margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:13px;font-weight:600;cursor:pointer;width:100%;">
@@ -14202,7 +14203,7 @@
 
                 const time = new Date(m.ts).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
                 const _pLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
-                const senderHtml = (m.role !== 'user') ? '<div class="message-sender">' + (_pLabels[m.provider] || 'EITI AI 🤖') + '</div>' : '';
+                const senderHtml = (m.role !== 'user') ? '<div class="message-sender">' + ((m.provider === 'openrouter' && m.model && typeof eitiORSenderHtml === 'function') ? eitiORSenderHtml(m.model, false) : (_pLabels[m.provider] || 'EITI AI 🤖')) + '</div>' : '';
 
                 // v12.9.72: мульти-чипы — показываем все прикреплённые файлы
                 var fileChipHtml = '';
@@ -19140,10 +19141,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 customEl.value = '';
             }
             var lbl = document.getElementById('or-model-label');
-            if (lbl) lbl.textContent = 'Модель: ' + model;
+            if (lbl) lbl.innerHTML = eitiORModelIconHtml(model) + '<span>Модель: ' + eitiOREscape(model) + '</span>';
             // обновляем подпись в карточке провайдера
             var cardLbl = document.getElementById('eiti-pcard-or-model');
-            if (cardLbl) cardLbl.textContent = model;
+            if (cardLbl) cardLbl.innerHTML = eitiORModelIconHtml(model, 14) + '<span>' + eitiOREscape(model) + '</span>';
 
             // Highlight active preset button, including the dedicated free router.
             var presetMap = {
@@ -19156,6 +19157,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             Object.keys(presetMap).forEach(function(id) {
                 var btn = document.getElementById(id);
                 if (!btn) return;
+                if (!btn.querySelector('.eiti-or-ico')) btn.insertAdjacentHTML('afterbegin', eitiORModelIconHtml(presetMap[id], 16));
                 if (presetMap[id] === model) {
                     btn.style.border = '2px solid var(--accent-color)';
                     btn.style.background = 'rgba(255,200,0,0.15)';
@@ -19170,6 +19172,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var hasCurrent = Array.prototype.some.call(freeSel.options, function(opt) { return opt.value === model; });
                 freeSel.value = hasCurrent ? model : '';
             }
+            var freeCur = document.getElementById('or-free-current');
+            if (freeCur) freeCur.innerHTML = eitiORModelLabelHtml(model);
+            try { eitiRenderORThinking(); eitiLoadORModelMeta(); } catch (e) {}
             var freeBox = document.getElementById('openrouter-free-section');
             if (freeBox) {
                 var isFree = model === 'openrouter/free' || /:free$/i.test(model);
@@ -19200,6 +19205,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 })
                 .then(function(payload) {
                     var models = payload && Array.isArray(payload.data) ? payload.data : [];
+                    try { eitiORCacheModelMeta(models); } catch (e) {}
                     var freeModels = models.filter(function(m) {
                         if (!m || !m.id) return false;
                         var pricing = m.pricing || {};
@@ -19235,6 +19241,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var current = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
                     var hasCurrent = freeModels.some(function(m) { return m.id === current; });
                     if (hasCurrent) sel.value = current;
+                    try { eitiSetORModel(current); eitiRenderORThinking(); } catch (e) {}
                     if (st) st.textContent = freeModels.length
                         ? '✅ Найдено ' + freeModels.length + ' бесплатных text-моделей · live catalog OpenRouter'
                         : '⚠️ Сейчас OpenRouter не вернул бесплатных text-моделей';
@@ -19248,10 +19255,56 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         window.eitiLoadORFreeModels = eitiLoadORFreeModels;
 
         // ── OpenRouter Thinking toggle ──────────────────────────────────────────
-        // ON preserves each model/provider default. OFF sends the OpenRouter
-        // unified shorthand reasoning_effort="none" on every OpenRouter request.
+        // ON preserves each model/provider default (nothing forced). OFF sends the
+        // official OpenRouter unified reasoning object:
+        //   reasoning: { enabled: false, effort: "none", exclude: true }
+        // and never the legacy reasoning_effort shorthand (one source of truth).
+        // Model reasoning metadata (GET /models) is cached in _eitiORModelMeta so we
+        // never claim OFF for mandatory-reasoning models or unsupported models.
+        var _eitiORModelMeta = {};
+        var _eitiORMetaLoading = false;
         function eitiIsORThinking() {
             return localStorage.getItem('eiti_or_thinking') !== '0';
+        }
+        function eitiORCacheModelMeta(models) {
+            (models || []).forEach(function(m) {
+                if (!m || !m.id) return;
+                var r = (m.reasoning && typeof m.reasoning === 'object') ? m.reasoning : null;
+                var sp = Array.isArray(m.supported_parameters) ? m.supported_parameters : null;
+                var supported = r ? true : (sp ? (sp.indexOf('reasoning') !== -1 || sp.indexOf('include_reasoning') !== -1) : null);
+                _eitiORModelMeta[String(m.id)] = {
+                    name: typeof m.name === 'string' ? m.name : '',
+                    supported: supported,
+                    mandatory: !!(r && r.mandatory === true)
+                };
+            });
+        }
+        function eitiLoadORModelMeta() {
+            if (_eitiORMetaLoading || Object.keys(_eitiORModelMeta).length) return;
+            _eitiORMetaLoading = true;
+            fetch('https://openrouter.ai/api/v1/models')
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(p) {
+                    if (p && Array.isArray(p.data)) eitiORCacheModelMeta(p.data);
+                    _eitiORMetaLoading = false;
+                    try { eitiRenderORThinking(); } catch (e) {}
+                })
+                .catch(function() { _eitiORMetaLoading = false; });
+        }
+        // 'router' | 'mandatory' | 'unsupported' | 'normal' (unknown metadata counts as normal)
+        function eitiORThinkingKind(model) {
+            model = model || localStorage.getItem('eiti_or_model') || 'openrouter/auto';
+            if (model === 'openrouter/auto' || model === 'openrouter/free') return 'router';
+            var meta = _eitiORModelMeta[model];
+            if (meta) {
+                if (meta.mandatory) return 'mandatory';
+                if (meta.supported === false) return 'unsupported';
+            }
+            return 'normal';
+        }
+        // Whether the reasoning/Think indicator may be shown for the current request.
+        function eitiORThinkingActive(model) {
+            return eitiIsORThinking() || eitiORThinkingKind(model) === 'mandatory';
         }
         function eitiToggleORThinking() {
             localStorage.setItem('eiti_or_thinking', eitiIsORThinking() ? '0' : '1');
@@ -19260,23 +19313,111 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         }
         function eitiRenderORThinking() {
             var on = eitiIsORThinking();
+            var kind = eitiORThinkingKind();
             var check = document.getElementById('or-thinking-check');
             var row = document.getElementById('or-thinking-row');
+            var note = document.getElementById('or-thinking-note');
             if (check) check.textContent = on ? '✅' : '⬜';
             if (row) {
                 row.style.borderColor = on ? 'var(--accent-color)' : 'var(--border-color)';
                 row.style.background = on ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)';
             }
+            if (note) {
+                var txt = 'Вкл — режим модели по умолчанию · Выкл — reasoning отключается запросом';
+                if (kind === 'mandatory') txt = 'Для этой модели reasoning обязателен — отключить нельзя';
+                else if (kind === 'unsupported') txt = 'Thinking: неприменимо для этой модели';
+                else if (!on && kind === 'router') txt = 'Предпочтение: выкл (router может выбрать модель, игнорирующую настройку)';
+                else if (!on) txt = 'Выкл — reasoning отключён (enabled:false, effort:none)';
+                note.textContent = txt;
+            }
         }
         function eitiApplyORThinking(body) {
             var out = body || {};
             if (!eitiIsORThinking()) {
-                delete out.reasoning;
-                out.reasoning_effort = 'none';
+                var kind = eitiORThinkingKind(out.model);
+                // mandatory models reject "none"; unsupported ones have nothing to disable
+                if (kind !== 'mandatory' && kind !== 'unsupported') {
+                    delete out.reasoning_effort;
+                    out.reasoning = { enabled: false, effort: 'none', exclude: true };
+                }
             }
             return out;
         }
         window.eitiApplyORThinking = eitiApplyORThinking;
+
+        // ── OpenRouter model brand/logo (trusted local SVG only) ──────────────
+        var EITI_OR_BRANDS = {
+            openai:    { label: 'OpenAI',    bg: '#10a37f', g: 'O' },
+            anthropic: { label: 'Anthropic', bg: '#d97757', g: 'A' },
+            google:    { label: 'Google',    bg: '#4285f4', g: 'G' },
+            deepseek:  { label: 'DeepSeek',  bg: '#4d6bfe', g: 'D' },
+            glm:       { label: 'Z.AI GLM',  bg: '#2b4acb', g: 'Z' },
+            mimo:      { label: 'Xiaomi MiMo', bg: '#ff6900', g: 'Mi' },
+            kimi:      { label: 'Moonshot Kimi', bg: '#1f2937', g: 'K' },
+            minimax:   { label: 'MiniMax',   bg: '#e73562', g: 'M' },
+            qwen:      { label: 'Qwen',      bg: '#615ced', g: 'Q' },
+            meta:      { label: 'Meta Llama', bg: '#0866ff', g: 'L' },
+            nvidia:    { label: 'NVIDIA',    bg: '#76b900', g: 'N' },
+            mistral:   { label: 'Mistral',   bg: '#fa520f', g: 'Mi' },
+            xai:       { label: 'xAI Grok',  bg: '#111111', g: 'X' },
+            openrouter:{ label: 'OpenRouter', bg: '#6467f2', g: 'OR' }
+        };
+        var EITI_OR_PREFIX_BRAND = {
+            'openai': 'openai', 'anthropic': 'anthropic', 'google': 'google', 'deepseek': 'deepseek',
+            'z-ai': 'glm', 'glm': 'glm', 'xiaomi': 'mimo', 'moonshotai': 'kimi', 'moonshot': 'kimi',
+            'minimax': 'minimax', 'qwen': 'qwen', 'meta-llama': 'meta', 'meta': 'meta',
+            'nvidia': 'nvidia', 'mistralai': 'mistral', 'x-ai': 'xai', 'xai': 'xai'
+        };
+        // Returns a key of EITI_OR_BRANDS. Provider prefix first, then model-family matcher.
+        function eitiGetOpenRouterModelBrand(modelId) {
+            var id = String(modelId || '').toLowerCase();
+            var slash = id.indexOf('/');
+            if (slash > 0) {
+                var pre = id.slice(0, slash);
+                if (Object.prototype.hasOwnProperty.call(EITI_OR_PREFIX_BRAND, pre)) return EITI_OR_PREFIX_BRAND[pre];
+            }
+            var fam = [
+                [/gpt|chatgpt|(^|[\/-])o[134]\b/, 'openai'], [/claude/, 'anthropic'], [/gemini|gemma/, 'google'],
+                [/deepseek/, 'deepseek'], [/glm/, 'glm'], [/mimo/, 'mimo'], [/kimi/, 'kimi'],
+                [/minimax/, 'minimax'], [/qwen|qwq/, 'qwen'], [/llama/, 'meta'], [/nemotron/, 'nvidia'],
+                [/mistral|mixtral|codestral/, 'mistral'], [/grok/, 'xai']
+            ];
+            for (var i = 0; i < fam.length; i++) if (fam[i][0].test(id)) return fam[i][1];
+            return 'openrouter';
+        }
+        // Small inline SVG badge; every value comes from the trusted table above.
+        function eitiORModelIconHtml(modelId, size) {
+            var b = EITI_OR_BRANDS[eitiGetOpenRouterModelBrand(modelId)];
+            var n = size || 18;
+            var fs = b.g.length > 1 ? 8 : 11;
+            return '<svg class="eiti-or-ico" role="img" aria-label="' + b.label + '" width="' + n + '" height="' + n + '" viewBox="0 0 20 20" style="flex:none;vertical-align:-4px;margin-right:5px;">'
+                + '<rect width="20" height="20" rx="5" fill="' + b.bg + '"/>'
+                + '<text x="10" y="14" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="' + fs + '" font-weight="700" fill="#fff">' + b.g + '</text></svg>';
+        }
+        function eitiOREscape(str) {
+            return String(str == null ? '' : str).replace(/[&<>"']/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+        function eitiORModelDisplayName(modelId) {
+            var meta = _eitiORModelMeta[modelId];
+            if (meta && meta.name) return meta.name;
+            var id = String(modelId || 'openrouter/auto');
+            return id.slice(id.indexOf('/') + 1) || id;
+        }
+        // Logo + model name (+ optional suffix, e.g. "OpenRouter"). Text is escaped.
+        function eitiORModelLabelHtml(modelId, suffix) {
+            return eitiORModelIconHtml(modelId) + '<span>' + eitiOREscape(eitiORModelDisplayName(modelId)) + '</span>'
+                + (suffix ? '<span style="opacity:0.6;"> · ' + eitiOREscape(suffix) + '</span>' : '');
+        }
+        // Chat-bubble sender header for OpenRouter replies. `thinking` false => no Think/🧠.
+        function eitiORSenderHtml(modelId, thinking, extra) {
+            var h = eitiORModelLabelHtml(modelId, 'OpenRouter 🔀');
+            if (thinking) h += ' Think <span class="eiti-mode-brain">🧠</span>';
+            if (extra) h += eitiOREscape(extra);
+            return h;
+        }
+        window.eitiGetOpenRouterModelBrand = eitiGetOpenRouterModelBrand;
 
         function eitiTestOpenRouter() {
             var orKeyEl = document.getElementById('openrouter-key');
@@ -19624,6 +19765,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         window._eitiThinkDone = _eitiThinkDone;
 
         function eitiDetectThinkMode(userText) {
+            // OpenRouter with Thinking OFF must never show Think/Думаю/Созерцаю badges
+            if ((localStorage.getItem('eiti_ai_provider') || '') === 'openrouter' && typeof eitiORThinkingActive === 'function' && !eitiORThinkingActive()) return 'normal';
             // Pro-модели → всегда Think 🧠
             var dsModel = (typeof eitiGetDsModel === 'function') ? eitiGetDsModel() : '';
             var provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
@@ -19712,10 +19855,15 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var _provLabels = {deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢',qwen:'Qwen AI 🟣',duckduckgo:'DDG 🦆'};
                 var _baseLabel = _provLabels[_provider] || 'EITI AI 🤖';
                 var _senderLabel = eitiThinkModeLabel(_thinkMode, _baseLabel);
+                var _orThinkOff = _provider === 'openrouter' && !eitiORThinkingActive();
+                if (_provider === 'openrouter') {
+                    var _orLiveModel = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
+                    _senderLabel = eitiORSenderHtml(_orLiveModel, _thinkMode === 'think_pro');
+                }
                 liveDiv.innerHTML =
                     '<div class="message-row"><div class="message-body">' +
                     '<div class="message-sender">' + _senderLabel + '</div>' +
-                    '<div id="' + liveId + '-text" style="min-height:24px;"><div class="eiti-typing-dots"><span></span><span></span><span></span></div></div>' +
+                    '<div id="' + liveId + '-text" style="min-height:24px;"><div class="eiti-typing-dots"><span></span><span></span><span></span></div>' + (_orThinkOff ? '<div style="font-size:11px;opacity:0.55;">генерирует…</div>' : '') + '</div>' +
                     '<div class="message-time">' + time + '</div>' +
                     '</div></div>';
                 messagesEl.appendChild(liveDiv);
@@ -19724,7 +19872,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 setTimeout(function(){ messagesEl.scrollTop = messagesEl.scrollHeight; }, 50);
 
                 // v13.5+: «думающий» индикатор (статус-строки + поток рассуждений)
-                try {
+                if (!_orThinkOff) try {
                     var _thinkLang = (typeof eitiGetEffectiveReplyLang === 'function')
                         ? eitiGetEffectiveReplyLang(userText) : 'ru';
                     _eitiThinkStart(liveId, _thinkLang);
@@ -20677,11 +20825,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     if (_senderEl) {
                                         var _orProvLabel = ({deepseek:'DeepSeek 🤖',gemini:'Gemini AI 🔵',openrouter:'OpenRouter 🔀',grok:'Grok 🌟',openai:'ChatGPT 🟢'})[_provider] || 'EITI AI 🤖';
                                         if (_ddgWebUsed) _orProvLabel += ' + Web🌎';
-                                        _senderEl.innerHTML = _orProvLabel;
+                                        _senderEl.innerHTML = _provider === 'openrouter' ? eitiORSenderHtml(_orModel, false, _ddgWebUsed ? ' + Web🌎' : '') : _orProvLabel;
                                     }
                                     var row = liveDiv.querySelector('.message-row');
                                     if (row) { var ctrl = document.createElement('div'); ctrl.className = 'message-controls'; var r2 = result; ctrl.innerHTML = '<button class="msg-btn tts-btn" title="Озвучить">🔊</button><button class="msg-btn" title="Копировать">📋</button>'; ctrl.querySelectorAll('.msg-btn')[0].onclick = function(){ toggleSpeech(liveId, r2); }; ctrl.querySelectorAll('.msg-btn')[1].onclick = function(){ copyText(r2).then(function(){ showToast('Скопировано'); }); }; row.appendChild(ctrl); }
-                                    chatLog.push({id: liveId, role: 'assistant', text: result, ts: Date.now(), provider: _provider});
+                                    chatLog.push({id: liveId, role: 'assistant', text: result, ts: Date.now(), provider: _provider, model: _orModel});
                                     saveChat(); eitiUpdateState(result); window._eitiIsStreaming = false;
                                     if (eitiCurrentChatId) eitiL2Consolidate(eitiCurrentChatId);
                                     // v12.9.8: token tracking
