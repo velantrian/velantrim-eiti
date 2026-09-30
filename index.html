@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.8"; // v13.7.8: exclusive AI provider + Gemini thinking toggle
+        var EITI_VERSION = "13.7.9"; // v13.7.9: OpenRouter Free version live catalog
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -459,6 +459,11 @@
                 'Единый доступ к 300+ моделям (Claude, GPT, Llama, Mistral и др.). Получить ключ: openrouter.ai/settings/keys': 'Einheitlicher Zugriff auf 300+ Modelle (Claude, GPT, Llama, Mistral u. a.). Schlüssel: openrouter.ai/settings/keys',
                 '🧩 Модель': '🧩 Modell',
                 '📋 Все': '📋 Alle',
+                '🆓 Free version': '🆓 Kostenlose Version',
+                '🆓 Free Auto': '🆓 Free Auto',
+                '↻ Обновить список': '↻ Liste aktualisieren',
+                'Загрузить список бесплатных моделей…': 'Liste kostenloser Modelle laden…',
+                'Список ещё не загружен': 'Liste noch nicht geladen',
                 'Модель: openrouter/auto': 'Modell: openrouter/auto',
                 'Only AI ВКЛЮЧЁН': 'Only AI AKTIV',
                 'Only AI выключен': 'Only AI aus',
@@ -2097,6 +2102,11 @@
                 'Единый доступ к 300+ моделям (Claude, GPT, Llama, Mistral и др.). Получить ключ: openrouter.ai/settings/keys': 'Unified access to 300+ models (Claude, GPT, Llama, Mistral, etc.). Get key: openrouter.ai/settings/keys',
                 '🧩 Модель': '🧩 Model',
                 '📋 Все': '📋 All',
+                '🆓 Free version': '🆓 Free version',
+                '🆓 Free Auto': '🆓 Free Auto',
+                '↻ Обновить список': '↻ Refresh list',
+                'Загрузить список бесплатных моделей…': 'Load free models…',
+                'Список ещё не загружен': 'List not loaded yet',
                 'Модель: openrouter/auto': 'Model: openrouter/auto',
                 'Only AI ВКЛЮЧЁН': 'Only AI ENABLED',
                 'Only AI выключен': 'Only AI off',
@@ -7667,6 +7677,21 @@
                                         <button onclick="window.open('https://openrouter.ai/models','_blank')"
                                             style="padding:9px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">📋 Все</button>
                                     </div>
+                                    <div id="openrouter-free-section" style="margin-top:10px;padding:10px;border:1px solid rgba(80,200,120,0.28);border-radius:12px;background:rgba(60,180,100,0.06);">
+                                        <div style="font-size:12px;font-weight:700;margin-bottom:5px;">🆓 Free version</div>
+                                        <div style="font-size:11px;opacity:0.55;line-height:1.45;margin-bottom:8px;">Отдельный live-список бесплатных OpenRouter endpoints. Нужен OpenRouter API key; у free endpoints цена токенов $0, но действуют лимиты и доступность OpenRouter.</div>
+                                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px;">
+                                            <button id="or-model-free-auto" onclick="eitiSetORModel('openrouter/free')"
+                                                style="flex:1;min-width:110px;padding:8px 8px;border-radius:9px;border:2px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:700;cursor:pointer;">🆓 Free Auto</button>
+                                            <button onclick="eitiLoadORFreeModels(true)"
+                                                style="flex:1;min-width:110px;padding:8px 8px;border-radius:9px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">↻ Обновить список</button>
+                                        </div>
+                                        <select id="openrouter-free-models" onchange="if(this.value)eitiSetORModel(this.value)"
+                                                style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:12px;">
+                                            <option value="">Загрузить список бесплатных моделей…</option>
+                                        </select>
+                                        <div id="or-free-status" style="font-size:10px;opacity:0.5;margin-top:5px;line-height:1.4;">Список ещё не загружен</div>
+                                    </div>
                                     <div id="or-model-label" style="font-size:11px;opacity:0.45;margin-top:5px;text-align:center;">Модель: openrouter/auto</div>
                                 </div>
                                 <button onclick="eitiTestOpenRouter()"
@@ -10480,6 +10505,9 @@
                 inp.value = defaultKey;
                 try { localStorage.setItem('eiti_or_key', _obfKey(defaultKey)); } catch(e) {}
             }
+            if (inp.value && typeof eitiLoadORFreeModels === 'function') {
+                setTimeout(function() { eitiLoadORFreeModels(false); }, 120);
+            }
         }
 
         // ── Confirm OpenRouter key ─────────────────────────────────────────────
@@ -10496,6 +10524,7 @@
                 if (r.ok) {
                     if (st) { st.textContent = '✅ Подключено'; st.style.color = '#4caf50'; }
                     showToast('✅ OpenRouter подключён');
+                    if (typeof eitiLoadORFreeModels === 'function') eitiLoadORFreeModels(true);
                 } else {
                     r.json().then(function(d) {
                         if (st) { st.textContent = '❌ ' + (d.error && d.error.message || r.status); st.style.color = '#f44336'; }
@@ -19088,21 +19117,31 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         function eitiSetORModel(model) {
             if (!model) model = 'openrouter/auto';
             localStorage.setItem('eiti_or_model', model);
+            var presetModels = ['openrouter/auto','openrouter/free','anthropic/claude-sonnet-4-6','openai/gpt-5.5','meta-llama/llama-3.3-70b-instruct'];
             var customEl = document.getElementById('openrouter-model-custom');
-            if (customEl && !['openrouter/auto','anthropic/claude-sonnet-4-6','openai/gpt-5.5','meta-llama/llama-3.3-70b-instruct'].includes(model)) {
+            if (customEl && !presetModels.includes(model)) {
                 customEl.value = model;
+            } else if (customEl && presetModels.includes(model)) {
+                customEl.value = '';
             }
             var lbl = document.getElementById('or-model-label');
             if (lbl) lbl.textContent = 'Модель: ' + model;
-            // v12.9.7: обновляем подпись в карточке провайдера
+            // обновляем подпись в карточке провайдера
             var cardLbl = document.getElementById('eiti-pcard-or-model');
             if (cardLbl) cardLbl.textContent = model;
-            // Highlight active preset button
-            ['or-model-auto','or-model-claude','or-model-gpt','or-model-llama'].forEach(function(id) {
+
+            // Highlight active preset button, including the dedicated free router.
+            var presetMap = {
+                'or-model-auto':'openrouter/auto',
+                'or-model-free-auto':'openrouter/free',
+                'or-model-claude':'anthropic/claude-sonnet-4-6',
+                'or-model-gpt':'openai/gpt-5.5',
+                'or-model-llama':'meta-llama/llama-3.3-70b-instruct'
+            };
+            Object.keys(presetMap).forEach(function(id) {
                 var btn = document.getElementById(id);
                 if (!btn) return;
-                var map = {'or-model-auto':'openrouter/auto','or-model-claude':'anthropic/claude-sonnet-4-6','or-model-gpt':'openai/gpt-5.5','or-model-llama':'meta-llama/llama-3.3-70b-instruct'};
-                if (map[id] === model) {
+                if (presetMap[id] === model) {
                     btn.style.border = '2px solid var(--accent-color)';
                     btn.style.background = 'rgba(255,200,0,0.15)';
                 } else {
@@ -19110,7 +19149,88 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     btn.style.background = 'var(--secondary-color)';
                 }
             });
+
+            var freeSel = document.getElementById('openrouter-free-models');
+            if (freeSel) {
+                var hasCurrent = Array.prototype.some.call(freeSel.options, function(opt) { return opt.value === model; });
+                freeSel.value = hasCurrent ? model : '';
+            }
+            var freeBox = document.getElementById('openrouter-free-section');
+            if (freeBox) {
+                var isFree = model === 'openrouter/free' || /:free$/i.test(model);
+                freeBox.style.borderColor = isFree ? 'rgba(80,220,120,0.7)' : 'rgba(80,200,120,0.28)';
+                freeBox.style.background = isFree ? 'rgba(60,180,100,0.11)' : 'rgba(60,180,100,0.06)';
+            }
         }
+
+        function eitiLoadORFreeModels(force) {
+            var sel = document.getElementById('openrouter-free-models');
+            var st = document.getElementById('or-free-status');
+            if (!sel) return Promise.resolve([]);
+            if (!force && sel.getAttribute('data-loaded') === '1') {
+                eitiSetORModel(localStorage.getItem('eiti_or_model') || 'openrouter/auto');
+                return Promise.resolve([]);
+            }
+
+            if (st) st.textContent = '⏳ Загружаю бесплатные модели OpenRouter…';
+            var keyEl = document.getElementById('openrouter-key');
+            var key = keyEl && keyEl.value.trim() ? keyEl.value.trim() : _deobfKey(localStorage.getItem('eiti_or_key') || '');
+            var headers = { 'HTTP-Referer': location.href, 'X-Title': 'VELANTRIM EITI' };
+            if (key) headers['Authorization'] = 'Bearer ' + key;
+
+            return fetch('https://openrouter.ai/api/v1/models', { headers: headers })
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(payload) {
+                    var models = payload && Array.isArray(payload.data) ? payload.data : [];
+                    var freeModels = models.filter(function(m) {
+                        if (!m || !m.id) return false;
+                        var pricing = m.pricing || {};
+                        var explicitFreeId = /:free$/i.test(String(m.id));
+                        var zeroTextPrice = pricing.prompt != null && pricing.completion != null
+                            && Number(pricing.prompt) === 0 && Number(pricing.completion) === 0
+                            && (pricing.request == null || Number(pricing.request) === 0);
+                        var outs = m.architecture && m.architecture.output_modalities;
+                        var textCapable = !Array.isArray(outs) || outs.length === 0 || outs.indexOf('text') !== -1;
+                        return (explicitFreeId || zeroTextPrice) && textCapable;
+                    }).sort(function(a, b) {
+                        return String(a.name || a.id).localeCompare(String(b.name || b.id));
+                    });
+
+                    while (sel.firstChild) sel.removeChild(sel.firstChild);
+                    var placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = freeModels.length
+                        ? 'Выберите бесплатную модель (' + freeModels.length + ')'
+                        : 'Бесплатные text-модели не найдены';
+                    sel.appendChild(placeholder);
+
+                    freeModels.forEach(function(m) {
+                        var opt = document.createElement('option');
+                        opt.value = m.id;
+                        var context = Number(m.context_length || 0);
+                        var contextLabel = context ? ' · ' + (context >= 1000000 ? (Math.round(context / 100000) / 10) + 'M' : Math.round(context / 1000) + 'K') : '';
+                        opt.textContent = (m.name || m.id) + contextLabel;
+                        sel.appendChild(opt);
+                    });
+
+                    sel.setAttribute('data-loaded', '1');
+                    var current = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
+                    var hasCurrent = freeModels.some(function(m) { return m.id === current; });
+                    if (hasCurrent) sel.value = current;
+                    if (st) st.textContent = freeModels.length
+                        ? '✅ Найдено ' + freeModels.length + ' бесплатных text-моделей · live catalog OpenRouter'
+                        : '⚠️ Сейчас OpenRouter не вернул бесплатных text-моделей';
+                    return freeModels;
+                })
+                .catch(function(err) {
+                    if (st) st.textContent = '❌ Не удалось загрузить free catalog: ' + String(err && err.message || err);
+                    return [];
+                });
+        }
+        window.eitiLoadORFreeModels = eitiLoadORFreeModels;
 
         function eitiTestOpenRouter() {
             var orKeyEl = document.getElementById('openrouter-key');
