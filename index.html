@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.11"; // v13.7.11: OpenRouter model logos + true Thinking OFF
+        var EITI_VERSION = "13.7.12"; // v13.7.12: OR model list icons, 429 details, speed badge
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -7697,7 +7697,12 @@
                                             <button onclick="eitiLoadORFreeModels(true)"
                                                 style="flex:1;min-width:110px;padding:8px 8px;border-radius:9px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;font-weight:600;cursor:pointer;">↻ Обновить список</button>
                                         </div>
-                                        <select id="openrouter-free-models" onchange="if(this.value)eitiSetORModel(this.value)"
+                                        <button type="button" id="or-free-btn" onclick="eitiToggleORFreeList()" aria-haspopup="listbox"
+                                                style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:12px;display:flex;align-items:center;gap:4px;text-align:left;cursor:pointer;min-width:0;">
+                                            <span id="or-free-btn-text" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Выбрать бесплатную модель…</span><span>▾</span>
+                                        </button>
+                                        <div id="or-free-list" role="listbox" style="display:none;margin-top:4px;max-height:45vh;overflow-y:auto;border:1px solid var(--border-color);border-radius:10px;background:var(--panel-bg);"></div>
+                                        <select id="openrouter-free-models" onchange="if(this.value)eitiSetORModel(this.value)" hidden
                                                 style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border-color);background:var(--panel-bg);color:var(--text-color);font-size:12px;">
                                             <option value="">Загрузить список бесплатных моделей…</option>
                                         </select>
@@ -19172,6 +19177,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var hasCurrent = Array.prototype.some.call(freeSel.options, function(opt) { return opt.value === model; });
                 freeSel.value = hasCurrent ? model : '';
             }
+            try { eitiRenderORFreeList(); } catch (e) {}
             var freeCur = document.getElementById('or-free-current');
             if (freeCur) freeCur.innerHTML = eitiORModelLabelHtml(model);
             try { eitiRenderORThinking(); eitiLoadORModelMeta(); } catch (e) {}
@@ -19180,6 +19186,40 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var isFree = model === 'openrouter/free' || /:free$/i.test(model);
                 freeBox.style.borderColor = isFree ? 'rgba(80,220,120,0.7)' : 'rgba(80,200,120,0.28)';
                 freeBox.style.background = isFree ? 'rgba(60,180,100,0.11)' : 'rgba(60,180,100,0.06)';
+            }
+        }
+
+        // Custom dropdown (native <option> can't hold images). Mirrors the hidden <select>.
+        function eitiToggleORFreeList(forceOpen) {
+            var list = document.getElementById('or-free-list');
+            if (!list) return;
+            var open = typeof forceOpen === 'boolean' ? forceOpen : list.style.display === 'none';
+            if (open && !list.childNodes.length) eitiLoadORFreeModels(false);
+            list.style.display = open ? 'block' : 'none';
+        }
+        function eitiRenderORFreeList() {
+            var sel = document.getElementById('openrouter-free-models');
+            var list = document.getElementById('or-free-list');
+            var btnText = document.getElementById('or-free-btn-text');
+            if (!sel || !list) return;
+            var cur = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
+            list.textContent = '';
+            Array.prototype.forEach.call(sel.options, function(opt) {
+                if (!opt.value) return;
+                var row = document.createElement('div');
+                row.setAttribute('role', 'option');
+                row.style.cssText = 'display:flex;align-items:center;padding:9px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border-color);min-width:0;' + (opt.value === cur ? 'background:rgba(255,200,0,0.15);' : '');
+                row.insertAdjacentHTML('beforeend', eitiORModelIconHtml(opt.value, 20));
+                var t = document.createElement('span');
+                t.style.cssText = 'flex:1;min-width:0;overflow-wrap:anywhere;';
+                t.textContent = opt.textContent;
+                row.appendChild(t);
+                row.onclick = function() { eitiSetORModel(opt.value); eitiToggleORFreeList(false); };
+                list.appendChild(row);
+            });
+            if (btnText) {
+                var chosen = Array.prototype.find.call(sel.options, function(o) { return o.value && o.value === cur; });
+                btnText.textContent = chosen ? chosen.textContent : (list.childNodes.length ? 'Выберите бесплатную модель (' + list.childNodes.length + ')' : 'Выбрать бесплатную модель…');
             }
         }
 
@@ -19241,7 +19281,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var current = localStorage.getItem('eiti_or_model') || 'openrouter/auto';
                     var hasCurrent = freeModels.some(function(m) { return m.id === current; });
                     if (hasCurrent) sel.value = current;
-                    try { eitiSetORModel(current); eitiRenderORThinking(); } catch (e) {}
+                    try { eitiSetORModel(current); eitiRenderORThinking(); eitiRenderORFreeList(); } catch (e) {}
                     if (st) st.textContent = freeModels.length
                         ? '✅ Найдено ' + freeModels.length + ' бесплатных text-моделей · live catalog OpenRouter'
                         : '⚠️ Сейчас OpenRouter не вернул бесплатных text-моделей';
@@ -19360,13 +19400,20 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             nvidia:    { label: 'NVIDIA',    bg: '#76b900', g: 'N' },
             mistral:   { label: 'Mistral',   bg: '#fa520f', g: 'Mi' },
             xai:       { label: 'xAI Grok',  bg: '#111111', g: 'X' },
+            cohere:    { label: 'Cohere',    bg: '#39594d', g: 'Co' },
+            liquid:    { label: 'Liquid AI', bg: '#0f766e', g: 'Li' },
+            inclusion: { label: 'inclusionAI', bg: '#7c3aed', g: 'In' },
+            poolside:  { label: 'Poolside',  bg: '#c2410c', g: 'Po' },
+            thinking:  { label: 'Thinking Machines', bg: '#334155', g: 'TM' },
             openrouter:{ label: 'OpenRouter', bg: '#6467f2', g: 'OR' }
         };
         var EITI_OR_PREFIX_BRAND = {
             'openai': 'openai', 'anthropic': 'anthropic', 'google': 'google', 'deepseek': 'deepseek',
             'z-ai': 'glm', 'glm': 'glm', 'xiaomi': 'mimo', 'moonshotai': 'kimi', 'moonshot': 'kimi',
             'minimax': 'minimax', 'qwen': 'qwen', 'meta-llama': 'meta', 'meta': 'meta',
-            'nvidia': 'nvidia', 'mistralai': 'mistral', 'x-ai': 'xai', 'xai': 'xai'
+            'nvidia': 'nvidia', 'mistralai': 'mistral', 'x-ai': 'xai', 'xai': 'xai',
+            'cohere': 'cohere', 'liquid': 'liquid', 'liquidai': 'liquid', 'inclusionai': 'inclusion',
+            'poolside': 'poolside', 'thinkingmachines': 'thinking', 'thinking-machines': 'thinking'
         };
         // Returns a key of EITI_OR_BRANDS. Provider prefix first, then model-family matcher.
         function eitiGetOpenRouterModelBrand(modelId) {
@@ -20800,15 +20847,17 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         if (!r.ok) {
                             r.text().then(function(errBody) {
                                 var errMsg = 'OpenRouter HTTP ' + r.status;
-                                try { var ej = JSON.parse(errBody); errMsg += ' — ' + ((ej.error&&(ej.error.message||ej.error.code))||errBody.slice(0,200)); } catch(e) {}
+                                try { var ej = JSON.parse(errBody); errMsg += ' — ' + ((ej.error&&(ej.error.message||ej.error.code))||errBody.slice(0,200)); var _em = ej.error && ej.error.metadata; if (_em) { if (_em.provider_name) errMsg += ' [' + _em.provider_name + ']'; if (_em.raw) errMsg += ': ' + String(typeof _em.raw === 'string' ? _em.raw : JSON.stringify(_em.raw)).slice(0, 240); } } catch(e) {}
+                                if (r.status === 429) errMsg += ' · лимит запросов у провайдера этой модели (free-модели часто перегружены) — подожди минуту или выбери другую модель / Free Auto';
                                 var liveEl = document.getElementById(liveId);
-                                if (liveEl) { var t = liveEl.querySelector('[id$="-text"]'); if (t) t.innerHTML = '<span style="color:#ff6b6b;">❌ ' + errMsg.replace(/</g,'&lt;') + '</span>'; }
+                                if (liveEl) { var t = liveEl.querySelector('[id$="-text"]'); if (t) t.innerHTML = '<span style="color:#ff6b6b;">❌ ' + eitiOREscape(errMsg) + '</span>'; }
                                 reject(new Error(errMsg));
                             }); return;
                         }
                         if (!r.body) { document.getElementById(liveId).remove(); reject(new Error('No response body')); return; }
                         var reader = r.body.getReader(); var decoder = new TextDecoder(); var result = '';
                         var _orSseBuffer = ''; // BUG-7 FIX: SSE line buffer
+                        var _orT0 = Date.now(), _orTFirst = 0; // generation speed tracking
                         var textEl = document.getElementById(liveId + '-text');
                         window._eitiIsStreaming = true;
                         function readOR() {
@@ -20829,6 +20878,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                     }
                                     var row = liveDiv.querySelector('.message-row');
                                     if (row) { var ctrl = document.createElement('div'); ctrl.className = 'message-controls'; var r2 = result; ctrl.innerHTML = '<button class="msg-btn tts-btn" title="Озвучить">🔊</button><button class="msg-btn" title="Копировать">📋</button>'; ctrl.querySelectorAll('.msg-btn')[0].onclick = function(){ toggleSpeech(liveId, r2); }; ctrl.querySelectorAll('.msg-btn')[1].onclick = function(){ copyText(r2).then(function(){ showToast('Скопировано'); }); }; row.appendChild(ctrl); }
+                                    try {
+                                        var _orSec = (Date.now() - (_orTFirst || _orT0)) / 1000;
+                                        var _orTok = Math.round(result.length / 4); // ~4 chars per token estimate
+                                        var _orTimeEl = liveDiv.querySelector('.message-time');
+                                        if (_orTimeEl && _orTFirst && _orSec > 0.3 && _orTok > 8) _orTimeEl.textContent += ' · ⚡ ~' + Math.round(_orTok / _orSec) + ' ток/с · первый токен ' + ((_orTFirst - _orT0) / 1000).toFixed(1) + 'с';
+                                    } catch(e) {}
                                     chatLog.push({id: liveId, role: 'assistant', text: result, ts: Date.now(), provider: _provider, model: _orModel});
                                     saveChat(); eitiUpdateState(result); window._eitiIsStreaming = false;
                                     if (eitiCurrentChatId) eitiL2Consolidate(eitiCurrentChatId);
@@ -20845,7 +20900,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                                 _orSseBuffer = _orLines.pop();
                                 _orLines.forEach(function(line) {
                                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                                        try { var _orj = JSON.parse(line.slice(6)); var _ord = (_orj.choices && _orj.choices[0] && _orj.choices[0].delta) || {}; var _orrc = _ord.reasoning_content || _ord.reasoning; if (_orrc) _eitiThinkReasoning(liveId, _orrc); var delta = _ord.content; if (delta) { result += delta; if (textEl) textEl.textContent = result; var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight; } } catch(e) {}
+                                        try { var _orj = JSON.parse(line.slice(6)); var _ord = (_orj.choices && _orj.choices[0] && _orj.choices[0].delta) || {}; var _orrc = _ord.reasoning_content || _ord.reasoning; if (_orrc) _eitiThinkReasoning(liveId, _orrc); var delta = _ord.content; if (delta) { if (!_orTFirst) _orTFirst = Date.now(); result += delta; if (textEl) textEl.textContent = result; var ms = document.getElementById('messages'); if (ms && !window._eitiScrollPaused) ms.scrollTop = ms.scrollHeight; } } catch(e) {}
                                     }
                                 });
                                 return readOR();
