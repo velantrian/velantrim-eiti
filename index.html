@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.9"; // v13.7.9: OpenRouter Free version live catalog
+        var EITI_VERSION = "13.7.10"; // v13.7.10: OpenRouter Thinking ON/OFF control
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -460,6 +460,8 @@
                 '🧩 Модель': '🧩 Modell',
                 '📋 Все': '📋 Alle',
                 '🆓 Free version': '🆓 Kostenlose Version',
+                '🧠 OpenRouter Thinking': '🧠 OpenRouter Thinking',
+                'Вкл — режим модели по умолчанию · Выкл — reasoning_effort: none': 'Ein — Modellstandard · Aus — reasoning_effort: none',
                 '🆓 Free Auto': '🆓 Free Auto',
                 '↻ Обновить список': '↻ Liste aktualisieren',
                 'Загрузить список бесплатных моделей…': 'Liste kostenloser Modelle laden…',
@@ -2103,6 +2105,8 @@
                 '🧩 Модель': '🧩 Model',
                 '📋 Все': '📋 All',
                 '🆓 Free version': '🆓 Free version',
+                '🧠 OpenRouter Thinking': '🧠 OpenRouter Thinking',
+                'Вкл — режим модели по умолчанию · Выкл — reasoning_effort: none': 'On — model default · Off — reasoning_effort: none',
                 '🆓 Free Auto': '🆓 Free Auto',
                 '↻ Обновить список': '↻ Refresh list',
                 'Загрузить список бесплатных моделей…': 'Load free models…',
@@ -7677,6 +7681,13 @@
                                         <button onclick="window.open('https://openrouter.ai/models','_blank')"
                                             style="padding:9px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">📋 Все</button>
                                     </div>
+                                    <label id="or-thinking-row" onclick="eitiToggleORThinking()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:10px;margin-bottom:8px;border-radius:12px;border:1px solid var(--border-color);background:var(--secondary-color);cursor:pointer;user-select:none;">
+                                        <span id="or-thinking-check" style="font-size:18px;line-height:1;">✅</span>
+                                        <span style="flex:1;">
+                                            <span style="display:block;font-size:13px;font-weight:700;">🧠 OpenRouter Thinking</span>
+                                            <span style="display:block;font-size:11px;opacity:0.55;">Вкл — режим модели по умолчанию · Выкл — reasoning_effort: none</span>
+                                        </span>
+                                    </label>
                                     <div id="openrouter-free-section" style="margin-top:10px;padding:10px;border:1px solid rgba(80,200,120,0.28);border-radius:12px;background:rgba(60,180,100,0.06);">
                                         <div style="font-size:12px;font-weight:700;margin-bottom:5px;">🆓 Free version</div>
                                         <div style="font-size:11px;opacity:0.55;line-height:1.45;margin-bottom:8px;">Отдельный live-список бесплатных OpenRouter endpoints. Нужен OpenRouter API key; у free endpoints цена токенов $0, но действуют лимиты и доступность OpenRouter.</div>
@@ -10508,6 +10519,7 @@
             if (inp.value && typeof eitiLoadORFreeModels === 'function') {
                 setTimeout(function() { eitiLoadORFreeModels(false); }, 120);
             }
+            if (typeof eitiRenderORThinking === 'function') eitiRenderORThinking();
         }
 
         // ── Confirm OpenRouter key ─────────────────────────────────────────────
@@ -12250,16 +12262,18 @@
                     var endpoint = cfg.type === 'deepseek'
                         ? 'https://api.deepseek.com/v1/chat/completions'
                         : 'https://openrouter.ai/api/v1/chat/completions';
+                    var suggBody = {
+                        model: cfg.model, max_tokens: 150, temperature: 0.7,
+                        messages: [{ role: 'user', content: prompt }]
+                    };
+                    if (cfg.type === 'openrouter') eitiApplyORThinking(suggBody);
                     var r2 = await fetch(endpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': 'Bearer ' + cfg.key
                         },
-                        body: JSON.stringify({
-                            model: cfg.model, max_tokens: 150, temperature: 0.7,
-                            messages: [{ role: 'user', content: prompt }]
-                        })
+                        body: JSON.stringify(suggBody)
                     });
                     var d2 = await r2.json();
                     raw = (d2 && d2.choices && d2.choices[0] && d2.choices[0].message && d2.choices[0].message.content) || '';
@@ -16376,6 +16390,7 @@
                 var orBody = { model: orModel, max_tokens: maxTok, messages: orMsgs };
                 // response_format поддерживается большинством OR-моделей, но не всеми
                 if (needJson) orBody.response_format = { type: 'json_object' };
+                eitiApplyORThinking(orBody);
                 return fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -19232,6 +19247,37 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         }
         window.eitiLoadORFreeModels = eitiLoadORFreeModels;
 
+        // ── OpenRouter Thinking toggle ──────────────────────────────────────────
+        // ON preserves each model/provider default. OFF sends the OpenRouter
+        // unified shorthand reasoning_effort="none" on every OpenRouter request.
+        function eitiIsORThinking() {
+            return localStorage.getItem('eiti_or_thinking') !== '0';
+        }
+        function eitiToggleORThinking() {
+            localStorage.setItem('eiti_or_thinking', eitiIsORThinking() ? '0' : '1');
+            eitiRenderORThinking();
+            showToast(eitiIsORThinking() ? '🧠 OpenRouter Thinking вкл' : '⚡ OpenRouter Thinking выкл', 1800);
+        }
+        function eitiRenderORThinking() {
+            var on = eitiIsORThinking();
+            var check = document.getElementById('or-thinking-check');
+            var row = document.getElementById('or-thinking-row');
+            if (check) check.textContent = on ? '✅' : '⬜';
+            if (row) {
+                row.style.borderColor = on ? 'var(--accent-color)' : 'var(--border-color)';
+                row.style.background = on ? 'rgba(255,215,0,0.12)' : 'var(--secondary-color)';
+            }
+        }
+        function eitiApplyORThinking(body) {
+            var out = body || {};
+            if (!eitiIsORThinking()) {
+                delete out.reasoning;
+                out.reasoning_effort = 'none';
+            }
+            return out;
+        }
+        window.eitiApplyORThinking = eitiApplyORThinking;
+
         function eitiTestOpenRouter() {
             var orKeyEl = document.getElementById('openrouter-key');
             var orKey = orKeyEl ? orKeyEl.value.trim() : '';
@@ -19244,7 +19290,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
             fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://velantrim.eiti', 'X-Title': 'VELANTRIM EITI' },
-                body: JSON.stringify({ model: model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
+                body: JSON.stringify(eitiApplyORThinking({ model: model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 }))
             }).then(function(r) {
                 if (r.ok) { if (st) st.innerHTML = '<span style="color:#0f0">✅ OpenRouter подключён! 🔀 (' + model + ')</span>'; showToast('OpenRouter активен 🔀'); }
                 else { r.text().then(function(t){ if (st) st.innerHTML = '<span style="color:#f66">❌ HTTP ' + r.status + ': ' + t.slice(0,120).replace(/</g,'&lt;') + '</span>'; }); }
@@ -20600,7 +20646,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         method: 'POST',
                         signal: _abortCtrl.signal,
                         headers: { 'Authorization': 'Bearer ' + _orKey, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://velantrim.eiti', 'X-Title': 'VELANTRIM EITI' },
-                        body: JSON.stringify({ model: _orModel, messages: history, max_tokens: _maxTok, stream: true })
+                        body: JSON.stringify(eitiApplyORThinking({ model: _orModel, messages: history, max_tokens: _maxTok, stream: true }))
                     }).then(function(r) {
                         clearTimeout(_abortTimer);
                         if (!r.ok) {
@@ -21328,13 +21374,15 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _l2Model = _l2Provider === 'deepseek' ? 'deepseek-flash' : (localStorage.getItem('eiti_or_model') || 'openrouter/auto');
                     var _l2Headers = {'Authorization': 'Bearer ' + _l2Key, 'Content-Type': 'application/json'};
                     if (_l2Provider === 'openrouter') { _l2Headers['HTTP-Referer'] = 'https://velantrim.eiti'; _l2Headers['X-Title'] = 'VELANTRIM EITI'; }
+                    var _l2Body = {
+                        model: _l2Model,
+                        messages: [{ role: 'system', content: _l2Prompt }, { role: 'user', content: sliceText }],
+                        max_tokens: 500, temperature: 0.25
+                    };
+                    if (_l2Provider === 'openrouter') eitiApplyORThinking(_l2Body);
                     _l2FetchPromise = fetch(_l2Url, {
                         method: 'POST', signal: _l2Ac.signal, headers: _l2Headers,
-                        body: JSON.stringify({
-                            model: _l2Model,
-                            messages: [{ role: 'system', content: _l2Prompt }, { role: 'user', content: sliceText }],
-                            max_tokens: 500, temperature: 0.25
-                        })
+                        body: JSON.stringify(_l2Body)
                     }).then(function(r){ clearTimeout(_l2AbortTimer); return r.json(); })
                     .then(function(d){ return d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content || ''; });
                 }
@@ -32998,11 +33046,11 @@ window.eitiLLMClearAll = async function() {
             return fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + orKey },
-                body: JSON.stringify({
+                body: JSON.stringify(eitiApplyORThinking({
                     model: 'deepseek/deepseek-chat',
                     messages: [{ role: 'user', content: prompt }],
                     max_tokens: 1500
-                })
+                }))
             }).then(function(r) { return r.json(); })
               .then(function(d) {
                 var t = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
@@ -35987,6 +36035,7 @@ window.eitiLLMClearAll = async function() {
                     temperature: isChat ? 0.5 : 0.1
                 };
                 if (!isChat) orBody.response_format = { type: 'json_object' };
+                eitiApplyORThinking(orBody);
                 var orr = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + ork, 'Content-Type': 'application/json' },
@@ -43841,7 +43890,7 @@ function _eitiOpenRouterVision(userText, images, history) {
     return fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: model, messages: apiMsgs, max_tokens: 2000 })
+        body: JSON.stringify(eitiApplyORThinking({ model: model, messages: apiMsgs, max_tokens: 2000 }))
     }).then(function(r) {
         if (!r.ok) return r.json().then(function(e) { throw new Error('OpenRouter Vision ' + r.status + ': ' + JSON.stringify(e.error || e)); });
         return r.json();
