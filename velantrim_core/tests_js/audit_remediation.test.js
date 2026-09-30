@@ -219,3 +219,9 @@ test('OpenRouter errors expose provider detail and escape it; speed badge and cu
   assert.match(INDEX, /function eitiRenderORFreeList\(\)/);
   assert.match(INDEX, /t\.textContent = opt\.textContent/);
 });
+
+test('OR chat: Think badge comes only from real reasoning deltas; one retry on 429', () => {
+  assert.equal(INDEX.includes("eitiORSenderHtml(_orLiveModel, _thinkMode"), false);
+  assert.match(INDEX, /_orrc && eitiORThinkingActive\(_orModel\)/);
+  assert.match(INDEX, /r0\.status !== 429/);
+});
