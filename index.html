@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.13"; // v13.7.13: OR Think badge only on real reasoning, 429 retry
+        var EITI_VERSION = "13.7.14"; // v13.7.14: opt-in archive lookup, L3 storage docs
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -472,6 +472,8 @@
                 'Only AI — все запросы идут напрямую в активный провайдер (DeepSeek / OpenRouter / Gemini), минуя Intent Router и MOSC.': 'Only AI — alle Anfragen gehen direkt an den aktiven Provider (DeepSeek / OpenRouter / Gemini), unter Umgehung von Intent Router und MOSC.',
                 'Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.': 'Tokens pro KI-Antwort. DeepSeek V4: bis 32.000. Gemini 2.5: bis 65.000. Empfohlen 16.000–24.000.',
                 '🗂 Полный контекст (1M)': '🗂 Voller Kontext (1M)',
+                '🔎 Автопоиск архива чатов': '🔎 Chat-Archiv automatisch durchsuchen',
+                'Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.': 'Im normalen Chat wird das Archiv nicht durchsucht. Explizite Anfragen und die manuelle Suche funktionieren immer.',
                 'Все заметки + KB + MEM в каждый запрос': 'Alle Notizen + KB + MEM in jeder Anfrage',
                 '⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.': '⚠️ Nur für DeepSeek V4 / Gemini 2.5. Jede Anfrage wird mehr Tokens kosten. Empfohlen Token-Budget ≥ 16.000.',
                 'КБ за один «посмотри файл». Больше = файл читается быстрее. Под контекст модели.': 'KB pro „Datei ansehen". Mehr = Datei wird schneller gelesen. Passend zum Modellkontext.',
@@ -772,7 +774,7 @@
                 'Далее &#x2192;': 'Weiter &#x2192;',
                 '— настройки, профиль L3, интенты, emb-кеш · лимит 5 МБ': '— Einstellungen, L3-Profil, Intents, Emb-Cache · Limit 5 MB',
                 '— чаты, заметки, файлы, KB, L2-дайджесты · лимит ~500 МБ': '— Chats, Notizen, Dateien, KB, L2-Digests · Limit ~500 MB',
-                '— профиль + выученные факты · localStorage': '— Profil + gelernte Fakten · localStorage',
+                '— профиль + выученные факты · localStorage': '— Legacy-Profil + gelernte Fakten · localStorage',
                 '— топ-25 сообщений по DAAD-score · только в JS-памяти, пересчитывается из IDB': '— Top-25 Nachrichten nach DAAD-Score · nur im JS-Speicher, wird aus IDB neu berechnet',
                 '— все сообщения сессии · IndexedDB': '— alle Sitzungsnachrichten · IndexedDB',
                 '— дайджесты прошлых чатов (до 20) · IndexedDB': '— Digests vergangener Chats (bis zu 20) · IndexedDB',
@@ -2117,6 +2119,8 @@
                 'Only AI — все запросы идут напрямую в активный провайдер (DeepSeek / OpenRouter / Gemini), минуя Intent Router и MOSC.': 'Only AI — all requests go directly to the active provider (DeepSeek / OpenRouter / Gemini), bypassing Intent Router and MOSC.',
                 'Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.': 'Tokens per AI REPLY. DeepSeek V4: up to 32,000. Gemini 2.5: up to 65,000. Recommended 16,000–24,000.',
                 '🗂 Полный контекст (1M)': '🗂 Full context (1M)',
+                '🔎 Автопоиск архива чатов': '🔎 Auto-search chat history',
+                'Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.': 'The normal chat does not search the archive. Explicit requests and manual search always work.',
                 'Все заметки + KB + MEM в каждый запрос': 'All notes + KB + MEM in every request',
                 '⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.': '⚠️ For DeepSeek V4 / Gemini 2.5 only. Each request will cost more tokens. Token Budget ≥ 16,000 recommended.',
                 'КБ за один «посмотри файл». Больше = файл читается быстрее. Под контекст модели.': 'KB per single "look at file". More = file is read faster. Sized to the model context.',
@@ -2417,7 +2421,7 @@
                 'Далее &#x2192;': 'Next &#x2192;',
                 '— настройки, профиль L3, интенты, emb-кеш · лимит 5 МБ': '— settings, L3 profile, intents, emb-cache · limit 5 MB',
                 '— чаты, заметки, файлы, KB, L2-дайджесты · лимит ~500 МБ': '— chats, notes, files, KB, L2 digests · limit ~500 MB',
-                '— профиль + выученные факты · localStorage': '— profile + learned facts · localStorage',
+                '— профиль + выученные факты · localStorage': '— legacy profile + learned facts · localStorage',
                 '— топ-25 сообщений по DAAD-score · только в JS-памяти, пересчитывается из IDB': '— top-25 messages by DAAD-score · only in JS memory, recomputed from IDB',
                 '— все сообщения сессии · IndexedDB': '— all session messages · IndexedDB',
                 '— дайджесты прошлых чатов (до 20) · IndexedDB': '— past chat digests (up to 20) · IndexedDB',
@@ -7749,6 +7753,19 @@
                                     ⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.
                                 </div>
                             </div>
+                            <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:10px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                                    <div>
+                                        <div style="font-size:13px;font-weight:700;" data-i18n="🔎 Автопоиск архива чатов">🔎 Автопоиск архива чатов</div>
+                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;line-height:1.4;" data-i18n="Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.">Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.</div>
+                                    </div>
+                                    <div id="eiti-memory-lookup-slider" role="switch" tabindex="0" aria-checked="false" data-i18n-aria="🔎 Автопоиск архива чатов"
+                                        onclick="eitiMemoryLookupToggle()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();eitiMemoryLookupToggle();}"
+                                        style="width:42px;height:24px;border-radius:12px;background:#444;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
+                                        <div id="eiti-memory-lookup-knob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;"></div>
+                                    </div>
+                                </div>
+                            </div>
                             <!-- ═══ FILE CHUNK SIZE (v12.9.47) ═══ -->
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                                 <span>📄 File Chunk Size</span>
@@ -8741,15 +8758,16 @@
                                 <b>🧠 VELANTRIM EITI</b> — персональный AI-ассистент с многослойной памятью.<br><br>
 
                                 <b>📦 Хранилище</b><br>
-                                • <b>IndexedDB</b> — чаты, заметки, файлы, KB, L2-дайджесты · лимит ~500 МБ<br>
-                                • <b>localStorage</b> — настройки, профиль L3, интенты, emb-кеш · лимит 5 МБ<br><br>
+                                • <b>IndexedDB</b> — чаты, заметки, файлы, KB, L2-дайджесты, автоизвлечённый профиль L3 <code>l3</code> · лимит ~500 МБ<br>
+                                • <b>localStorage</b> — настройки, legacy-профиль/факты, интенты, emb-кеш · лимит 5 МБ<br><br>
 
                                 <b>🧩 Архитектура памяти (DAAD FractalMemory)</b><br>
                                 • <b>L0 RAM</b> — топ-25 сообщений по DAAD-score · только в JS-памяти, пересчитывается из IDB<br>
                                 • <b>L1 STM</b> — все сообщения сессии · IndexedDB <code>messages</code><br>
                                 • <b>L2 MTM</b> — дайджесты прошлых чатов (до 20) · IndexedDB <code>l2</code><br>
-                                • <b>L3 Core</b> — профиль + выученные факты · localStorage <code>eiti_user_profile_v1</code> + <code>eiti_learned_v1</code><br>
-                                • <b>KB</b> — база знаний · IndexedDB <code>kb</code> · не лимитирована<br><br>
+                                • <b>L3 profile</b> — автоизвлечённые поля · IndexedDB <code>l3</code><br>
+                                • <b>L3 legacy</b> — профиль и выученные факты · localStorage <code>eiti_user_profile_v1</code> + <code>eiti_learned_v1</code><br>
+                                • <b>ESM L3</b> — проверенные KB-факты · IndexedDB <code>kb</code>, <code>memory_layer=L3</code><br><br>
 
                                 <b>🔍 Локальный поиск (без API)</b><br>
                                 • Запрос: <code>?слово</code> или <code>?заметки: слово</code><br>
@@ -12101,6 +12119,32 @@
             if (warn)   warn.style.display      = enabled ? 'block' : 'none';
         }
         window._eitiFullCtxRenderUI = _eitiFullCtxRenderUI;
+        var MEMORY_LOOKUP_KEY = 'eiti_memory_lookup_enabled';
+        function eitiMemoryLookupIsEnabled() {
+            try { return localStorage.getItem(MEMORY_LOOKUP_KEY) === '1'; }
+            catch(e) { return false; }
+        }
+        window.eitiMemoryLookupIsEnabled = eitiMemoryLookupIsEnabled;
+        function eitiMemoryLookupToggle() {
+            var enabled = !eitiMemoryLookupIsEnabled();
+            try { localStorage.setItem(MEMORY_LOOKUP_KEY, enabled ? '1' : '0'); } catch(e) {}
+            _eitiMemoryLookupRenderUI();
+            if (typeof showToast === 'function') {
+                showToast(enabled ? '🔎 Автопоиск архива включён' : '🔎 Автопоиск архива выключен', 1800);
+            }
+        }
+        window.eitiMemoryLookupToggle = eitiMemoryLookupToggle;
+        function _eitiMemoryLookupRenderUI() {
+            var enabled = eitiMemoryLookupIsEnabled();
+            var knob = document.getElementById('eiti-memory-lookup-knob');
+            var slider = document.getElementById('eiti-memory-lookup-slider');
+            if (knob) knob.style.transform = enabled ? 'translateX(18px)' : '';
+            if (slider) {
+                slider.style.background = enabled ? 'var(--accent-color)' : '#444';
+                slider.setAttribute('aria-checked', enabled ? 'true' : 'false');
+            }
+        }
+        window._eitiMemoryLookupRenderUI = _eitiMemoryLookupRenderUI;
 
         async function eitiFullCtxBuild() {
             if (!eitiFullCtxIsEnabled()) return '';
@@ -13889,6 +13933,7 @@
                                 _fcS.addEventListener('click', eitiFullCtxToggle);
                             }
                             if (typeof _eitiFullCtxRenderUI === 'function') _eitiFullCtxRenderUI();
+                            if (typeof _eitiMemoryLookupRenderUI === 'function') _eitiMemoryLookupRenderUI();
                         }, 100);
                     });
                 }
@@ -18062,8 +18107,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         ? 'Type: Single-file PWA (HTML+CSS+JS+SW monolith)\n'
                         : 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
                     _grokSelfInfo += _EN
-                        ? 'Storage: IndexedDB (chats/notes/files/L2), localStorage (settings/L3), SQLite WASM (FTS5)\n'
-                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/L2), localStorage (настройки/L3), SQLite WASM (FTS5)\n';
+                        ? 'Storage: IndexedDB (chats/notes/files/KB/L2/L3 profile), localStorage (settings and legacy profile/facts), SQLite WASM (derived FTS5 index)\n'
+                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/KB/L2/L3-профиль), localStorage (настройки и legacy-профиль/факты), SQLite WASM (производный FTS5-индекс)\n';
                     _grokSelfInfo += _EN
                         ? 'AI providers: DeepSeek API (main), Gemini API, Grok Voice (you), WebLLM offline\n'
                         : 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
@@ -18071,8 +18116,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         ? 'Search: BM25+FTS5+Semantic (KB), TextRank (snippets), DuckDuckGo (web)\n'
                         : 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
                     _grokSelfInfo += _EN
-                        ? 'Memory: L0 RAM→L1 SQLite→L2 IDB digests→L3 localStorage profile\n'
-                        : 'Память: L0 RAM→L1 SQLite→L2 IDB дайджесты→L3 localStorage профиль\n';
+                        ? 'Memory: L0 RAM→L1 IDB session messages→L2 IDB digests→L3 split across IDB profile/KB and legacy localStorage\n'
+                        : 'Память: L0 RAM→L1 IDB-сообщения сессии→L2 IDB-дайджесты→L3 разделён между профилем/KB в IDB и legacy localStorage\n';
                     _grokSelfInfo += _EN
                         ? 'Graph: MOSC reasoning graph (nodes/edges/weights)\n'
                         : 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
@@ -18299,7 +18344,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         { // IDB scan for Grok when user asks about history (всегда, независимо от _histMsgs)
                         // IDB scan for Grok when user asks about history
                         var _gLow = (typeof userText !== 'undefined' ? userText : '').toLowerCase();
-                        if (/найди в чатах|что я писал|в прошлых чатах|посмотри (историю|чаты)|поищи в истории|что я говорил|прошл|помнишь|обсуждали|истори/.test(_gLow)) {
+                        if (/найди в чатах|что я писал|в прошлых чатах|посмотри (историю|чаты)|поищи в истории|что я говорил|прошл|помнишь|обсуждали|истори|search.{0,20}(chat )?history|previous chat|past chats|check.{0,20}memory|проверь.{0,20}памят/i.test(_gLow)) {
                             if (typeof eitiGetChats === 'function' && typeof eitiGetMessages === 'function') {
                                 var _pn3 = {deepseek:'DS',gemini:'GM',openrouter:'OR',grok:'Grok'};
                                 eitiGetChats().then(function(chats) {
@@ -18366,7 +18411,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         : _grokSearchMode === 'xai' ? '\n\n🔍 Используй web_search для поиска.'
                         : '\n\n🚫 Поиск отключён. Скажи пользователю включить DuckDuckGo в Настройки.';
                     // v12.9.13: авто-RAG для Grok — добавляем FTS5-результаты если есть
-                    if (typeof eitiSearchArchive === 'function' && typeof _db !== 'undefined' && _db) {
+                    var _grokArchiveRequest = /найди в чатах|что я писал|в прошлых чатах|посмотри (историю|чаты)|поищи в истории|что я говорил|прошл|помнишь|обсуждали|истори|search.{0,20}(chat )?history|previous chat|past chats|check.{0,20}memory|проверь.{0,20}памят/i.test(String(typeof _grokLastUserText !== 'undefined' ? _grokLastUserText : '').toLowerCase());
+                    var _grokLookupEnabled = typeof eitiMemoryLookupIsEnabled === 'function' && eitiMemoryLookupIsEnabled();
+                    if (typeof eitiSearchArchive === 'function' && typeof _db !== 'undefined' && _db && (_grokLookupEnabled || _grokArchiveRequest)) {
                         try {
                             var _grokRagSync = (function() {
                                 // Синхронный FTS5 (sql.js синхронный)
@@ -19595,7 +19642,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         // Abstracts the FTS5/IDB archive scan so ALL providers (DeepSeek, OpenRouter,
         // Gemini) receive the same enriched history. Prevents accumulation across turns
         // by stripping any previous [АРХИВНЫЙ КОНТЕКСТ] block before re-injecting.
-        function eitiPrepareContext(query, baseHistory, callback) {
+        function eitiPrepareContext(query, baseHistory, callback, options) {
             // Full Context Mode: оборачиваем callback в обёртку, которая дополняет
             // system-сообщение полным контекстом (заметки/KB/MEM) если режим включён.
             var _origCallback = callback;
@@ -19630,13 +19677,20 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 callback(baseHistory);
                 return;
             }
+            var _explicitArchiveRequest = !!(options && options.explicitArchiveRequest)
+                || /помнишь|обсуждали|говорили|в прошлый раз|в прошлых чатах|прошлом чате|прошлый чат|что мы|предыдущ|покажи историю|посмотри историю|просмотри историю|найди в чатах|поищи в истории|проверь.{0,20}памят|поиск.{0,20}архив|search.{0,20}(chat )?history|check.{0,20}memory/i.test(query);
+            if (!_explicitArchiveRequest && !eitiMemoryLookupIsEnabled()) {
+                baseHistory[0].content = _baseContent;
+                callback(baseHistory);
+                return;
+            }
 
             var _archiveQuery = query
                 .replace(/посмотри (историю|полностью|в прошлом)|просмотри историю|покажи историю/gi, '')
                 .replace(/помнишь|обсуждали|говорили|в прошлый раз|в прошлых чатах|прошлом чате|прошлый чат|что мы|предыдущ/gi, '')
                 .trim();
             var _showLastChat = _archiveQuery.length < 3;
-            var CMD_SEARCH_ARCHIVE = /помнишь|обсуждали|говорили|в прошлый раз|в прошлых чатах|прошлом чате|прошлый чат|что мы|предыдущ|покажи историю|посмотри историю|просмотри историю/i.test(query);
+            var CMD_SEARCH_ARCHIVE = _explicitArchiveRequest;
 
             function _inject(dump) {
                 baseHistory[0].content = _baseContent + _SENTINEL + dump;
@@ -20657,10 +20711,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _selfInfo = '=== АРХИТЕКТУРА EITI v' + (window.EITI_VERSION||'?') + ' (self-awareness) ===\n';
                     _selfInfo += 'Тип: Single-file PWA монолит (HTML+CSS+JS+SW)\n';
                     _selfInfo += 'Строк кода: ~' + Math.round(document.documentElement.outerHTML.length / 50) + ' (оценка)\n';
-                    _selfInfo += 'Хранилище: IndexedDB (чаты/заметки/L2), localStorage (настройки/L3-факты), SQLite WASM (KB FTS5)\n';
+                    _selfInfo += 'Хранилище: IndexedDB (чаты/заметки/KB/L2/L3), localStorage (настройки и legacy-профиль/факты), SQLite WASM (производный FTS5-индекс)\n';
                     _selfInfo += 'AI: DeepSeek API (chat/reasoner), Transformers.js офлайн, офлайн-режим\n';
                     _selfInfo += 'Поиск: BM25 (KB), TextRank (сниппеты), FTS5 SQLite, Semantic (cosine)\n';
-                    _selfInfo += 'Память: L0 RAM (контекст), L1 STM (chatLog), L2 IDB (дайджесты), L3 localStorage (факты)\n';
+                    _selfInfo += 'Память: L0 RAM (контекст), L1 STM (chatLog), L2 IDB (дайджесты), L3 разделён: IDB l3 + KB L3 и legacy-профиль/факты в localStorage\n';
                     _selfInfo += 'Граф: MOSC reasoning graph\n';
                     _selfInfo += 'Команды ИИ: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, MOSC_DEL, NOTE_WRITE, JS_EXEC\n';
                     // Снапшот состояния
@@ -21412,7 +21466,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     _hadHistScan = history[0].content.indexOf('\n[АРХИВНЫЙ КОНТЕКСТ]: ') !== -1;
                     if (_hadHistScan) _lastCtxSources.push('🕑Ист');
                     startQuery();
-                });
+                }, { explicitArchiveRequest: CMD_SEARCH_ARCHIVE });
             });
         }
 
@@ -27664,6 +27718,7 @@ window.eitiLLMClearAll = async function() {
                     _fcSlider.addEventListener('click', eitiFullCtxToggle);
                 }
                 if (typeof _eitiFullCtxRenderUI === 'function') _eitiFullCtxRenderUI();
+                            if (typeof _eitiMemoryLookupRenderUI === 'function') _eitiMemoryLookupRenderUI();
                 // Профиль
                 var p = eitiGetProfile();
                 var ta = document.getElementById('eiti-profile-text');
@@ -34674,7 +34729,7 @@ window.eitiLLMClearAll = async function() {
                     '<div>🔴 <b>L0 RAM</b> — топ-25 сообщений · только в JS-памяти · <span style="opacity:0.6">сбрасывается при перезагрузке</span></div>',
                     '<div>🟠 <b>L1 STM</b> — сообщений в IDB: <b>'+(totalMsgs||'…')+'</b> · персистентно</div>',
                     '<div>🟡 <b>L2 MTM</b> — дайджестов: <b>'+l2count+'</b> / 20 · IndexedDB</div>',
-                    '<div>🟢 <b>L3 Core</b> — профиль + выученных фактов: <b>'+l3facts+'</b> · '+kb(l3size)+' / 5 МБ localStorage</div>',
+                    '<div>🟢 <b>L3 legacy</b> — выученных фактов: <b>'+l3facts+'</b> · '+kb(l3size)+' / 5 МБ localStorage</div>',
                     '<div>🧠 <b>KB</b> — фактов: <b>'+kbFacts+'</b> · IndexedDB (без лимита)</div>',
                     // ── Контент ──
                     '<div style="font-weight:700;font-size:12px;opacity:0.5;letter-spacing:0.5px;margin-top:8px;">📦 КОНТЕНТ</div>',
@@ -34686,7 +34741,7 @@ window.eitiLLMClearAll = async function() {
                     '<div style="font-weight:700;font-size:12px;opacity:0.5;letter-spacing:0.5px;margin-top:8px;">💾 ХРАНИЛИЩЕ</div>',
                     '<div>📂 <b>IndexedDB:</b> '+(idbUsed ? mb(idbUsed) : '…')+(idbQuota?' / '+mb(idbQuota)+' (<b>'+idbPct+'%</b>)':'')+' · chats+messages+notes+files+kb+l2</div>',
                     '<div>🗄 <b>localStorage:</b> '+kb(lsSize)+' / 5 МБ (<b>'+lsPct+'%</b>)</div>',
-                    '<div style="font-size:11px;opacity:0.5;padding-left:10px;">L3 профиль: '+kb(lsDetail['L3 профиль']||0)+' · Emb-кеш: '+kb(lsDetail['Emb-кеш']||0)+' · Настройки: '+kb(lsDetail['Настройки']||0)+' · Интенты: '+kb(lsDetail['Интенты/Прочее']||0)+'</div>',
+                    '<div style="font-size:11px;opacity:0.5;padding-left:10px;">Legacy профиль/факты: '+kb(lsDetail['L3 профиль']||0)+' · Emb-кеш: '+kb(lsDetail['Emb-кеш']||0)+' · Настройки: '+kb(lsDetail['Настройки']||0)+' · Интенты: '+kb(lsDetail['Интенты/Прочее']||0)+'</div>',
                 ];
                 el.innerHTML = rows.map(function(r){ return '<div style="line-height:1.8">'+r+'</div>'; }).join('');
             }

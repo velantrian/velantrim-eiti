@@ -47,7 +47,7 @@
   <text class="ui muted" x="84" y="254">Память L3</text>
   <rect x="74" y="286" width="170" height="48" rx="16" fill="#2c2118" stroke="#8d6335"/>
   <text class="ui label" x="99" y="318">Настройки</text>
-  <text class="ui tiny" x="84" y="796">v13.7.4 · Sprint 3</text>
+  <text class="ui tiny" x="84" y="796">v13.7.14 · Sprint 3</text>
 
   <!-- Main header -->
   <text class="ui title" x="330" y="105">Настройки</text>

@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Клиентское PWA без backend и build step. Основной интерфейс — один HTML-файл._
 
-[![Version](https://img.shields.io/badge/version-13.7.13-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![Version](https://img.shields.io/badge/version-13.7.14-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![No Build Step](https://img.shields.io/badge/build-none-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline Core](https://img.shields.io/badge/offline-core-orange?style=flat-square)](#)
@@ -40,7 +40,17 @@ python3 -m http.server 8080
 
 ---
 
-## 🆕 Что нового в v13.7.5
+## 🆕 Что нового в v13.7.14
+
+**🧠 Память и поиск**
+- 🔎 Автопоиск по архиву чатов выключен по умолчанию; его можно включить в настройках. Явные запросы к истории продолжают работать.
+- 🗃 Уточнена карта L3: автоизвлечённый профиль, старые профиль/факты и канонические ESM-факты живут в разных хранилищах.
+
+**🟣 OpenRouter (v13.7.13)**
+- 🧠 Индикатор Thinking показывается только для моделей с реальным reasoning.
+- 🔁 Один повтор запроса при ответе HTTP 429.
+
+**Исправления безопасности и стабильности предыдущих выпусков**
 
 **🔴 Безопасность и корректность**
 - 🛡️ Экранированы user/model-controlled поля в Trace, KB и PKG перед HTML-рендером.
@@ -95,8 +105,11 @@ VELANTRIM EITI — клиентский AI-ассистент, основной 
 │  L2 digest── дайджесты прошлых сессий (до 50)           │
 │              авто-генерация через AI · decay + BM25     │
 │                                                         │
-│  L3 Core ─── профиль пользователя + выученные факты     │
-│              IDB store 'l3' · авто-извлечение паттернов │
+│  L3 profile ─ автоизвлечённые поля профиля              │
+│                IndexedDB store 'l3'                     │
+│  Legacy L3 ── профиль и выученные факты                  │
+│                localStorage                              │
+│  ESM L3 ───── проверенные факты · IndexedDB 'kb'         │
 │                                                         │
 │  KB ──────── база знаний · без лимита                   │
 │              IDB + BM25/Embeddings · эпистемика         │
@@ -162,12 +175,12 @@ VELANTRIM EITI — клиентский AI-ассистент, основной 
 
 | Слой | Технология | Для чего |
 |---|---|---|
-| **IndexedDB** | ~500 МБ | Чаты, заметки, файлы, KB, L2, L3, RNE, Daily Log, VB паттерны |
-| **localStorage** | ~5 МБ | Тема, UI-флаги, API-ключи, мелкие переключатели |
+| **IndexedDB** | ~500 МБ | Чаты, заметки, файлы, KB (включая ESM-факты `memory_layer=L3`), L2, автоизвлечённый профиль (`l3`), RNE, Daily Log, VB паттерны |
+| **localStorage** | ~5 МБ | Тема, UI-флаги, API-ключи, настройки, legacy-профиль `eiti_user_profile_v1` и выученные факты `eiti_learned_v1` |
 | **SQLite WASM** | sql.js | FTS5-поиск, BM25, Attention Graph, эпистемика |
 | **JS RAM** | Сессия | L0-память, MOSC-граф, VB-контекст |
 
-> SQL = индекс поиска. IndexedDB = единственный источник истины. MOSC = граф рассуждений.
+> IndexedDB — основное хранилище чатов и KB; L3 пока распределён между IDB store `l3`, IDB store `kb` (канонические ESM-факты) и legacy-ключами профиля/фактов в localStorage. SQLite WASM — поисковый индекс, не источник истины. MOSC — отдельный граф рассуждений.
 
 ---
 

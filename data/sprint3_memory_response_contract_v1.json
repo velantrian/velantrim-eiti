@@ -36,7 +36,7 @@
     "id": "memory_lookup_enabled",
     "label_ru": "Проверять память перед ответом",
     "description_ru": "Если выключено, ответы становятся быстрее: система не делает обязательную проверку базы памяти перед каждым сообщением. Ручной поиск по памяти и явные команды 'проверь в памяти' должны продолжать работать.",
-    "default": true
+    "default": false
   },
   "esm_statuses": [
     "observed",
@@ -93,7 +93,7 @@
   ],
   "default_state": {
     "memory_mode": "normal",
-    "memory_lookup_enabled": true,
+    "memory_lookup_enabled": false,
     "response_pattern": "default"
   }
 }

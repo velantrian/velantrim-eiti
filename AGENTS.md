@@ -4,7 +4,7 @@
 
 ### Overview
 
-VELANTRIM EITI is a fully client-side PWA (Progressive Web App) whose application UI/runtime is a single monolithic `index.html` file (~3.8 MB, v13.7.5). There is **no application build step, backend, or external database**. The app uses browser-native storage (IndexedDB, localStorage), companion SQLite WASM assets (`sql-wasm.js` / `sql-wasm.wasm`), and CDN libraries for optional document/sanitization features.
+VELANTRIM EITI is a fully client-side PWA (Progressive Web App) whose application UI/runtime is a single monolithic `index.html` file (~3.8 MB, v13.7.14). There is **no application build step, backend, or external database**. The app uses browser-native storage (IndexedDB, localStorage), companion SQLite WASM assets (`sql-wasm.js` / `sql-wasm.wasm`), and CDN libraries for optional document/sanitization features.
 
 ### Running the app
 
@@ -38,5 +38,7 @@ Then open `http://localhost:8080/index.html` in Chrome.
 - **Version consistency.** `EITI_VERSION` in `index.html`, `CACHE`/`SW_UPDATED` in `sw.js`, `description` in `manifest.json`, and the README version badge must always match.
 - AI chat features (DeepSeek, Gemini, Grok, OpenRouter) require external API keys configured in the app's Settings tab. The DuckDuckGo AI provider works without an API key.
 - The app stores all data in the browser (IndexedDB ~500 MB, localStorage ~5 MB, SQLite WASM for FTS5). There are no external databases.
+- L3 data is not yet consolidated: extracted profile facts live in IndexedDB store `l3`; epistemically gated KB facts use IndexedDB store `kb` with `memory_layer: "L3"`; compatibility profile/learned facts remain in localStorage keys `eiti_user_profile_v1` and `eiti_learned_v1`. Do not treat these stores as interchangeable or remove/migrate legacy keys without an explicit migration plan.
+- Automatic archive lookup is opt-in (off by default); explicit chat-history requests still search the archive.
 - When testing, the first load shows an onboarding wizard that must be completed before accessing the main interface.
 - Service Workers require `http://` or `https://` (not `file://`).

@@ -15,7 +15,7 @@ test('Sprint 3 contract exposes Normal, Grounded and Strict memory modes', () =>
 
   assert.deepEqual([...modes.keys()].sort(), ['grounded', 'normal', 'strict']);
   assert.equal(contract.default_state.memory_mode, 'normal');
-  assert.equal(contract.default_state.memory_lookup_enabled, true);
+  assert.equal(contract.default_state.memory_lookup_enabled, false);
 
   assert.equal(modes.get('normal').lookup_policy, 'opportunistic');
   assert.equal(modes.get('grounded').lookup_policy, 'required_when_memory_relevant');
