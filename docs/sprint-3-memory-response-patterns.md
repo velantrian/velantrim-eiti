@@ -10,7 +10,7 @@ The goal is not to force every answer through the heaviest memory path. The goal
 
 The planned UI has two user-facing blocks:
 
-1. **Память ответа** — toggle + `Normal / Grounded / Strict` mode selector.
+1. **Управление памятью** — L1 chat-archive search toggle plus a separate `Normal / Grounded / Strict` mode selector.
 2. **Паттерн следующего ответа** — quick buttons such as `Напиши другую версию`, `Помоги обдумать`, `Критик`, `План действий`.
 
 ## What this adds
@@ -37,9 +37,9 @@ Storage key:
 eiti_memory_lookup_enabled
 ```
 
-When enabled, the app may check memory before answering.
+This key controls only automatic search of L1 chat-message history; it does not control L2 digests, the active profile, KB, or other memory sources.
 
-When disabled, normal chat responses should be faster because the app should not do mandatory memory lookup before every reply. Explicit user requests such as "проверь в памяти" or manual memory search should still be allowed.
+Runtime wiring is implemented in v13.7.15. The default is **off**: ordinary messages do not trigger an archive scan. Explicit chat-history requests and manual history search continue to work when the toggle is off. When enabled, ordinary messages may search the archive.
 
 ## Memory modes
 
@@ -92,16 +92,16 @@ With this contract, the intended behavior becomes explicit:
 - `strict` for verified answers;
 - response patterns for changing the style or cognitive mode of the next answer.
 
-## Next implementation step
+## Remaining implementation steps
 
-Wire the contract into `index.html`:
+The L1 archive-search toggle is wired into `index.html` and Settings. It is not a global memory-check switch. The remaining Sprint 3 work is to wire the other contract features into `index.html`:
 
 1. Add Settings controls:
-   - toggle: "Проверять память перед ответом";
+   - toggle: "Поиск по архиву чатов" (L1 history only; default OFF);
    - select: `Normal / Grounded / Strict`;
    - select/buttons: response patterns.
-2. Persist choices in localStorage using the keys from the contract.
-3. Make the chat pipeline read these keys before memory retrieval and prompt construction.
+2. Persist the mode and response-pattern choices in localStorage using the keys from the contract.
+3. Make the chat pipeline apply mode-aware retrieval and response patterns during prompt construction.
 4. In strict mode, show source facts / confidence / trace by default.
 
-The current PR intentionally keeps this as a safe contract + test layer so the behavior is pinned before editing the large single-file app.
+The contract tests pin the full target behavior; not all modes and response patterns are wired to runtime yet.

@@ -225,3 +225,136 @@ test('OR chat: Think badge comes only from real reasoning deltas; one retry on 4
   assert.match(INDEX, /_orrc && eitiORThinkingActive\(_orModel\)/);
   assert.match(INDEX, /r0\.status !== 429/);
 });
+
+
+test('every inline script in index.html compiles', () => {
+  const vm = require('node:vm');
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let match;
+  let count = 0;
+  while ((match = re.exec(INDEX))) {
+    if (/\bsrc\s*=/.test(match[1])) continue;
+    count += 1;
+    assert.doesNotThrow(
+      () => new vm.Script(match[2], { filename: `index-inline-${count}.js` }),
+      `inline script ${count} must parse`
+    );
+  }
+  assert.ok(count >= 20, `expected the app's inline scripts, found ${count}`);
+});
+
+test('doFetch keeps prepared archive and loaded-chat context in the provider system payload', () => {
+  assert.match(INDEX, /history\[0\]\.content = _eitiMergePreparedSystemContext\(sysContent, history\[0\]\.content\)/);
+  assert.match(INDEX, /function _eitiMergePreparedSystemContext\(systemContent, preparedContent\)/);
+});
+
+test('Grok Voice searches the current transcript before creating its response', () => {
+  assert.match(INDEX, /window\._grokLastUserText = _grokTurnText/);
+  const start = INDEX.indexOf('var _grokLookupPromise =');
+  const end = INDEX.indexOf('}).catch(function(error)', start);
+  assert.ok(start >= 0 && end > start, 'per-turn archive lookup block exists');
+  const block = INDEX.slice(start, end);
+  assert.match(block, /eitiSearchArchive\(_grokTurnText\)/);
+  assert.ok(block.indexOf("type: 'session.update'") < block.indexOf("type: 'response.create'"));
+  assert.doesNotMatch(block, /_fts5Available/);
+});
+
+test('Qwen and Vision both pass through the shared memory-context gate', () => {
+  const calls = INDEX.match(/eitiPrepareContextPromise\(userText, history\)/g) || [];
+  assert.equal(calls.length, 2);
+  assert.match(INDEX, /var _qContextPromise = typeof eitiPrepareContextPromise/);
+  assert.match(INDEX, /var _visionContextPromise = typeof eitiPrepareContextPromise/);
+});
+
+test('archive backup round-trips IndexedDB L3 profile and KB stores', () => {
+  assert.match(INDEX, /_eitiArchiveReadIDBStore\('l3'\)/);
+  assert.match(INDEX, /_eitiArchiveReadIDBStore\('kb'\)/);
+  assert.match(INDEX, /data\.idbL3 = results\[1\]/);
+  assert.match(INDEX, /data\.idbKB = results\[2\]/);
+  assert.match(INDEX, /_eitiArchiveRestoreIDBStore\('l3', data\.idbL3\)/);
+  assert.match(INDEX, /_eitiArchiveRestoreIDBStore\('kb', data\.idbKB\)/);
+});
+
+test('legacy ESM migration keeps unadmitted facts in L1 and status counts only admitted L3', () => {
+  const start = INDEX.indexOf('window.eitiFractalMigrateFacts = function()');
+  const end = INDEX.indexOf('\n};', start);
+  assert.ok(start >= 0 && end > start);
+  const migration = INDEX.slice(start, end);
+  assert.match(migration, /var admitted = \['Validated', 'Supported', 'ImmutableCore'\]/);
+  assert.match(migration, /f\.memory_layer = mayBeL3 \? 'L3' : 'L1'/);
+  assert.match(migration, /f\.memory_layer === 'L3' && !mayBeL3/);
+  assert.match(INDEX, /UPDATE kb_idx SET memory_layer='L1' WHERE memory_layer='L3' AND COALESCE\(epistemic_state,'Observed'\) NOT IN/);
+  assert.match(INDEX, /idbProfileCount = rows\.length/);
+  assert.match(INDEX, /esmL3Count = rows\.filter\(function\(fact\).*memory_layer === 'L3'.*Validated.*Supported.*ImmutableCore/);
+});
+
+test('archive-search control documents only L1 history, defaults off, and remains localized', () => {
+  const contract = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'data', 'sprint3_memory_response_contract_v1.json'), 'utf8'));
+  const svg = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'assets', 'sprint3-memory-settings-wireframe.svg'), 'utf8');
+  assert.equal(contract.memory_lookup_toggle.default, false);
+  assert.equal(contract.default_state.memory_lookup_enabled, false);
+  assert.equal(contract.memory_lookup_toggle.label_ru, 'Поиск по архиву чатов');
+  assert.match(INDEX, /data-i18n="Автопоиск по истории сообщений \(L1\) выключен по умолчанию/);
+  assert.match(INDEX, /'🔎 Автопоиск архива включён': '🔎 Automatic archive search enabled'/);
+  assert.match(INDEX, /'🔎 Автопоиск архива выключен': '🔎 Automatic archive search disabled'/);
+  assert.match(INDEX, /'🔎 Автопоиск архива включён': '🔎 Automatische Archivsuche aktiviert'/);
+  assert.match(INDEX, /'🔎 Автопоиск архива выключен': '🔎 Automatische Archivsuche deaktiviert'/);
+  assert.match(INDEX, /window\.addEventListener\('storage', function\(event\)/);
+  assert.match(svg, /class="toggleOff" cx="1048"/);
+  assert.doesNotMatch(svg, /toggleOn|Memory ON|Проверять память перед ответом/);
+});
+
+test('archive toggle reports persistence failure and uses translated messages', () => {
+  const messages = [];
+  const failed = loadFunctions(
+    ['eitiMemoryLookupIsEnabled', 'eitiMemoryLookupToggle', '_eitiMemoryLookupRenderUI'],
+    {
+      MEMORY_LOOKUP_KEY: 'eiti_memory_lookup_enabled',
+      localStorage: { getItem: () => null, setItem: () => { throw new Error('quota'); } },
+      document: { getElementById: () => null },
+      window: { T: (key) => `translated:${key}` },
+      showToast: (message) => messages.push(message),
+    }
+  );
+  assert.equal(failed.eitiMemoryLookupToggle(), false);
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /^translated:⚠️ Не удалось сохранить настройку поиска по архиву/);
+});
+
+test('README architecture frame uses one consistent width', () => {
+  const start = README.indexOf('┌');
+  const end = README.indexOf('┘', start);
+  assert.ok(start >= 0 && end > start);
+  const lines = README.slice(start, end + 1).split(/\r?\n/);
+  assert.ok(lines.length > 10);
+  assert.ok(lines.every((line) => line.length === lines[0].length), 'all diagram frame lines must have equal width');
+});
+
+test('service worker checks for updates promptly and bypasses the script HTTP cache', () => {
+  assert.match(INDEX, /navigator\.serviceWorker\.register\('sw\.js', \{ updateViaCache: 'none' \}\)/);
+  assert.match(INDEX, /try \{ reg\.update\(\); \} catch\(e\) \{\}/);
+  assert.match(INDEX, /setInterval\(function\(\) \{ try \{ reg\.update\(\); \} catch\(e\) \{\} \}, 300000\)/);
+});
+
+
+test('archive gate uses one explicit-history detector and #A001 preloads before prompt construction', () => {
+  assert.match(INDEX, /var CMD_LOAD_HISTORY = eitiIsExplicitArchiveRequest\(userText\)/);
+  assert.match(INDEX, /var CMD_SEARCH_ARCHIVE = !_archiveExplicitOther && eitiIsExplicitArchiveRequest\(userText\)/);
+  assert.match(INDEX, /eitiPrepareContext\(userText, history, function\(ctxHistory\)/);
+  const askStart = INDEX.indexOf('async function eitiAskDeepSeek(userText)');
+  const promiseStart = INDEX.indexOf('return new Promise(function(resolve, reject)', askStart);
+  const preload = INDEX.indexOf('await eitiLoadChatById(_chatByIdPreload[1].toUpperCase())', askStart);
+  assert.ok(askStart >= 0 && preload > askStart && promiseStart > preload);
+  assert.equal(INDEX.includes('window._l2Cache'), false);
+  assert.match(INDEX, /var store = _eitiL2Cache\.slice\(\)/);
+});
+
+
+test('release notes describe existing-install default and AGENTS version matches runtime', () => {
+  const agents = fs.readFileSync(path.join(__dirname, '..', '..', 'AGENTS.md'), 'utf8');
+  const runtimeVersion = INDEX.match(/var EITI_VERSION = "([^"]+)"/)[1];
+  assert.ok(README.includes(runtimeVersion));
+  assert.ok(agents.includes(runtimeVersion));
+  assert.match(README, /Для существующих установок без сохранённого opt-in поиск также остаётся выключенным/);
+  assert.match(README, /eiti_memory_lookup_enabled='1'/);
+});
