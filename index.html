@@ -39,7 +39,7 @@
          * [P2] Blob URL auto-revoke 5 min
          * [P2] SW cache → eiti-v13.4.0
          */
-        var EITI_VERSION = "13.7.14"; // v13.7.14: opt-in archive lookup, L3 storage docs
+        var EITI_VERSION = "13.7.15"; // audit fixes: archive retrieval, L3 accuracy, PWA updates
         // Security boundary: DOMPurify is the HTML sanitizer. If it is unavailable
         // or throws, fail closed by escaping the entire value as text. Regex is not a
         // trusted HTML sanitizer and must never be used as a security downgrade path.
@@ -472,8 +472,23 @@
                 'Only AI — все запросы идут напрямую в активный провайдер (DeepSeek / OpenRouter / Gemini), минуя Intent Router и MOSC.': 'Only AI — alle Anfragen gehen direkt an den aktiven Provider (DeepSeek / OpenRouter / Gemini), unter Umgehung von Intent Router und MOSC.',
                 'Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.': 'Tokens pro KI-Antwort. DeepSeek V4: bis 32.000. Gemini 2.5: bis 65.000. Empfohlen 16.000–24.000.',
                 '🗂 Полный контекст (1M)': '🗂 Voller Kontext (1M)',
-                '🔎 Автопоиск архива чатов': '🔎 Chat-Archiv automatisch durchsuchen',
-                'Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.': 'Im normalen Chat wird das Archiv nicht durchsucht. Explizite Anfragen und die manuelle Suche funktionieren immer.',
+                '🔎 Автопоиск архива включён': '🔎 Automatische Archivsuche aktiviert',
+                '🔎 Автопоиск архива выключен': '🔎 Automatische Archivsuche deaktiviert',
+                '⚠️ Не удалось сохранить настройку поиска по архиву': '⚠️ Archivsuche-Einstellung konnte nicht gespeichert werden',
+                'Совместимые профиль и факты L3': 'L3-Kompatibilitätsprofil und -fakten',
+                'автоизвлечённых полей профиля:': 'automatisch extrahierte Profilfelder:',
+                'допущенных ESM L3-фактов:': 'zugelassene ESM-L3-Fakten:',
+                'выученных фактов:': 'gelernte Fakten:',
+                'размер localStorage:': 'localStorage-Größe:',
+                'IndexedDB l3': 'IndexedDB l3',
+                'IndexedDB kb': 'IndexedDB kb',
+                                'Активный L3-совместимый контекст': 'Aktiver L3-Kompatibilitätskontext',
+                'Допущенные записи ESM L3': 'Zugelassene ESM-L3-Einträge',
+                'активный совместимый профиль/факты': 'aktives Kompatibilitätsprofil und Fakten',
+                'активный профиль и выученные факты, включаемые в системный контекст': 'Aktives Profil und gelernte Fakten im Systemkontext',
+                'KB-факты в допущенном слое; Observed/Hypothesis не считаются подтверждёнными': 'KB-Fakten im zugelassenen L3-Layer; Observed/Hypothesis gelten nicht als bestätigt',
+                '🔎 Поиск по архиву чатов': '🔎 Im Chatarchiv suchen',
+                'Автопоиск по истории сообщений (L1) выключен по умолчанию. Явный запрос к истории продолжает поиск. L2-дайджесты, профиль и другие источники памяти не меняются.': 'Die automatische Suche im Nachrichtenverlauf (L1) ist standardmäßig deaktiviert. Eine ausdrückliche Verlaufsanfrage sucht weiterhin. L2-Zusammenfassungen, Profil und andere Speicherquellen bleiben unberührt.',
                 'Все заметки + KB + MEM в каждый запрос': 'Alle Notizen + KB + MEM in jeder Anfrage',
                 '⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.': '⚠️ Nur für DeepSeek V4 / Gemini 2.5. Jede Anfrage wird mehr Tokens kosten. Empfohlen Token-Budget ≥ 16.000.',
                 'КБ за один «посмотри файл». Больше = файл читается быстрее. Под контекст модели.': 'KB pro „Datei ansehen". Mehr = Datei wird schneller gelesen. Passend zum Modellkontext.',
@@ -2119,8 +2134,23 @@
                 'Only AI — все запросы идут напрямую в активный провайдер (DeepSeek / OpenRouter / Gemini), минуя Intent Router и MOSC.': 'Only AI — all requests go directly to the active provider (DeepSeek / OpenRouter / Gemini), bypassing Intent Router and MOSC.',
                 'Токенов на ОТВЕТ AI. DeepSeek V4: до 32 000. Gemini 2.5: до 65 000. Рекомендуется 16 000–24 000.': 'Tokens per AI REPLY. DeepSeek V4: up to 32,000. Gemini 2.5: up to 65,000. Recommended 16,000–24,000.',
                 '🗂 Полный контекст (1M)': '🗂 Full context (1M)',
-                '🔎 Автопоиск архива чатов': '🔎 Auto-search chat history',
-                'Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.': 'The normal chat does not search the archive. Explicit requests and manual search always work.',
+                '🔎 Автопоиск архива включён': '🔎 Automatic archive search enabled',
+                '🔎 Автопоиск архива выключен': '🔎 Automatic archive search disabled',
+                '⚠️ Не удалось сохранить настройку поиска по архиву': '⚠️ Could not save the archive-search setting',
+                'Совместимые профиль и факты L3': 'L3 compatibility profile and facts',
+                'автоизвлечённых полей профиля:': 'auto-extracted profile fields:',
+                'допущенных ESM L3-фактов:': 'admitted ESM L3 facts:',
+                'выученных фактов:': 'learned facts:',
+                'размер localStorage:': 'localStorage size:',
+                'IndexedDB l3': 'IndexedDB l3',
+                'IndexedDB kb': 'IndexedDB kb',
+                                'Активный L3-совместимый контекст': 'Active L3 compatibility context',
+                'Допущенные записи ESM L3': 'Admitted ESM L3 records',
+                'активный совместимый профиль/факты': 'active compatibility profile/facts',
+                'активный профиль и выученные факты, включаемые в системный контекст': 'active profile and learned facts included in system context',
+                'KB-факты в допущенном слое; Observed/Hypothesis не считаются подтверждёнными': 'KB facts admitted to L3; Observed/Hypothesis are not treated as verified',
+                '🔎 Поиск по архиву чатов': '🔎 Search chat archive',
+                'Автопоиск по истории сообщений (L1) выключен по умолчанию. Явный запрос к истории продолжает поиск. L2-дайджесты, профиль и другие источники памяти не меняются.': 'Automatic search of message history (L1) is off by default. An explicit history request still searches. L2 digests, profile, and other memory sources are unchanged.',
                 'Все заметки + KB + MEM в каждый запрос': 'All notes + KB + MEM in every request',
                 '⚠️ Только для DeepSeek V4 / Gemini 2.5. Каждый запрос будет дороже токенов. Рекомендуется Token Budget ≥ 16 000.': '⚠️ For DeepSeek V4 / Gemini 2.5 only. Each request will cost more tokens. Token Budget ≥ 16,000 recommended.',
                 'КБ за один «посмотри файл». Больше = файл читается быстрее. Под контекст модели.': 'KB per single "look at file". More = file is read faster. Sized to the model context.',
@@ -7756,10 +7786,10 @@
                             <div style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:10px;">
                                 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
                                     <div>
-                                        <div style="font-size:13px;font-weight:700;" data-i18n="🔎 Автопоиск архива чатов">🔎 Автопоиск архива чатов</div>
-                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;line-height:1.4;" data-i18n="Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.">Обычный чат не ищет архив. Явные запросы и ручной поиск работают всегда.</div>
+                                        <div style="font-size:13px;font-weight:700;" data-i18n="🔎 Поиск по архиву чатов">🔎 Поиск по архиву чатов</div>
+                                        <div style="font-size:11px;opacity:0.5;margin-top:2px;line-height:1.4;" data-i18n="Автопоиск по истории сообщений (L1) выключен по умолчанию. Явный запрос к истории продолжает поиск. L2-дайджесты, профиль и другие источники памяти не меняются.">Автопоиск по истории сообщений (L1) выключен по умолчанию. Явный запрос к истории продолжает поиск. L2-дайджесты, профиль и другие источники памяти не меняются.</div>
                                     </div>
-                                    <div id="eiti-memory-lookup-slider" role="switch" tabindex="0" aria-checked="false" data-i18n-aria="🔎 Автопоиск архива чатов"
+                                    <div id="eiti-memory-lookup-slider" role="switch" tabindex="0" aria-checked="false" data-i18n-aria="🔎 Поиск по архиву чатов"
                                         onclick="eitiMemoryLookupToggle()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();eitiMemoryLookupToggle();}"
                                         style="width:42px;height:24px;border-radius:12px;background:#444;cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
                                         <div id="eiti-memory-lookup-knob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;"></div>
@@ -8741,7 +8771,7 @@
                         </div>
                         <div class="settings-item">
                             <div data-i18n="Сборка">Сборка</div>
-                            <div id="about-build-label" style="opacity:0.7;font-size:12px;" data-build="2026-04-11">2026-04-11</div>
+                            <div id="about-build-label" style="opacity:0.7;font-size:12px;" data-build="2026-10-12">2026-10-12</div>
                         </div>
                         <div class="settings-item" onclick="installPWA()" style="cursor:pointer">
                             <div data-i18n="Установить приложение">Установить приложение</div>
@@ -8759,15 +8789,15 @@
 
                                 <b>📦 Хранилище</b><br>
                                 • <b>IndexedDB</b> — чаты, заметки, файлы, KB, L2-дайджесты, автоизвлечённый профиль L3 <code>l3</code> · лимит ~500 МБ<br>
-                                • <b>localStorage</b> — настройки, legacy-профиль/факты, интенты, emb-кеш · лимит 5 МБ<br><br>
+                                • <b>localStorage</b> — настройки, <span data-i18n="активный совместимый профиль/факты">активный совместимый профиль/факты</span>, интенты, emb-кеш · лимит 5 МБ<br><br>
 
                                 <b>🧩 Архитектура памяти (DAAD FractalMemory)</b><br>
                                 • <b>L0 RAM</b> — топ-25 сообщений по DAAD-score · только в JS-памяти, пересчитывается из IDB<br>
                                 • <b>L1 STM</b> — все сообщения сессии · IndexedDB <code>messages</code><br>
                                 • <b>L2 MTM</b> — дайджесты прошлых чатов (до 20) · IndexedDB <code>l2</code><br>
                                 • <b>L3 profile</b> — автоизвлечённые поля · IndexedDB <code>l3</code><br>
-                                • <b>L3 legacy</b> — профиль и выученные факты · localStorage <code>eiti_user_profile_v1</code> + <code>eiti_learned_v1</code><br>
-                                • <b>ESM L3</b> — проверенные KB-факты · IndexedDB <code>kb</code>, <code>memory_layer=L3</code><br><br>
+                                • <b data-i18n="Активный L3-совместимый контекст">L3-совместимый контекст</b> — <span data-i18n="активный профиль и выученные факты, включаемые в системный контекст">активный профиль и выученные факты, включаемые в системный контекст</span> · localStorage <code>eiti_user_profile_v1</code> + <code>eiti_learned_v1</code><br>
+                                • <b data-i18n="Допущенные записи ESM L3">ESM L3</b> — <span data-i18n="KB-факты в допущенном слое; Observed/Hypothesis не считаются подтверждёнными">KB-факты в допущенном слое; Observed/Hypothesis не считаются подтверждёнными</span> · IndexedDB <code>kb</code>, <code>memory_layer=L3</code><br><br>
 
                                 <b>🔍 Локальный поиск (без API)</b><br>
                                 • Запрос: <code>?слово</code> или <code>?заметки: слово</code><br>
@@ -12127,11 +12157,20 @@
         window.eitiMemoryLookupIsEnabled = eitiMemoryLookupIsEnabled;
         function eitiMemoryLookupToggle() {
             var enabled = !eitiMemoryLookupIsEnabled();
-            try { localStorage.setItem(MEMORY_LOOKUP_KEY, enabled ? '1' : '0'); } catch(e) {}
+            try {
+                localStorage.setItem(MEMORY_LOOKUP_KEY, enabled ? '1' : '0');
+                if (eitiMemoryLookupIsEnabled() !== enabled) throw new Error('setting was not persisted');
+            } catch(e) {
+                _eitiMemoryLookupRenderUI();
+                if (typeof showToast === 'function') showToast(typeof window.T === 'function' ? window.T('⚠️ Не удалось сохранить настройку поиска по архиву') : '⚠️ Не удалось сохранить настройку поиска по архиву', 2200);
+                return false;
+            }
             _eitiMemoryLookupRenderUI();
             if (typeof showToast === 'function') {
-                showToast(enabled ? '🔎 Автопоиск архива включён' : '🔎 Автопоиск архива выключен', 1800);
+                var toast = enabled ? '🔎 Автопоиск архива включён' : '🔎 Автопоиск архива выключен';
+                showToast(typeof window.T === 'function' ? window.T(toast) : toast, 1800);
             }
+            return enabled;
         }
         window.eitiMemoryLookupToggle = eitiMemoryLookupToggle;
         function _eitiMemoryLookupRenderUI() {
@@ -12145,6 +12184,9 @@
             }
         }
         window._eitiMemoryLookupRenderUI = _eitiMemoryLookupRenderUI;
+        if (window.addEventListener) window.addEventListener('storage', function(event) {
+            if (!event || event.key === MEMORY_LOOKUP_KEY || event.key === null) _eitiMemoryLookupRenderUI();
+        });
 
         async function eitiFullCtxBuild() {
             if (!eitiFullCtxIsEnabled()) return '';
@@ -17006,18 +17048,18 @@
         // v12.9.59: BM25F + trigram гибридный поиск без embeddings
         function eitiSearchArchive(query) {
             return new Promise(function(resolve) {
-                if (!_db) { resolve([]); return; }
+                var rawQuery = (query || '').trim();
+                if (!rawQuery) { resolve([]); return; }
+                if (!_db) { _ftsLikeFallback(rawQuery, resolve); return; }
                 try {
                     var results = [];
-                    var rawQuery = (query || '').trim();
-                    if (!rawQuery) { resolve([]); return; }
                     var ftsQuery = rawQuery.replace(/["'*:()^]/g, ' ').trim();
 
                     if (_fts5Available) {
                         try {
                             // BM25F: content получает вес 10, остальные поля — 0
                             var rows = _db.exec(
-                                'SELECT chat_id, content, role, bm25(chat_history_fts, 0, 0, 10) as sc ' +
+                                'SELECT chat_id, content, role, bm25(chat_history_fts, 0, 0, 0, 10, 0) as sc ' +
                                 'FROM chat_history_fts WHERE chat_history_fts MATCH ? ' +
                                 'ORDER BY sc LIMIT 40',
                                 [ftsQuery]
@@ -17074,28 +17116,53 @@
         }
 
         // LIKE-фоллбэк: простой поиск без FTS5 операторов
-        function _ftsLikeFallback(query, resolve) {
-            try {
-                var kw = '%' + query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_').slice(0, 50) + '%';
-                var rows = _db.exec(
-                    'SELECT chat_id, content, role FROM chat_history_fts WHERE content LIKE ? ESCAPE "\\" LIMIT 30',
-                    [kw]
-                );
-                var byChat = {};
-                if (rows && rows[0] && rows[0].values) {
-                    rows[0].values.forEach(function(r) {
-                        var cid = r[0], txt = r[1], role = r[2];
-                        if (!byChat[cid]) byChat[cid] = { chatId: cid, snippets: [], score: 0 };
-                        byChat[cid].snippets.push((role === 'user' ? 'П' : 'AI') + ': ' + (txt || '').slice(0, 300));
-                        byChat[cid].score += 1;
-                    });
-                }
-                var out = Object.values(byChat).sort(function(a,b){ return b.score - a.score; }).slice(0, 5)
-                    .map(function(c){ return { chatId: c.chatId, snippets: c.snippets.slice(0, 4).join(' | '), score: c.score }; });
-                resolve(out);
-            } catch(e) { resolve([]); }
+        function eitiArchiveSearchTokens(query) {
+            var stop = ['the','and','for','was','were','what','when','where','did','have','has','had','we','our','you','your','in','on','at','to','of','a','an','me','i','мы','что','когда','где','как','я','в','на','по','про','ли','прошлых','прошлом','историю','истории','чатах','чатов','найди','поищи','ищи','покажи','посмотри','проверь','архив','память','памяти','haben','wir','was','wo','die','der','das','und','letzte','letzten','woche'];
+            var matches = String(query || '').toLowerCase().match(/[a-z0-9\u00c0-\u024f\u0400-\u04ff]+/g) || [];
+            return matches.filter(function(token) { return token.length >= 3 && stop.indexOf(token) === -1; }).slice(0, 10);
         }
-
+        function eitiArchiveResultsFromRows(rows, tokens) {
+            var byChat = Object.create(null);
+            (rows || []).forEach(function(row) {
+                var chatId = row.chatId != null ? row.chatId : row[0];
+                var content = row.content != null ? row.content : row[1];
+                var role = row.role != null ? row.role : row[2];
+                if (chatId == null || !content) return;
+                var lower = String(content).toLowerCase();
+                var score = (tokens || []).reduce(function(total, token) { return total + (lower.indexOf(token) !== -1 ? 1 : 0); }, 0);
+                if (!score) return;
+                var key = String(chatId);
+                if (!byChat[key]) byChat[key] = { chatId: chatId, snippets: [], score: 0 };
+                byChat[key].score += score;
+                if (byChat[key].snippets.length < 4) byChat[key].snippets.push((role === 'user' ? 'П' : 'AI') + ': ' + String(content).slice(0, 300));
+            });
+            return Object.keys(byChat).map(function(key) {
+                var item = byChat[key];
+                return { chatId: item.chatId, snippets: item.snippets.join(' | '), score: item.score };
+            }).sort(function(a, b) { return b.score - a.score; }).slice(0, 5);
+        }
+        function _ftsLikeFallback(query, resolve) {
+            var tokens = eitiArchiveSearchTokens(query);
+            if (tokens.length && _db) {
+                try {
+                    var where = tokens.map(function() { return 'LOWER(content) LIKE ?'; }).join(' OR ');
+                    var patterns = tokens.map(function(token) { return '%' + token + '%'; });
+                    var rows = _db.exec('SELECT chat_id, content, role FROM chat_history_fts WHERE ' + where + ' LIMIT 200', patterns);
+                    var sqlResults = eitiArchiveResultsFromRows(rows && rows[0] ? rows[0].values : [], tokens);
+                    if (sqlResults.length) { resolve(sqlResults); return; }
+                } catch(e) { /* Some shipped SQLite builds have no FTS virtual table; scan IndexedDB below. */ }
+            }
+            if (typeof eitiGetChats !== 'function' || typeof eitiGetMessages !== 'function') { resolve([]); return; }
+            eitiGetChats().then(function(chats) {
+                return Promise.all((chats || []).slice(0, 100).map(function(chat) {
+                    return eitiGetMessages(chat.id).then(function(messages) {
+                        return (messages || []).map(function(message) { return { chatId: chat.id, content: message.content || '', role: message.role }; });
+                    });
+                }));
+            }).then(function(groups) {
+                resolve(eitiArchiveResultsFromRows([].concat.apply([], groups || []), tokens));
+            }).catch(function() { resolve([]); });
+        }
         function eitiAddMessage(chatId, role, content, opts) {
             return new Promise(function(resolve, reject) {
                 var domain = eitiClassifyDomain(content);
@@ -17250,44 +17317,45 @@
         // LOAD CHAT BY ID — Mamba-style chunked summarization
         // ═══════════════════════════════════════════════════
         function eitiLoadChatById(chatNumOrId) {
-            if (!eitiDb) { showToast('База не готова'); return; }
-            eitiGetChats().then(function(chats) {
-                var target = chats.filter(function(ch) {
-                    return (ch.chatNum && ch.chatNum.toLowerCase() === chatNumOrId.toLowerCase())
-                        || ch.id === chatNumOrId;
+            if (!eitiDb) { showToast('База не готова'); return Promise.resolve(false); }
+            var requestedRaw = String(chatNumOrId || '').trim().toLowerCase();
+            var requested = requestedRaw.replace(/^#/, '');
+            return eitiGetChats().then(function(chats) {
+                var target = (chats || []).filter(function(ch) {
+                    var chatNum = String(ch.chatNum || '').trim().toLowerCase().replace(/^#/, '');
+                    var chatId = String(ch.id || '').trim().toLowerCase();
+                    return (chatNum && chatNum === requested)
+                        || chatId === requestedRaw || chatId === requested;
                 })[0];
                 if (!target) {
                     showToast('Чат ' + chatNumOrId + ' не найден');
-                    return;
+                    return false;
                 }
-                eitiGetMessages(target.id).then(function(msgs) {
-                    var CHUNK = 6; // сообщений за один шаг
+                return eitiGetMessages(target.id).then(function(msgs) {
+                    var CHUNK = 6;
                     var totalChunks = Math.ceil(msgs.length / CHUNK);
                     var result = '=== ЧАТ: ' + target.title + ' (' + (target.chatNum||'') + ') · ' + msgs.length + ' сообщ. ===\n';
                     result += 'Стратегия: Mamba-style chunked scan — каждые ' + CHUNK + ' сообщений сворачиваются в резюме.\n\n';
-                    // Build rolling summary: chunk by chunk
-                    var rollingState = '';
                     for (var i = 0; i < msgs.length; i += CHUNK) {
                         var chunk = msgs.slice(i, i + CHUNK);
                         var chunkText = chunk.map(function(m) {
                             return (m.role === 'user' ? 'П' : 'AI') + ': ' + (m.content || '').slice(0, 200);
                         }).join('\n');
-                        // Compress: keep rolling state + chunk summary
-                        if (totalChunks > 3) {
-                            // For long chats: store only key facts per chunk
-                            result += '[Блок ' + (Math.floor(i/CHUNK)+1) + '/' + totalChunks + ']\n' + chunkText + '\n\n';
-                        } else {
-                            // Short chat: full content
-                            result += chunkText + '\n\n';
-                        }
+                        result += totalChunks > 3
+                            ? '[Блок ' + (Math.floor(i/CHUNK)+1) + '/' + totalChunks + ']\n' + chunkText + '\n\n'
+                            : chunkText + '\n\n';
                     }
                     result += '=== КОНЕЦ ЧАТА ===';
                     window._eitiCtx.histScanData = result;
                     showToast('Чат ' + (target.chatNum||target.title) + ' загружен в контекст ✦');
+                    return true;
                 });
+            }).catch(function(error) {
+                console.warn('[EITI] chat lookup failed:', error && error.message);
+                showToast('Не удалось загрузить чат ' + chatNumOrId);
+                return false;
             });
         }
-
         function eitiLoadHistory() {
             if (!eitiDb) return;
             eitiGetChats().then(function(chats) {
@@ -18107,8 +18175,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         ? 'Type: Single-file PWA (HTML+CSS+JS+SW monolith)\n'
                         : 'Тип: Single-file PWA (HTML+CSS+JS+SW монолит)\n';
                     _grokSelfInfo += _EN
-                        ? 'Storage: IndexedDB (chats/notes/files/KB/L2/L3 profile), localStorage (settings and legacy profile/facts), SQLite WASM (derived FTS5 index)\n'
-                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/KB/L2/L3-профиль), localStorage (настройки и legacy-профиль/факты), SQLite WASM (производный FTS5-индекс)\n';
+                        ? 'Storage: IndexedDB (chats/notes/files/KB/L2/L3 profile), localStorage (active L3 compatibility profile/facts), SQLite WASM (FTS5 when available; LIKE/IDB fallback otherwise)\n'
+                        : 'Хранилище: IndexedDB (чаты/заметки/файлы/KB/L2/L3-профиль), localStorage (настройки и активный L3-совместимый профиль/факты), SQLite WASM (FTS5 при наличии; иначе LIKE/IDB fallback)\n';
                     _grokSelfInfo += _EN
                         ? 'AI providers: DeepSeek API (main), Gemini API, Grok Voice (you), WebLLM offline\n'
                         : 'AI провайдеры: DeepSeek API (основной), Gemini API, Grok Voice (ты), WebLLM офлайн\n';
@@ -18116,8 +18184,8 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         ? 'Search: BM25+FTS5+Semantic (KB), TextRank (snippets), DuckDuckGo (web)\n'
                         : 'Поиск: BM25+FTS5+Semantic (KB), TextRank (сниппеты), DuckDuckGo (веб)\n';
                     _grokSelfInfo += _EN
-                        ? 'Memory: L0 RAM→L1 IDB session messages→L2 IDB digests→L3 split across IDB profile/KB and legacy localStorage\n'
-                        : 'Память: L0 RAM→L1 IDB-сообщения сессии→L2 IDB-дайджесты→L3 разделён между профилем/KB в IDB и legacy localStorage\n';
+                        ? 'Memory: L0 RAM→L1 IDB session messages→L2 IDB digests→L3 split across IDB profile/KB and active compatibility localStorage\n'
+                        : 'Память: L0 RAM→L1 IDB-сообщения сессии→L2 IDB-дайджесты→L3 разделён между профилем/KB в IDB и активным совместимым localStorage\n';
                     _grokSelfInfo += _EN
                         ? 'Graph: MOSC reasoning graph (nodes/edges/weights)\n'
                         : 'Граф: MOSC reasoning graph (узлы/связи/веса)\n';
@@ -18341,45 +18409,6 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             });
                             _grokChatHistory += '=== КОНЕЦ ТЕКУЩЕГО ЧАТА ===';
                         } // v12.9.55 FIX BUG-4: закрываем if(_histMsgs) ЗДЕСЬ — IDB scan работает и в новом пустом чате
-                        { // IDB scan for Grok when user asks about history (всегда, независимо от _histMsgs)
-                        // IDB scan for Grok when user asks about history
-                        var _gLow = (typeof userText !== 'undefined' ? userText : '').toLowerCase();
-                        if (/найди в чатах|что я писал|в прошлых чатах|посмотри (историю|чаты)|поищи в истории|что я говорил|прошл|помнишь|обсуждали|истори|search.{0,20}(chat )?history|previous chat|past chats|check.{0,20}memory|проверь.{0,20}памят/i.test(_gLow)) {
-                            if (typeof eitiGetChats === 'function' && typeof eitiGetMessages === 'function') {
-                                var _pn3 = {deepseek:'DS',gemini:'GM',openrouter:'OR',grok:'Grok'};
-                                eitiGetChats().then(function(chats) {
-                                    return Promise.all(chats.slice(0,100).map(function(ch){
-                                        return eitiGetMessages(ch.id).then(function(msgs){ return {t:ch.title,d:new Date(ch.updated).toLocaleDateString('ru'),msgs:msgs}; });
-                                    }));
-                                }).then(function(all) {
-                                    var kws = _gLow.split(/\s+/).filter(function(w){ return w.length>3; });
-                                    // v12.9.43: улучшенный скоринг — морфология + бонус за заголовок
-                                    all.forEach(function(ch){
-                                        var txt=(ch.msgs.map(function(m){return m.content||'';}).join(' ')).toLowerCase();
-                                        var titleLow = (ch.t||'').toLowerCase();
-                                        ch._sc=kws.reduce(function(s,w){
-                                            var score = 0;
-                                            if (txt.indexOf(w)>=0) score += 3;
-                                            var stem = w.slice(0,-2);
-                                            if (stem.length>3 && txt.indexOf(stem)>=0) score += 1;
-                                            if (titleLow.indexOf(w)>=0) score += 2;
-                                            return s + score;
-                                        },0);
-                                    });
-                                    all.sort(function(a,b){return b._sc-a._sc;});
-                                    var d='=== АРХИВ ЧАТОВ (для Grok, топ-20) ===\n';
-                                    all.slice(0,20).forEach(function(ch){
-                                        d+='\n['+ch.t+' · '+ch.d+']';
-                                        ch.msgs.slice(0,6).forEach(function(m){ d+='\n  ['+(m.role==='user'?'Руслан':(_pn3[m.provider]||m.provider||'AI'))+']: '+(m.content||'').slice(0,250); });
-                                    });
-                                    d+='\n=== КОНЕЦ АРХИВА ===';
-                                    window._eitiGrokHistScan = d;
-                                }).catch(function(){});
-                            }
-                        }
-                        if (window._eitiGrokHistScan) { _grokChatHistory += '\n\n' + window._eitiGrokHistScan; window._eitiGrokHistScan = null; }
-                        } // v12.9.55: конец анонимного блока IDB scan
-
                         // v12.9.13: заметки для Grok
                         var _gNotes = (typeof notesLoad === 'function') ? notesLoad() : [];
                         if (_gNotes && _gNotes.length > 0) {
@@ -18410,35 +18439,9 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         ? '\n\n🦆 ПОИСК: У тебя есть инструмент ddg_search. Когда просят найти в интернете — сразу вызывай ddg_search. Не говори что нет доступа.'
                         : _grokSearchMode === 'xai' ? '\n\n🔍 Используй web_search для поиска.'
                         : '\n\n🚫 Поиск отключён. Скажи пользователю включить DuckDuckGo в Настройки.';
-                    // v12.9.13: авто-RAG для Grok — добавляем FTS5-результаты если есть
-                    var _grokArchiveRequest = /найди в чатах|что я писал|в прошлых чатах|посмотри (историю|чаты)|поищи в истории|что я говорил|прошл|помнишь|обсуждали|истори|search.{0,20}(chat )?history|previous chat|past chats|check.{0,20}memory|проверь.{0,20}памят/i.test(String(typeof _grokLastUserText !== 'undefined' ? _grokLastUserText : '').toLowerCase());
-                    var _grokLookupEnabled = typeof eitiMemoryLookupIsEnabled === 'function' && eitiMemoryLookupIsEnabled();
-                    if (typeof eitiSearchArchive === 'function' && typeof _db !== 'undefined' && _db && (_grokLookupEnabled || _grokArchiveRequest)) {
-                        try {
-                            var _grokRagSync = (function() {
-                                // Синхронный FTS5 (sql.js синхронный)
-                                var ftsQ = (_grokLastUserText || '').replace(/["'*:()^]/g,' ').trim().slice(0,100);
-                                if (!ftsQ || !_fts5Available) return '';
-                                try {
-                                    var rows = _db.exec('SELECT chat_id, content, role FROM chat_history_fts WHERE chat_history_fts MATCH ? ORDER BY rank LIMIT 10', [ftsQ]);
-                                    if (!rows || !rows[0] || !rows[0].values || !rows[0].values.length) return '';
-                                    var out = '\n\n=== АВТО-RAG: РЕЛЕВАНТНЫЙ АРХИВ ===';
-                                    var seen = {};
-                                    rows[0].values.slice(0,5).forEach(function(r){
-                                        var cid = r[0], txt = r[1], role = r[2];
-                                        if (!seen[cid]) { seen[cid]=1; out += '\n[Чат '+cid+']'; }
-                                        out += '\n ' + (role==='user'?'П':'AI') + ': ' + (txt||'').slice(0,300);
-                                    });
-                                    out += '\n=== КОНЕЦ RAG ===';
-                                    return out;
-                                } catch(e) { return ''; }
-                            })();
-                            if (_grokRagSync) _grokChatHistory += _grokRagSync;
-                        } catch(e) {}
-                    }
-
+                    // Per-turn archive lookup runs after transcription and before response.create.
                     // v12.9.44: сохраняем инструкции для live-обновления памяти
-                    window._grokLastInstructions = [
+                    window._grokBaseInstructions = [
                         'Ты — grok-voice-latest, голосовой ассистент VELANTRIM EITI v' + (window.EITI_VERSION||'13.2.0') + '.',
                         'ДОСТУП: у тебя есть полная база знаний (KB), заметки, файлы, MOSC-граф и история чатов пользователя — всё передано в этот контекст.',
                         'ИНСТРУМЕНТЫ: используй search_kb, search_notes, get_mosc_nodes, search_files при любом запросе — активно, без подтверждений.',
@@ -18450,12 +18453,13 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         _grokSelfInfo,
                         _grokChatHistory
                     ].join('\n');
+                    window._grokLastInstructions = window._grokBaseInstructions;
                     _grokWS.send(JSON.stringify({
                         type: 'session.update',
                         session: {
                             voice: _grokVoiceName,
                             instructions: window._grokLastInstructions,
-                            turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 600 },
+                            turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 600, create_response: false },
                             input_audio_transcription: { model: 'whisper-1' },
                             input_audio_format: 'pcm16',
                             output_audio_format: 'pcm16',
@@ -18489,6 +18493,33 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             var _gVoiceId = 'grok-u-' + Date.now();
                             chatLog.push({ id: _gVoiceId, role: 'user', text: '[🎤 Голос] ' + ev.transcript, ts: Date.now() });
                             saveChat();
+                        }
+                        var _grokTurnText = String(ev.transcript || '').trim();
+                        if (_grokTurnText) {
+                            window._grokLastUserText = _grokTurnText;
+                            var _grokBase = window._grokBaseInstructions || window._grokLastInstructions || '';
+                            var _grokShouldLookup = (typeof eitiMemoryLookupIsEnabled === 'function' && eitiMemoryLookupIsEnabled())
+                                || (typeof eitiIsExplicitArchiveRequest === 'function' && eitiIsExplicitArchiveRequest(_grokTurnText));
+                            var _grokLookupPromise = _grokShouldLookup && typeof eitiSearchArchive === 'function'
+                                ? Promise.resolve().then(function() { return eitiSearchArchive(_grokTurnText); }).catch(function() { return []; })
+                                : Promise.resolve([]);
+                            _grokLookupPromise.then(function(_grokMatches) {
+                                var _grokArchiveContext = '';
+                                if (_grokMatches && _grokMatches.length) {
+                                    _grokArchiveContext = '\n\n=== РЕЗУЛЬТАТЫ ПОИСКА ПО АРХИВУ (L1-RAG) ===\n'
+                                        + _grokMatches.map(function(item) { return '[Чат ' + item.chatId + '] ' + item.snippets; }).join('\n')
+                                        + '\n=== КОНЕЦ АРХИВА ===';
+                                }
+                                window._grokLastInstructions = _grokBase + _grokArchiveContext;
+                                if (_grokWS && _grokWS.readyState === WebSocket.OPEN) {
+                                    _grokWS.send(JSON.stringify({ type: 'session.update', session: { instructions: window._grokLastInstructions } }));
+                                    _grokWS.send(JSON.stringify({ type: 'response.create' }));
+                                }
+                            }).catch(function(error) {
+                                console.warn('[Grok] turn preparation failed:', error && error.message);
+                                if (_grokWS && _grokWS.readyState === WebSocket.OPEN)
+                                    _grokWS.send(JSON.stringify({ type: 'response.create' }));
+                            });
                         }
                     }
 
@@ -19642,46 +19673,74 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         // Abstracts the FTS5/IDB archive scan so ALL providers (DeepSeek, OpenRouter,
         // Gemini) receive the same enriched history. Prevents accumulation across turns
         // by stripping any previous [АРХИВНЫЙ КОНТЕКСТ] block before re-injecting.
+        function _eitiMergePreparedSystemContext(systemContent, preparedContent) {
+            var base = String(systemContent || '');
+            var prepared = String(preparedContent || '');
+            var markers = ['\n[АРХИВНЫЙ КОНТЕКСТ]: ', '\n\n[ЗАГРУЖЕННЫЙ ЧАТ]:\n'];
+            var start = -1;
+            markers.forEach(function(marker) {
+                var at = prepared.indexOf(marker);
+                if (at !== -1 && (start === -1 || at < start)) start = at;
+            });
+            return base + (start === -1 ? '' : prepared.slice(start));
+        }
+        function eitiPrepareContextPromise(query, baseHistory, options) {
+            return new Promise(function(resolve) {
+                eitiPrepareContext(query, baseHistory, resolve, options);
+            });
+        }
+        function eitiIsExplicitArchiveRequest(text) {
+            var q = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            if (!q) return false;
+            return /(?:^|\s)(?:найди|поищи|ищи|посмотри|покажи|просмотри|проверь|открой)\s+(?:(?:в|по)\s+)?(?:истори(?:ю|и)(?:\s+(?:чатов|переписки))?|архив(?:\s+чатов)?|чат(?:ы|ов|ах)\s+истори[июи]|(?:прошл|предыдущ)[а-яё-]*\s+чат(?:ах|е|ы)?|прошл(?:ый|ом)\s+раз|все\s+чаты|памят[ьи](?:\s+о\s+прошлых?\s+чатах)?)(?=$|[\s?!.,;:])/i.test(q)
+                || /(?:что|где|когда|какой|какие)\s+(?:мы|я)\s+(?:обсуждали|говорили|писали|решили|договорились|упоминали|обсудили|сказал[аи]?)(?:.{0,50})(?:вчера|раньше|прошл|до этого|в чате|в переписке)?/i.test(q)
+                || /(?:мы|я)\s+(?:обсуждали|говорили|писали|решили|договорились|упоминали)\s+(?:вчера|на прошлой неделе|в прошлый раз|раньше|до этого)/i.test(q)
+                || /(?:найди|поищи|ищи|проверь|посмотри|покажи|просмотри).{0,55}(?:в\s+(?:прошлых?\s+)?чатах?|истори[юи]\s+(?:чатов|переписки)|архив\s+(?:чатов|переписки)|прошл(?:ом|ых|ый)\s+чат|памят[ьи]\s+(?:о\s+)?прошл)/i.test(q)
+                || /(?:what did (?:we|i) (?:discuss|talk about|write|decide|agree|mention)|what (?:were|did) we (?:discussing|talking about)).{0,60}(?:yesterday|last week|last time|earlier|before|in (?:our )?(?:previous|last) chat)?/i.test(q)
+                || /(?:search|look up|find|show|retrieve|check).{0,60}(?:chat history|previous chats?|past conversations?|conversation archive|memory archive)|(?:chat history|previous chats?|past conversations?).{0,40}(?:search|look up|find|show)/i.test(q)
+                || /(?:was haben wir|wo haben wir).{0,60}(?:besprochen|gesprochen|geschrieben|entschieden|vereinbart)|(?:gestern|letzte[nr]? woche|letztes mal).{0,40}(?:besprochen|gesprochen|geschrieben|vereinbart)|(?:suche|such|finde|zeig|durchsuche).{0,60}(?:chatverlauf|verlauf|frühere[n]? chats?|vergangene[n]? chats?|frühere unterhaltungen?)/i.test(q);
+        }
+        window.eitiIsExplicitArchiveRequest = eitiIsExplicitArchiveRequest;
         function eitiPrepareContext(query, baseHistory, callback, options) {
-            // Full Context Mode: оборачиваем callback в обёртку, которая дополняет
-            // system-сообщение полным контекстом (заметки/KB/MEM) если режим включён.
             var _origCallback = callback;
-            callback = function(finalHistory) {
+            var _completed = false;
+            function _complete(finalHistory) {
+                if (_completed) return;
+                _completed = true;
                 if (typeof eitiFullCtxIsEnabled === 'function' && eitiFullCtxIsEnabled()
                     && typeof eitiFullCtxBuild === 'function') {
-                    eitiFullCtxBuild().then(function(fullCtx) {
-                        if (fullCtx && finalHistory && finalHistory.length > 0) {
-                            var sys = finalHistory[0];
-                            if (sys && sys.role === 'system') {
-                                finalHistory[0] = { role: 'system', content: sys.content + fullCtx };
-                            } else {
-                                finalHistory.unshift({ role: 'system', content: fullCtx });
+                    Promise.resolve().then(function() { return eitiFullCtxBuild(); })
+                        .then(function(fullCtx) {
+                            if (fullCtx && finalHistory && finalHistory.length > 0) {
+                                var sys = finalHistory[0];
+                                if (sys && sys.role === 'system') finalHistory[0] = { role: 'system', content: sys.content + fullCtx };
+                                else finalHistory.unshift({ role: 'system', content: fullCtx });
                             }
-                        }
-                        _origCallback(finalHistory);
-                    }).catch(function() { _origCallback(finalHistory); });
-                } else {
-                    _origCallback(finalHistory);
-                }
-            };
+                        }).catch(function() {}).then(function() { _origCallback(finalHistory); });
+                } else _origCallback(finalHistory);
+            }
             var _SENTINEL = '\n[АРХИВНЫЙ КОНТЕКСТ]: ';
             // Strip previous archive injection to prevent infinite accumulation
             var _baseContent = baseHistory[0].content;
             var _sepIdx = _baseContent.indexOf(_SENTINEL);
             if (_sepIdx !== -1) _baseContent = _baseContent.slice(0, _sepIdx);
-
-            var _lower = query.toLowerCase();
-            var _stopWords = /^(привет|здравствуй|как дела|доброе утро|добрый день|добрый вечер|пока|спасибо)/.test(_lower.trim());
-            if (_stopWords || typeof _db === 'undefined' || !_db || !eitiDb) {
+            var _loadedChat = window._eitiCtx && window._eitiCtx.histScanData;
+            if (_loadedChat) {
+                _baseContent += '\n\n[ЗАГРУЖЕННЫЙ ЧАТ]:\n' + _loadedChat;
+                window._eitiCtx.histScanData = null;
+            }
+            var _lower = String(query || '').toLowerCase();
+            var _explicitArchiveRequest = !!(options && options.explicitArchiveRequest)
+                || eitiIsExplicitArchiveRequest(query);
+            var _stopWords = /^(привет|здравствуй|как дела|доброе утро|добрый день|добрый вечер|пока|спасибо)(?:[\s,.!?]|$)/.test(_lower.trim());
+            if ((!_explicitArchiveRequest && _stopWords) || typeof _db === 'undefined' || !_db || !eitiDb) {
                 baseHistory[0].content = _baseContent;
-                callback(baseHistory);
+                _complete(baseHistory);
                 return;
             }
-            var _explicitArchiveRequest = !!(options && options.explicitArchiveRequest)
-                || /помнишь|обсуждали|говорили|в прошлый раз|в прошлых чатах|прошлом чате|прошлый чат|что мы|предыдущ|покажи историю|посмотри историю|просмотри историю|найди в чатах|поищи в истории|проверь.{0,20}памят|поиск.{0,20}архив|search.{0,20}(chat )?history|check.{0,20}memory/i.test(query);
             if (!_explicitArchiveRequest && !eitiMemoryLookupIsEnabled()) {
                 baseHistory[0].content = _baseContent;
-                callback(baseHistory);
+                _complete(baseHistory);
                 return;
             }
 
@@ -19694,12 +19753,12 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
 
             function _inject(dump) {
                 baseHistory[0].content = _baseContent + _SENTINEL + dump;
-                callback(baseHistory);
+                _complete(baseHistory);
             }
 
-            eitiSearchArchive(_archiveQuery).then(function(ftsResults) {
+            Promise.resolve().then(function() { return eitiSearchArchive(_archiveQuery); }).then(function(ftsResults) {
                 if (ftsResults && ftsResults.length > 0) {
-                    var dump = '=== РЕЗУЛЬТАТЫ ПОИСКА ПО АРХИВУ (FTS5/L1-RAG) ===\n';
+                    var dump = '=== РЕЗУЛЬТАТЫ ПОИСКА ПО АРХИВУ (L1-RAG) ===\n';
                     dump += '[Реальные фрагменты из архива твоих диалогов. Основывайся ТОЛЬКО на них.]\n';
                     ftsResults.forEach(function(r, i) {
                         dump += '\n[Чат #' + (i+1) + ' (' + r.chatId + '): ' + r.snippets + ']';
@@ -19716,7 +19775,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                         }));
                     }).then(function(all) {
                         if (all.length === 0) {
-                            var _l2fb = (typeof window._l2Cache !== 'undefined' && window._l2Cache) ? window._l2Cache : [];
+                            var _l2fb = (typeof window._eitiL2Cache !== 'undefined' && window._eitiL2Cache) ? window._eitiL2Cache : ((typeof _eitiL2Cache !== 'undefined' && _eitiL2Cache) ? _eitiL2Cache : []);
                             if (_l2fb.length > 0) {
                                 var _l2dump = '=== ДАЙДЖЕСТЫ ПРОШЛЫХ СЕССИЙ (L2) ===\n';
                                 _l2fb.slice(0, 10).forEach(function(d, i) {
@@ -19761,11 +19820,11 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                             dump += '\n=== КОНЕЦ ИСТОРИИ ===';
                         }
                         _inject(dump);
-                    }).catch(function(){ callback(baseHistory); });
+                    }).catch(function(){ _complete(baseHistory); });
                 } else {
-                    callback(baseHistory);
+                    _complete(baseHistory);
                 }
-            }).catch(function(){ callback(baseHistory); });
+            }).catch(function(){ _complete(baseHistory); });
         }
 
         // v12.9.78: Авто-детект режима мышления AI
@@ -19925,6 +19984,14 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
         }
 
         async function eitiAskDeepSeek(userText) {
+            // Load a requested archived chat before building system context. The
+            // Promise executor below is intentionally synchronous (no await).
+            var _chatByIdPreload = String(userText || '').match(/(?:загрузи|открой|покажи)\s+чат\s+(#[a-z0-9]+)/i)
+                || String(userText || '').match(/(#[a-zA-Z][0-9]{3})/);
+            if (_chatByIdPreload && typeof eitiLoadChatById === 'function') {
+                try { await eitiLoadChatById(_chatByIdPreload[1].toUpperCase()); }
+                catch(e) { console.warn('[EITI] chat pre-load failed:', e && e.message); }
+            }
             return new Promise(function(resolve, reject) {
                 var _provider = localStorage.getItem('eiti_ai_provider') || 'deepseek';
                 // ── ⚡ DS-OFF guard — только для DeepSeek-провайдера ─────────
@@ -20267,14 +20334,13 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 var CMD_UNLOAD_NOTES  = /выгрузи|убери из памяти|очисти память|забудь заметки/.test(lower) && /заметк|памят/.test(lower);
                 var CMD_LOAD_FILE     = /посмотри файл|открой файл|прочитай файл|что в файле|содержимое файла/.test(lower) || (lower.indexOf('посмотри') !== -1 && (function(){ var fls = []; try { fls = (getAiTextStore().files||[]).filter(function(f){ return lower.indexOf(f.name.toLowerCase())!==-1; }); } catch(e){} return fls.length > 0; })());
                 var CMD_NEXT_CHUNK    = /продолжай|следующая часть|дальше|ещё часть|читай дальше/.test(lower);
-                var CMD_LOAD_HISTORY  = /посмотри историю|просмотри историю|покажи историю|что обсуждали|в прошлых чатах|найди в чатах|поищи в истории|посмотри все чаты|что я говорил|когда я упоминал|что я писал|сделай обзор чатов|review чатов|просмотри все чаты|покажи все чаты|загляни в прошлые|погляди в чатах|что (мы|ты) обсуждали|что было в прошлом чате|прошлый чат|посмотри (в|что в) прошлом|что в прошлом чате|полностью.*прошл|посмотри полностью/.test(lower);
+                var CMD_LOAD_HISTORY = eitiIsExplicitArchiveRequest(userText);
                 // ── ПАТЧ L1-RAG: расширенный триггер архивного поиска ──────
                 // shouldSearchArchive: ищем в архиве только по явным словам-триггерам истории
                 // Стоп-слова: приветствия/простые факты/команды — НЕ триггерят поиск
-                var _archiveStopWords = /^(привет|здравствуй|как дела|доброе утро|добрый день|добрый вечер|пока|спасибо)/.test(lower.trim());
+                var _archiveStopWords = /^(привет|здравствуй|как дела|доброе утро|добрый день|добрый вечер|пока|спасибо)(?:[\s,.!?]|$)/.test(lower.trim());
                 var _archiveExplicitOther = CMD_LOAD_NOTES || CMD_LOAD_FILES_EXPLICIT;
-                var _archiveTriggerWords = !_archiveExplicitOther && /прошл|раньше|истори|помнишь|обсуждали|говорили|в прошлый раз|в прошлой|помнишь ли|ты знаешь что мы|что мы (обсуждали|говорили|делали|говорил)|какой (чай|кофе|язык|цвет).*(люблю|нравится|предпочита)|(люблю|нравится|предпочита).*(чай|кофе|язык|цвет)|что я писал|что я говорил|что я упоминал|когда я говорил|в каком чате|ищи в чатах|прошлом чате|предыдущ|до этого/.test(lower);
-                var CMD_SEARCH_ARCHIVE = !_archiveStopWords && !_archiveExplicitOther && (_archiveTriggerWords || CMD_LOAD_HISTORY);
+                var CMD_SEARCH_ARCHIVE = !_archiveExplicitOther && eitiIsExplicitArchiveRequest(userText);
                 var CMD_UNLOAD_ALL    = /выгрузи всё|очисти всю память|сброс памяти/.test(lower);
                 // Detect 'загрузи чат #A001' or 'открой чат #B002'
                 var CMD_CHAT_BY_ID = (function() {
@@ -20282,7 +20348,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                            || lower.match(/(#[a-zA-Z][0-9]{3})/);
                     return m ? m[1].toUpperCase() : null;
                 })();
-                if (CMD_CHAT_BY_ID) { eitiLoadChatById(CMD_CHAT_BY_ID); }
+                // The requested chat was loaded above, before prompt construction.
 
                 if (CMD_LOAD_NOTES)          ctx.notesLoaded = true;
                 if (CMD_UNLOAD_NOTES)        ctx.notesLoaded = false;
@@ -20711,10 +20777,10 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                     var _selfInfo = '=== АРХИТЕКТУРА EITI v' + (window.EITI_VERSION||'?') + ' (self-awareness) ===\n';
                     _selfInfo += 'Тип: Single-file PWA монолит (HTML+CSS+JS+SW)\n';
                     _selfInfo += 'Строк кода: ~' + Math.round(document.documentElement.outerHTML.length / 50) + ' (оценка)\n';
-                    _selfInfo += 'Хранилище: IndexedDB (чаты/заметки/KB/L2/L3), localStorage (настройки и legacy-профиль/факты), SQLite WASM (производный FTS5-индекс)\n';
+                    _selfInfo += 'Хранилище: IndexedDB (чаты/заметки/KB/L2/L3), localStorage (настройки и активный L3-совместимый профиль/факты), SQLite WASM (FTS5 при наличии; иначе LIKE/IDB fallback)\n';
                     _selfInfo += 'AI: DeepSeek API (chat/reasoner), Transformers.js офлайн, офлайн-режим\n';
                     _selfInfo += 'Поиск: BM25 (KB), TextRank (сниппеты), FTS5 SQLite, Semantic (cosine)\n';
-                    _selfInfo += 'Память: L0 RAM (контекст), L1 STM (chatLog), L2 IDB (дайджесты), L3 разделён: IDB l3 + KB L3 и legacy-профиль/факты в localStorage\n';
+                    _selfInfo += 'Память: L0 RAM (контекст), L1 STM (chatLog), L2 IDB (дайджесты), L3 разделён: IDB l3 + допущенные KB L3 и активный совместимый профиль/факты в localStorage\n';
                     _selfInfo += 'Граф: MOSC reasoning graph\n';
                     _selfInfo += 'Команды ИИ: KB_ADD, KB_EDIT, KB_DEL, MOSC_ADD, MOSC_DEL, NOTE_WRITE, JS_EXEC\n';
                     // Снапшот состояния
@@ -20771,7 +20837,7 @@ registerProcessor('grok-pcm-processor', GrokPCMProcessor);`;
                 // ── doFetch: called directly or after async history scan ──
                 function doFetch() {
                 // Sync history[0] with latest sysContent — DDG/KB results may have been appended after history was created
-                if (history && history[0] && history[0].role === 'system') history[0].content = sysContent;
+                if (history && history[0] && history[0].role === 'system') history[0].content = _eitiMergePreparedSystemContext(sysContent, history[0].content);
                 var _abortCtrl = new AbortController();
                 var _abortTimer = setTimeout(function(){ _abortCtrl.abort(); }, 60000);
                 var _maxTok = parseInt(localStorage.getItem('eiti_token_budget') || '8000', 10);
@@ -32268,6 +32334,33 @@ window.eitiLLMClearAll = async function() {
         // ═══════════════════════════════════════════════════
         // ARCHIVE — полный экспорт/импорт всего хранилища
         // ═══════════════════════════════════════════════════
+        function _eitiArchiveReadIDBStore(storeName) {
+            if (!eitiDb) return Promise.resolve([]);
+            return new Promise(function(resolve, reject) {
+                try {
+                    var tx = eitiDb.transaction([storeName], 'readonly');
+                    var req = tx.objectStore(storeName).getAll();
+                    req.onsuccess = function() { resolve(req.result || []); };
+                    req.onerror = function() { reject(req.error || new Error('Failed to read ' + storeName)); };
+                    tx.onerror = function() { reject(tx.error || new Error('Failed to read ' + storeName)); };
+                } catch(e) { reject(e); }
+            });
+        }
+        function _eitiArchiveRestoreIDBStore(storeName, records) {
+            if (!eitiDb || !Array.isArray(records)) return Promise.resolve(false);
+            return new Promise(function(resolve, reject) {
+                try {
+                    var tx = eitiDb.transaction([storeName], 'readwrite');
+                    var store = tx.objectStore(storeName);
+                    records.forEach(function(record) {
+                        if (record && typeof record === 'object') store.put(record);
+                    });
+                    tx.oncomplete = function() { resolve(true); };
+                    tx.onerror = function() { reject(tx.error || new Error('Failed to restore ' + storeName)); };
+                    tx.onabort = function() { reject(tx.error || new Error('Restore aborted for ' + storeName)); };
+                } catch(e) { reject(e); }
+            });
+        }
         function eitiArchiveExport() {
             var data = {
                 version: 'eiti.archive.v1',
@@ -32278,30 +32371,35 @@ window.eitiLLMClearAll = async function() {
                 notes:      JSON.stringify(_idbNotesCache),
                 aiFiles:    JSON.stringify({ files: _idbFilesCache }) || '{"files":[]}',
                 kb:         localStorage.getItem('eiti_kb_v3') || '[]',
+                idbL3:      [],
+                idbKB:      [],
                 mosc:       JSON.stringify(window._moscGraph || {}),
                 theme:      localStorage.getItem('theme') || '',
                 uiSettings: localStorage.getItem('velantrim_messenger_ui_v1') || '{}'
             };
-            // IndexedDB чаты + сообщения
-            if (eitiDb) {
+            if (!eitiDb) { _archiveDownload(data); return; }
+            Promise.all([
                 eitiGetChats().then(function(chats) {
-                    Promise.all(chats.map(function(c){
-                        return eitiGetMessages(c.id).then(function(msgs){ return { chat: c, messages: msgs }; });
-                    })).then(function(full) {
-                        data.indexedDB = full;
-                        _archiveDownload(data);
-                    });
-                });
-            } else {
+                    return Promise.all((chats || []).map(function(c) {
+                        return eitiGetMessages(c.id).then(function(msgs) { return { chat: c, messages: msgs }; });
+                    }));
+                }),
+                _eitiArchiveReadIDBStore('l3'),
+                _eitiArchiveReadIDBStore('kb')
+            ]).then(function(results) {
+                data.indexedDB = results[0];
+                data.idbL3 = results[1];
+                data.idbKB = results[2];
                 _archiveDownload(data);
-            }
+            }).catch(function(error) {
+                console.error('[EITI Archive] export failed:', error);
+                showToast('❌ Не удалось экспортировать все данные архива');
+            });
         }
         function _archiveDownload(data) {
             var json = JSON.stringify(data, null, 2);
             var sizeMB = (json.length / (1024 * 1024)).toFixed(1);
-            if (json.length > 10 * 1024 * 1024) {
-                showToast('⚠️ Архив большой (' + sizeMB + ' MB). Может занять время.');
-            }
+            if (json.length > 10 * 1024 * 1024) showToast('⚠️ Архив большой (' + sizeMB + ' MB). Может занять время.');
             var blob = new Blob([json], { type: 'text/plain;charset=utf-8' });
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a'); a.href = url; a.download = 'eiti_archive_' + new Date().toISOString().slice(0,10) + '.txt'; a.click();
@@ -32317,50 +32415,74 @@ window.eitiLLMClearAll = async function() {
                     if (!data.version || !data.version.startsWith('eiti.archive')) {
                         showToast('❌ Неверный формат архива'); return;
                     }
-                    // localStorage
-                    if (data.profile)    localStorage.setItem('eiti_user_profile_v1', data.profile);
-                    if (data.learned)    localStorage.setItem(EITI_LEARN_KEY, data.learned);
+                    if (data.profile) localStorage.setItem('eiti_user_profile_v1', data.profile);
+                    if (data.learned) localStorage.setItem(EITI_LEARN_KEY, data.learned);
                     if (data.l2digests) {
                         try {
                             var _l2 = JSON.parse(data.l2digests);
                             if (Array.isArray(_l2) && eitiDb) {
                                 var _tx = eitiDb.transaction(['l2'], 'readwrite');
                                 var _st = _tx.objectStore('l2');
-                                _l2.forEach(function(d){ if(d && d.chatId) _st.put(d); });
+                                _l2.forEach(function(d) { if (d && d.chatId) _st.put(d); });
                                 _eitiL2Cache = _l2;
                             }
                         } catch(e) {}
                     }
-                    if (data.notes) { try { var _nn = JSON.parse(data.notes); if(Array.isArray(_nn)) _nn.forEach(function(n){ if(n&&n.id&&eitiDb){try{var tx=eitiDb.transaction(['notes'],'readwrite');tx.objectStore('notes').put(n);}catch(e){}
-                    eitiQueueIndexDoc(n.id, (n.title||'') + '\n' + (n.body||''), { kind:'note', updated: n.updated||Date.now(), salience: n.salience||0 }); } }); } catch(e){} }
-                    if (data.aiFiles) { try { var _af = JSON.parse(data.aiFiles); (_af.files||[]).forEach(function(f){ if(f&&f.name) idbPutFile(f).then(function(){
-                    eitiQueueIndexDoc(f.name, (f.name||'') + '\n' + (f.content||'').slice(0,30000), { kind:'file', updated: f.updated||Date.now(), salience: 0 }); }); }); } catch(e){} }
-                    if (data.kb)   localStorage.setItem('eiti_kb_v3', data.kb);
-                    if (data.theme)      localStorage.setItem('theme', data.theme);
+                    if (data.notes) {
+                        try {
+                            var _nn = JSON.parse(data.notes);
+                            if (Array.isArray(_nn)) _nn.forEach(function(n) {
+                                if (n && n.id && eitiDb) {
+                                    try { var tx = eitiDb.transaction(['notes'], 'readwrite'); tx.objectStore('notes').put(n); } catch(e) {}
+                                }
+                                if (n && n.id && typeof eitiQueueIndexDoc === 'function')
+                                    eitiQueueIndexDoc(n.id, (n.title || '') + '\n' + (n.body || ''), { kind:'note', updated:n.updated || Date.now(), salience:n.salience || 0 });
+                            });
+                        } catch(e) {}
+                    }
+                    if (data.aiFiles) {
+                        try {
+                            var _af = JSON.parse(data.aiFiles);
+                            (_af.files || []).forEach(function(f) {
+                                if (f && f.name) idbPutFile(f).then(function() {
+                                    if (typeof eitiQueueIndexDoc === 'function') eitiQueueIndexDoc(f.name, (f.name || '') + '\n' + (f.content || '').slice(0,30000), { kind:'file', updated:f.updated || Date.now(), salience:0 });
+                                });
+                            });
+                        } catch(e) {}
+                    }
+                    if (data.kb) localStorage.setItem('eiti_kb_v3', data.kb);
+                    if (data.theme) localStorage.setItem('theme', data.theme);
                     if (data.uiSettings) localStorage.setItem('velantrim_messenger_ui_v1', data.uiSettings);
-                    // IndexedDB
+                    var _importOps = [];
                     if (data.indexedDB && eitiDb && Array.isArray(data.indexedDB)) {
-                        var ops = data.indexedDB.map(function(item) {
-                            return new Promise(function(res) {
-                                var tx = eitiDb.transaction(['chats','messages'],'readwrite');
-                                tx.objectStore('chats').put(item.chat);
-                                (item.messages || []).forEach(function(m){ tx.objectStore('messages').put(m); });
-                                tx.oncomplete = res; tx.onerror = res;
+                        var _chatOps = data.indexedDB.map(function(item) {
+                            return new Promise(function(resolve, reject) {
+                                try {
+                                    var tx = eitiDb.transaction(['chats','messages'], 'readwrite');
+                                    if (item.chat) tx.objectStore('chats').put(item.chat);
+                                    (item.messages || []).forEach(function(m) { tx.objectStore('messages').put(m); });
+                                    tx.oncomplete = function() { resolve(true); };
+                                    tx.onerror = function() { reject(tx.error || new Error('Chat import failed')); };
+                                    tx.onabort = function() { reject(tx.error || new Error('Chat import aborted')); };
+                                } catch(error) { reject(error); }
                             });
                         });
-                        Promise.all(ops).then(function(){
-                            showToast('✅ Архив импортирован! Перезагрузите приложение');
-                            eitiLoadHistory();
-                            eitiUpdateFileCount();
-                        });
-                    } else {
-                        showToast('✅ Архив импортирован! Перезагрузите приложение');
+                        _importOps.push(Promise.all(_chatOps));
                     }
+                    if (Array.isArray(data.idbL3) && eitiDb) _importOps.push(_eitiArchiveRestoreIDBStore('l3', data.idbL3));
+                    if (Array.isArray(data.idbKB) && eitiDb) _importOps.push(_eitiArchiveRestoreIDBStore('kb', data.idbKB));
+                    Promise.all(_importOps).then(function() {
+                        showToast('✅ Архив импортирован! Перезагрузите приложение');
+                        if (typeof eitiLoadHistory === 'function') eitiLoadHistory();
+                        if (typeof eitiUpdateFileCount === 'function') eitiUpdateFileCount();
+                    }).catch(function(error) {
+                        console.error('[EITI Archive] import failed:', error);
+                        showToast('❌ Ошибка импорта архива: ' + (error.message || error));
+                    });
                 } catch(err) { showToast('❌ Ошибка импорта: ' + err.message); }
             };
             reader.readAsText(file);
         }
-
         // ── IMPORTED FILES MANAGER ──────────────────────────────
 
         // ═══════════════════════════════════════════════════
@@ -33620,7 +33742,7 @@ window.eitiLLMClearAll = async function() {
         (function() {
             if (!('serviceWorker' in navigator)) return;
             try {
-                navigator.serviceWorker.register('sw.js').then(function(reg){
+                navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg){
                     window._eitiSWReg = reg;
                     // v13: updatefound listener для мгновенного тоста об обновлении
                     reg.addEventListener('updatefound', function() {
@@ -33639,8 +33761,9 @@ window.eitiLLMClearAll = async function() {
                             }
                         });
                     });
-                    // v13: авто-проверка обновлений раз в час
-                    setInterval(function() { try { reg.update(); } catch(e) {} }, 3600000);
+                    // Check now and every 5 minutes; bypass the HTTP cache for sw.js.
+                    try { reg.update(); } catch(e) {}
+                    setInterval(function() { try { reg.update(); } catch(e) {} }, 300000);
                     // v13.4.3: при возвращении в foreground — сразу проверяем обновления (для PWA).
                     document.addEventListener('visibilitychange', function() {
                         if (document.visibilityState === 'visible') {
@@ -34696,7 +34819,7 @@ window.eitiLLMClearAll = async function() {
             // localStorage — размер и ключевые слои
             var lsSize = 0; var lsDetail = {};
             var lsSlots = {
-                'L3 профиль': ['eiti_user_profile_v1','eiti_learned_v1'],
+                'L3 compatibility': ['eiti_user_profile_v1','eiti_learned_v1'],
                 'KB-кеш (old)': ['eiti_kb_v1'],
                 'Emb-кеш': [], // хранится в IDB objectStore('reasoning'), key='eiti_emb_cache_v2'
                 'Настройки': ['theme','velantrim_messenger_ui_v1','eiti_offline_mode','eiti_cog_mode','eiti_reason_mode','eiti_token_budget','eiti_tts_voice','eiti_ws_voice_name','eiti_player_skin','eiti_skip_enabled','eiti_skip_step','eiti_files_cols','eiti_hist_cols','eiti_tl_cols','velantrim_notes_cols','velantrim_notes_titleonly','eiti_or_model','eiti_ai_provider'],
@@ -34715,12 +34838,12 @@ window.eitiLLMClearAll = async function() {
             var l2count = eitiL2Get(100).length;
             var l3facts = (typeof eitiLearnGet==='function') ? eitiLearnGet().length : 0;
             var kbFacts = (typeof eitiKBLoad==='function') ? eitiKBLoad().length : 0;
-            var l3size = (lsDetail['L3 профиль']||0);
+            var l3size = (lsDetail['L3 compatibility']||0);
 
-            function kb(bytes){ return bytes < 1024 ? bytes+'б' : (bytes/1024).toFixed(1)+' КБ'; }
-            function mb(bytes){ return bytes < 1024*1024 ? (bytes/1024).toFixed(1)+' КБ' : (bytes/1024/1024).toFixed(2)+' МБ'; }
+            function kb(bytes){ return bytes < 1024 ? bytes+' B' : (bytes/1024).toFixed(1)+' KB'; }
+            function mb(bytes){ return bytes < 1024*1024 ? (bytes/1024).toFixed(1)+' KB' : (bytes/1024/1024).toFixed(2)+' MB'; }
 
-            function buildHtml(chats, totalMsgs, idbUsed, idbQuota) {
+            function buildHtml(chats, totalMsgs, idbUsed, idbQuota, idbL3Count, esmL3Count) {
                 var lsPct = Math.min(100, (lsSize/(5*1024*1024))*100).toFixed(1);
                 var idbPct = idbQuota ? Math.min(100,(idbUsed/idbQuota)*100).toFixed(1) : '?';
                 var rows = [
@@ -34729,8 +34852,9 @@ window.eitiLLMClearAll = async function() {
                     '<div>🔴 <b>L0 RAM</b> — топ-25 сообщений · только в JS-памяти · <span style="opacity:0.6">сбрасывается при перезагрузке</span></div>',
                     '<div>🟠 <b>L1 STM</b> — сообщений в IDB: <b>'+(totalMsgs||'…')+'</b> · персистентно</div>',
                     '<div>🟡 <b>L2 MTM</b> — дайджестов: <b>'+l2count+'</b> / 20 · IndexedDB</div>',
-                    '<div>🟢 <b>L3 legacy</b> — выученных фактов: <b>'+l3facts+'</b> · '+kb(l3size)+' / 5 МБ localStorage</div>',
-                    '<div>🧠 <b>KB</b> — фактов: <b>'+kbFacts+'</b> · IndexedDB (без лимита)</div>',
+                    '<div>🟢 <b>'+T('Совместимые профиль и факты L3')+'</b> — '+T('выученных фактов:')+' <b>'+l3facts+'</b> · '+T('размер localStorage:')+' '+kb(l3size)+'</div>',
+                    '<div>🟦 <b>L3 profile</b> — '+T('автоизвлечённых полей профиля:')+' <b>'+idbL3Count+'</b> · '+T('IndexedDB l3')+'</div>',
+                    '<div>🧠 <b>ESM L3</b> — '+T('допущенных ESM L3-фактов:')+' <b>'+esmL3Count+'</b> / '+kbFacts+' KB · '+T('IndexedDB kb')+'</div>',
                     // ── Контент ──
                     '<div style="font-weight:700;font-size:12px;opacity:0.5;letter-spacing:0.5px;margin-top:8px;">📦 КОНТЕНТ</div>',
                     '<div>💬 Чатов: <b>'+(chats||0)+'</b></div>',
@@ -34741,35 +34865,56 @@ window.eitiLLMClearAll = async function() {
                     '<div style="font-weight:700;font-size:12px;opacity:0.5;letter-spacing:0.5px;margin-top:8px;">💾 ХРАНИЛИЩЕ</div>',
                     '<div>📂 <b>IndexedDB:</b> '+(idbUsed ? mb(idbUsed) : '…')+(idbQuota?' / '+mb(idbQuota)+' (<b>'+idbPct+'%</b>)':'')+' · chats+messages+notes+files+kb+l2</div>',
                     '<div>🗄 <b>localStorage:</b> '+kb(lsSize)+' / 5 МБ (<b>'+lsPct+'%</b>)</div>',
-                    '<div style="font-size:11px;opacity:0.5;padding-left:10px;">Legacy профиль/факты: '+kb(lsDetail['L3 профиль']||0)+' · Emb-кеш: '+kb(lsDetail['Emb-кеш']||0)+' · Настройки: '+kb(lsDetail['Настройки']||0)+' · Интенты: '+kb(lsDetail['Интенты/Прочее']||0)+'</div>',
+                    '<div style="font-size:11px;opacity:0.5;padding-left:10px;">L3 compatibility: '+kb(lsDetail['L3 compatibility']||0)+' · Emb-кеш: '+kb(lsDetail['Emb-кеш']||0)+' · Настройки: '+kb(lsDetail['Настройки']||0)+' · Интенты: '+kb(lsDetail['Интенты/Прочее']||0)+'</div>',
                 ];
                 el.innerHTML = rows.map(function(r){ return '<div style="line-height:1.8">'+r+'</div>'; }).join('');
             }
 
-            // Получаем IDB estimate и число сообщений параллельно
+            // Получаем IDB estimate и числа сообщений/профилей параллельно.
             var idbUsed = 0, idbQuota = 0;
             var chatCount = 0, msgCount = 0;
-            var pending = 2;
-            function done() { if(--pending===0) buildHtml(chatCount, msgCount, idbUsed, idbQuota); }
-
+            var idbProfileCount = 0, esmL3Count = 0;
+            var pending = 4;
+            function done() { if (--pending === 0) buildHtml(chatCount, msgCount, idbUsed, idbQuota, idbProfileCount, esmL3Count); }
             if (navigator.storage && navigator.storage.estimate) {
-                navigator.storage.estimate().then(function(est){
-                    idbUsed = est.usage || 0; idbQuota = est.quota || 0; done();
-                }).catch(function(){ done(); });
-            } else { done(); }
-
+                navigator.storage.estimate().then(function(est) {
+                    idbUsed = est.usage || 0;
+                    idbQuota = est.quota || 0;
+                    done();
+                }).catch(function() { done(); });
+            } else done();
             if (eitiDb) {
-                eitiGetChats().then(function(chats){
-                    chatCount = chats.length;
-                    var tx = eitiDb.transaction('messages','readonly');
+                eitiGetChats().then(function(chats) {
+                    chatCount = (chats || []).length;
+                    var tx = eitiDb.transaction('messages', 'readonly');
                     var req = tx.objectStore('messages').count();
-                    req.onsuccess = function(){ msgCount = req.result; done(); };
-                    req.onerror = function(){ done(); };
-                }).catch(function(){ done(); });
-            } else { done(); }
+                    req.onsuccess = function() { msgCount = req.result; done(); };
+                    req.onerror = function() { done(); };
+                }).catch(function() { done(); });
+            } else done();
+            function countIDBStore(storeName, onRows) {
+                if (!eitiDb) { done(); return; }
+                var settled = false;
+                function finish(rows) {
+                    if (settled) return;
+                    settled = true;
+                    if (rows && onRows) onRows(rows);
+                    done();
+                }
+                try {
+                    var tx = eitiDb.transaction([storeName], 'readonly');
+                    var req = tx.objectStore(storeName).getAll();
+                    req.onsuccess = function() { finish(req.result || []); };
+                    req.onerror = function() { finish([]); };
+                    tx.onerror = function() { finish([]); };
+                } catch(e) { finish([]); }
+            }
+            countIDBStore('l3', function(rows) { idbProfileCount = rows.length; });
+            countIDBStore('kb', function(rows) {
+                kbFacts = rows.length;
+                esmL3Count = rows.filter(function(fact) { return fact && fact.memory_layer === 'L3' && ['Validated', 'Supported', 'ImmutableCore'].indexOf(fact.epistemic_state) !== -1; }).length;
+            });
         }
-
-        // ══════════════════════════════════════════════
         // 📤 ЭКСПОРТ Markdown + TXT
         // ══════════════════════════════════════════════
         function eitiExportMarkdown() {
@@ -40250,17 +40395,22 @@ window.eitiFsrsMigrateFacts = function() {
 };
 
 // v14.0 T1: migrate IDB-side fact objects to include fractal memory fields.
-// Pre-v14 facts get treated as canon: memory_layer='L3', epistemic_state
-// stays as it was (Observed if never set). New facts created via post-v14
-// UI start at memory_layer='L1' and graduate to L3 through T4 Truth Gate.
+// Only epistemically admitted facts may occupy L3; old Observed/Hypothesized
+// facts stay pending in L1 until they pass the Truth Gate.
 window.eitiFractalMigrateFacts = function() {
     if (typeof eitiKBLoad !== 'function') return 0;
     var facts = eitiKBLoad();
     var touched = 0;
+    var admitted = ['Validated', 'Supported', 'ImmutableCore'];
     for (var i = 0; i < facts.length; i++) {
         var f = facts[i];
+        var state = f.epistemic_state || 'Observed';
+        var mayBeL3 = admitted.indexOf(state) !== -1;
         if (!f.fractal_level) { f.fractal_level = 'concept'; touched++; }
-        if (!f.memory_layer)  { f.memory_layer  = 'L3';      touched++; }
+        if (!f.memory_layer || (f.memory_layer === 'L3' && !mayBeL3)) {
+            f.memory_layer = mayBeL3 ? 'L3' : 'L1';
+            touched++;
+        }
         if (typeof f.compression_level !== 'number') { f.compression_level = 0; touched++; }
         if (typeof f.guardian_verified !== 'number') { f.guardian_verified = 0; touched++; }
         if (f.parent_fact_id === undefined) { f.parent_fact_id = null; touched++; }
@@ -40442,16 +40592,25 @@ async function _initSQL() {
             try {
                 var bytes = new Uint8Array(JSON.parse(saved));
                 _db = new SQL.Database(bytes);
-                // BUG-1 FIX: detect FTS5 for existing DB (was never set, so always false)
+                // Detect FTS5 from the SQLite build itself, not from a possibly absent/stale notes_fts table.
                 try {
-                    _db.run("SELECT 1 FROM notes_fts WHERE notes_fts MATCH 'test' LIMIT 0");
+                    _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS __eiti_fts5_probe USING fts5(value)");
+                    _db.run("DROP TABLE __eiti_fts5_probe");
                     _fts5Available = true;
                 } catch(e) {
                     _fts5Available = false;
                 }
-                // Ensure new FTS5 tables exist (chat_history_fts may be absent in old DBs)
-                try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS chat_history_fts USING fts5(id UNINDEXED, chat_id UNINDEXED, role, content, tokenize='trigram')"); } catch(e2) {
-                    try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS chat_history_fts USING fts5(id UNINDEXED, chat_id UNINDEXED, role, content, tokenize='unicode61')"); } catch(e2b) {} // fallback если trigram не поддерживается
+                // chat_history_fts must match eitiIndexMessageForSearch and eitiSearchArchive.
+                // Drop only this derived index if an older build created an incompatible schema.
+                try {
+                    var _chatFtsInfo = _db.exec('PRAGMA table_info(chat_history_fts)');
+                    var _chatFtsColumns = (_chatFtsInfo && _chatFtsInfo[0] ? _chatFtsInfo[0].values : []).map(function(r) { return String(r[1]); });
+                    var _chatFtsRequired = ['chat_id', 'msg_id', 'role', 'content', 'created'];
+                    if (_chatFtsRequired.some(function(name) { return _chatFtsColumns.indexOf(name) === -1; }))
+                        _db.run('DROP TABLE IF EXISTS chat_history_fts');
+                    _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS chat_history_fts USING fts5(chat_id UNINDEXED, msg_id UNINDEXED, role UNINDEXED, content, created UNINDEXED, tokenize='trigram')");
+                } catch(e2) {
+                    try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS chat_history_fts USING fts5(chat_id UNINDEXED, msg_id UNINDEXED, role UNINDEXED, content, created UNINDEXED, tokenize='unicode61')"); } catch(e2b) {} // trigram tokenizer may be unavailable
                 }
                 try { _db.run("CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(id UNINDEXED, title, body, tokenize='unicode61')"); } catch(e3) {}
                 // T2 migration: existing pre-T2 snapshots lack audit_log — create on load.
@@ -40485,12 +40644,13 @@ async function _initSQL() {
                 try { _db.run("ALTER TABLE kb_idx ADD COLUMN guardian_verified INTEGER DEFAULT 0"); } catch(e14) {}
                 // Backfill rows that were created before v14:
                 //   - fractal_level: default to 'concept' (most generic of the 5 levels).
-                //   - memory_layer: existing facts treated as canon → 'L3'. New facts
-                //     created via post-v14 UI start at 'L1' and graduate via T4 Truth Gate.
+                //   - memory_layer: only Validated/Supported/ImmutableCore facts enter 'L3';
+                //     Observed/Hypothesis facts remain in 'L1' until admitted by the Truth Gate.
                 //   - guardian_verified: 0 by default; rises to 1 when guardian approves.
                 try {
                     _db.run("UPDATE kb_idx SET fractal_level='concept' WHERE fractal_level IS NULL");
-                    _db.run("UPDATE kb_idx SET memory_layer='L3' WHERE memory_layer IS NULL");
+                    _db.run("UPDATE kb_idx SET memory_layer=CASE WHEN epistemic_state IN ('Validated','Supported','ImmutableCore') THEN 'L3' ELSE 'L1' END WHERE memory_layer IS NULL");
+                    _db.run("UPDATE kb_idx SET memory_layer='L1' WHERE memory_layer='L3' AND COALESCE(epistemic_state,'Observed') NOT IN ('Validated','Supported','ImmutableCore')");
                     _db.run("UPDATE kb_idx SET guardian_verified=0 WHERE guardian_verified IS NULL");
                 } catch(e15) {}
             } catch(e) {
@@ -40582,16 +40742,24 @@ function _syncFromIDB() {
         try {
             _db.run('DELETE FROM kb_idx');
             _db.run('DELETE FROM kb_fts');
-            var kstmt = _db.prepare('INSERT OR REPLACE INTO kb_idx VALUES (?,?,?,?,?,?)');
+            var kstmt = _db.prepare('INSERT OR REPLACE INTO kb_idx (id,triggers,answer,truth_status,confidence,created,epistemic_state,stability,last_accessed,fractal_level,parent_fact_id,compression_level,memory_layer,guardian_verified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
             kbItems.forEach(function(k) {
                 try {
                     kstmt.run([
                         k.id || ('kb_' + Math.random().toString(36).slice(2)),
-                        (k.triggers || k.t || '').slice(0,300),
+                        (Array.isArray(k.triggers) ? k.triggers.join(' ') : (k.triggers || k.t || '')).slice(0,300),
                         (k.answer || k.a || '').slice(0,2000),
                         k.truth_status || 'accepted',
                         typeof k.confidence === 'number' ? k.confidence : 0.8,
-                        k.created || Date.now()
+                        k.created || Date.now(),
+                        k.epistemic_state || 'Observed',
+                        typeof k.stability === 'number' ? k.stability : 1.0,
+                        k.last_accessed || null,
+                        k.fractal_level || 'concept',
+                        k.parent_fact_id || null,
+                        typeof k.compression_level === 'number' ? k.compression_level : 0,
+                        k.memory_layer || ((k.epistemic_state && ['Validated','Supported','ImmutableCore'].indexOf(k.epistemic_state) !== -1) ? 'L3' : 'L1'),
+                        typeof k.guardian_verified === 'number' ? k.guardian_verified : 0
                     ]);
                 } catch(e3) {}
             });
@@ -40625,10 +40793,10 @@ function _syncFromIDB() {
  * @returns {Array} [{id, title, snippet, score}]
  */
 window.eitiSearchNotes = function(query, limit) {
-    if (!_db || !query || !query.trim()) return [];
+    if (!_db || !query || !String(query).trim()) return [];
     limit = limit || 20;
     try {
-        var q = query.trim();
+        var q = String(query).trim();
         if (_fts5Available) {
             var qEsc = q.replace(/['"*^()]/g, ' ').trim();
             if (!qEsc) return [];
@@ -40642,32 +40810,29 @@ window.eitiSearchNotes = function(query, limit) {
             return res[0].values.map(function(r) {
                 return { id: r[0], title: r[1], snippet: r[2], score: r[3] };
             });
-        } else {
-            // LIKE fallback
-            // v12.9.1 FIX P7: правильное экранирование % и _ через ESCAPE '\' вместо удаления символов.
-            var pat = '%' + q.replace(/[%_\\]/g, '\\$&') + '%';
-            var res2 = _db.exec(
-                'SELECT id, title, substr(content,1,120) AS snip FROM notes_idx ' +
-                'WHERE title LIKE ? ESCAPE "\\\\" OR content LIKE ? ESCAPE "\\\\" OR tags LIKE ? ESCAPE "\\\\" ' +
-                'ORDER BY updated DESC LIMIT ?', [pat, pat, pat, limit]
-            );
-            if (!res2[0]) return [];
-            return res2[0].values.map(function(r) {
-                return { id: r[0], title: r[1], snippet: r[2], score: -1 };
-            });
         }
+        // Scan the derived index in JS: SQLite LIKE/NOCASE is ASCII-only and
+        // its ESCAPE quoting differs between SQLite builds. Bound SQL stays safe;
+        // JS matching handles Unicode case and literal apostrophes/%/_ exactly.
+        var rows = _db.exec('SELECT id, title, content, tags, updated FROM notes_idx ORDER BY updated DESC');
+        if (!rows[0] || !rows[0].values) return [];
+        var needle = q.toLowerCase();
+        return rows[0].values.filter(function(r) {
+            return [r[1], r[2], r[3]].some(function(value) { return String(value || '').toLowerCase().indexOf(needle) !== -1; });
+        }).slice(0, limit).map(function(r) {
+            return { id: r[0], title: r[1], snippet: String(r[2] || '').slice(0, 120), score: -1 };
+        });
     } catch(e) { return []; }
 };
-
 /**
  * Поиск по KB — FTS5 если доступен, иначе LIKE.
  * @returns {Array} [{id, triggers, answer, truth_status, confidence, score}]
  */
 window.eitiSearchKB = function(query, limit) {
-    if (!_db || !query || !query.trim()) return [];
+    if (!_db || !query || !String(query).trim()) return [];
     limit = limit || 10;
     try {
-        var q = query.trim();
+        var q = String(query).trim();
         if (_fts5Available) {
             var qEsc = q.replace(/['"*^()]/g, ' ').trim();
             if (!qEsc) return [];
@@ -40680,22 +40845,19 @@ window.eitiSearchKB = function(query, limit) {
             return res[0].values.map(function(r) {
                 return { id: r[0], triggers: r[1], answer: r[2], truth_status: r[3], confidence: r[4], score: r[5] };
             });
-        } else {
-            // v12.9.1 FIX P7: правильное экранирование % и _ через ESCAPE '\'.
-            var pat = '%' + q.replace(/[%_\\]/g, '\\$&') + '%';
-            var res2 = _db.exec(
-                'SELECT id, triggers, answer, truth_status, confidence FROM kb_idx ' +
-                'WHERE triggers LIKE ? ESCAPE "\\\\" OR answer LIKE ? ESCAPE "\\\\" ' +
-                'ORDER BY confidence DESC LIMIT ?', [pat, pat, limit]
-            );
-            if (!res2[0]) return [];
-            return res2[0].values.map(function(r) {
-                return { id: r[0], triggers: r[1], answer: r[2], truth_status: r[3], confidence: r[4], score: -1 };
-            });
         }
+        // As with notes, use a bound read + Unicode-aware JS matching instead
+        // of build-specific ESCAPE syntax or SQLite's ASCII-only NOCASE.
+        var rows = _db.exec('SELECT id, triggers, answer, truth_status, confidence FROM kb_idx ORDER BY confidence DESC');
+        if (!rows[0] || !rows[0].values) return [];
+        var needle = q.toLowerCase();
+        return rows[0].values.filter(function(r) {
+            return [r[1], r[2]].some(function(value) { return String(value || '').toLowerCase().indexOf(needle) !== -1; });
+        }).slice(0, limit).map(function(r) {
+            return { id: r[0], triggers: r[1], answer: r[2], truth_status: r[3], confidence: r[4], score: -1 };
+        });
     } catch(e) { return []; }
 };
-
 /**
  * Обновить attention score для узла MOSC/KB.
  * Вызывается при каждом обращении к концепции.
@@ -41580,8 +41742,8 @@ window.getRelevantMemories = function(memArray, query, max) {
       var fc = 0; try { fc = (getAiTextStore().files||[]).filter(function(f){return !f.name.startsWith('eiti_');}).length; } catch(e){}
       var kc = (window._kbMemCache || []).length;
       lines.push('Заметок: ' + nc + ' | Файлов: ' + fc + ' | KB-фактов: ' + kc);
-      lines.push('Хранение: IndexedDB (chats/messages/notes/files/kb/pkg/l2/reasoning) + localStorage (настройки+ключи XOR-obf) + SQLite WASM (FTS5)');
-      lines.push('Память: L0 RAM(top-25 DAAD) → L1 FTS5-история → L2 дайджесты → L3 профиль → PKG хеббиан-граф → RNE дневник');
+      lines.push('Хранение: IndexedDB (chats/messages/notes/files/kb/pkg/l2/reasoning) + localStorage (настройки+ключи XOR-obf) + SQLite WASM (FTS5 if available; LIKE/IDB fallback otherwise)');
+      lines.push('Память: L0 RAM(top-25 DAAD) → L1 история чатов (FTS5/LIKE/IDB fallback) → L2 дайджесты → L3 профиль → PKG хеббиан-граф → RNE дневник');
       lines.push('MOSC: граф word→concept±0.07/-0.04 | PKG: decay 0.97^дней | VB: regex-intents | RNE: goals/facts/questions');
       lines.push('TTS: WebSpeech+OpenAI+Google+ElevenLabs+Gemini | НЕТ блокчейна, NeMo, MessagePack, Web Components, шифрования IDB');
     } catch(e) {}
@@ -43236,6 +43398,11 @@ window.eitiAskDeepSeek = function(userText) {
             this.signal = null; this.abort = function(){};
         })();
 
+        var _qContextPromise = typeof eitiPrepareContextPromise === 'function'
+            ? eitiPrepareContextPromise(userText, history).catch(function() { return history; })
+            : Promise.resolve(history);
+        _qContextPromise.then(function(_preparedQHistory) {
+            history = _preparedQHistory;
         QWEN.ask(
             history,
             function onChunk(delta, full) {
@@ -43277,6 +43444,7 @@ window.eitiAskDeepSeek = function(userText) {
             },
             _abortCtrl.signal
         );
+        }).catch(reject);
     });
 };
 
@@ -44360,26 +44528,32 @@ window.eitiAskDeepSeek = function(userText) {
             if (gmKey) return _eitiGeminiVision(userText, images, sysContent, history, liveId);
             throw e;
         };
-        var visionPromise;
+        var _visionContextPromise = typeof eitiPrepareContextPromise === 'function'
+            ? eitiPrepareContextPromise(userText, history).catch(function() { return history; })
+            : Promise.resolve(history);
+        var visionPromise = _visionContextPromise.then(function(_preparedVisionHistory) {
+            history = _preparedVisionHistory;
+            if (history[0] && history[0].role === 'system') sysContent = history[0].content;
         if (provider === 'gemini') {
-            visionPromise = _eitiGeminiVision(userText, images, sysContent, history, liveId);
+            return _eitiGeminiVision(userText, images, sysContent, history, liveId);
         } else if (provider === 'openai') {
-            visionPromise = _eitiOpenAIVision(userText, images, history).catch(_visionFallback);
+            return _eitiOpenAIVision(userText, images, history).catch(_visionFallback);
         } else if (provider === 'anthropic') {
-            visionPromise = _eitiAnthropicVision(userText, images, history).catch(_visionFallback);
+            return _eitiAnthropicVision(userText, images, history).catch(_visionFallback);
         } else if (provider === 'qwen') {
-            visionPromise = _eitiQwenVision(userText, images, history).catch(_visionFallback);
+            return _eitiQwenVision(userText, images, history).catch(_visionFallback);
         } else if (provider === 'openrouter') {
-            visionPromise = _eitiOpenRouterVision(userText, images, history).catch(_visionFallback);
+            return _eitiOpenRouterVision(userText, images, history).catch(_visionFallback);
         } else if (provider === 'grok') {
-            visionPromise = _eitiGrokVision(userText, images, history).catch(_visionFallback);
+            return _eitiGrokVision(userText, images, history).catch(_visionFallback);
         } else if (provider === 'mistral') {
-            visionPromise = _eitiMistralVision(userText, images, history).catch(_visionFallback);
+            return _eitiMistralVision(userText, images, history).catch(_visionFallback);
         } else {
             // deepseek или неизвестный → DeepSeek Vision с fallback на Gemini
-            visionPromise = _eitiDeepSeekVision(userText, images, history, liveId).catch(_visionFallback);
+            return _eitiDeepSeekVision(userText, images, history, liveId).catch(_visionFallback);
         }
 
+        });
         return visionPromise.then(function(result) {
             var textEl = document.getElementById(liveId + '-text');
             if (textEl && typeof eitiRenderMarkdown === 'function')

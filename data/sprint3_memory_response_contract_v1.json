@@ -12,7 +12,13 @@
       "label_ru": "Normal",
       "description_ru": "Быстрый режим. Память используется мягко: система может учитывать релевантные факты, но не обязана проверять каждый ответ через строгую L3-опору.",
       "lookup_policy": "opportunistic",
-      "allowed_statuses": ["observed", "hypothesis", "supported", "validated", "immutable_core"],
+      "allowed_statuses": [
+        "observed",
+        "hypothesis",
+        "supported",
+        "validated",
+        "immutable_core"
+      ],
       "show_trace_by_default": false
     },
     {
@@ -20,7 +26,12 @@
       "label_ru": "Grounded",
       "description_ru": "Баланс скорости и точности. Система опирается на source facts, показывает осторожность при гипотезах и может раскрывать trace по запросу.",
       "lookup_policy": "required_when_memory_relevant",
-      "allowed_statuses": ["observed", "supported", "validated", "immutable_core"],
+      "allowed_statuses": [
+        "observed",
+        "supported",
+        "validated",
+        "immutable_core"
+      ],
       "show_trace_by_default": false
     },
     {
@@ -28,14 +39,17 @@
       "label_ru": "Strict",
       "description_ru": "Строгий режим. Система отвечает уверенно только при validated/immutable_core фактах; при нехватке фактов говорит, что подтверждения нет.",
       "lookup_policy": "required",
-      "allowed_statuses": ["validated", "immutable_core"],
+      "allowed_statuses": [
+        "validated",
+        "immutable_core"
+      ],
       "show_trace_by_default": true
     }
   ],
   "memory_lookup_toggle": {
     "id": "memory_lookup_enabled",
-    "label_ru": "Проверять память перед ответом",
-    "description_ru": "Если выключено, ответы становятся быстрее: система не делает обязательную проверку базы памяти перед каждым сообщением. Ручной поиск по памяти и явные команды 'проверь в памяти' должны продолжать работать.",
+    "label_ru": "Поиск по архиву чатов",
+    "description_ru": "Управляет только автоматическим поиском по истории сообщений L1. По умолчанию выключен. Явный запрос к истории и ручной поиск продолжают работать при выключенном переключателе. L2-дайджесты, профиль и другие источники памяти этим переключателем не управляются.",
     "default": false
   },
   "esm_statuses": [
