@@ -358,6 +358,9 @@
                 'Большой': 'Groß',
                 'Спросить, переписать, резюмировать…': 'Fragen, umschreiben, zusammenfassen…',
                 'Найти в заметке…': 'In der Notiz suchen…',
+                'Как в чате': 'Wie im Chat',
+                'Спросите по этой заметке: резюме, переписать, найти смысл.': 'Fragen Sie zu dieser Notiz: Zusammenfassung, Umschreiben, Sinn finden.',
+                'Резюме': 'Kurzfassung',
                 'Поиск заметок...': 'Notizen suchen…',
                 'Папка': 'Ordner',
                 'Папки': 'Ordner',
@@ -2021,6 +2024,9 @@
                 'Большой': 'Large',
                 'Спросить, переписать, резюмировать…': 'Ask, rewrite, summarise…',
                 'Найти в заметке…': 'Find in note…',
+                'Как в чате': 'Same as chat',
+                'Спросите по этой заметке: резюме, переписать, найти смысл.': 'Ask about this note: summary, rewrite, find the point.',
+                'Резюме': 'Summary',
                 'Поиск заметок...': 'Search notes...',
                 'Папка': 'Folder',
                 'Папки': 'Folders',
@@ -7110,6 +7116,7 @@
             display: flex; align-items: center; justify-content: center; gap: 6px;
         }
         .note-editor-overlay.notes-ai-on .note-editor-body { padding-bottom: 78px; }
+        .note-editor-overlay.notes-ai-on .note-tags-row { padding-bottom: 58px; }
         .notes-ai-find {
             display: none;
             position: absolute;
@@ -8645,10 +8652,10 @@
                             <div id="notes-ai-opts" style="display:none;flex-direction:column;gap:10px;">
                                 <div style="font-size:13px;font-weight:600;" data-i18n="Модель для заметок">Модель для заметок</div>
                                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                    <button type="button" id="notes-ai-model-same" onclick="eitiNotesAISetModel('same')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">🔁 Как в чате</button>
+                                    <button type="button" id="notes-ai-model-same" onclick="eitiNotesAISetModel('same')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">🔁 <span data-i18n="Как в чате">Как в чате</span></button>
                                     <button type="button" id="notes-ai-model-deepseek" onclick="eitiNotesAISetModel('deepseek')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">🔵 DeepSeek</button>
                                     <button type="button" id="notes-ai-model-gemini" onclick="eitiNotesAISetModel('gemini')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">🟢 Gemini</button>
-                                    <button type="button" id="notes-ai-model-or-auto" onclick="eitiNotesAISetModel('openrouter/auto')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">Auto</button>
+                                    <button type="button" id="notes-ai-model-or-auto" onclick="eitiNotesAISetModel('openrouter/auto')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">OR Auto</button>
                                     <button type="button" id="notes-ai-model-or-free" onclick="eitiNotesAISetModel('openrouter/free')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">Free</button>
                                     <button type="button" id="notes-ai-model-or-claude" onclick="eitiNotesAISetModel('anthropic/claude-sonnet-4-6')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">Claude</button>
                                     <button type="button" id="notes-ai-model-or-gpt" onclick="eitiNotesAISetModel('openai/gpt-5.5')" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--secondary-color);color:var(--text-color);font-size:12px;cursor:pointer;">GPT</button>
@@ -34751,10 +34758,16 @@ window.eitiLLMClearAll = async function() {
         function eitiNotesAIUpdateModelChip() {
             var el = document.getElementById('notesAiModelChip');
             if (!el) return;
-            var target = eitiNotesAIResolveTarget() || { provider: '', model: eitiNotesAIGetModel() };
-            var model = target.model || eitiNotesAIGetModel();
-            if (typeof eitiORModelLabelHtml === 'function' && model && model.indexOf('/') !== -1) {
-                el.innerHTML = eitiORModelLabelHtml(model);
+            var sel = eitiNotesAIGetModel();
+            var target = eitiNotesAIResolveTarget() || { provider: '', model: sel };
+            var model = target.model || sel;
+            var prefix = (sel === 'same') ? '🔁 ' : '';
+            if (typeof eitiORModelLabelHtml === 'function' && model && String(model).indexOf('/') !== -1) {
+                el.innerHTML = prefix + eitiORModelLabelHtml(model);
+            } else if (sel === 'same') {
+                el.textContent = '🔁 ' + (model && model !== 'same' ? model : 'как в чате');
+            } else if (sel === 'deepseek' || sel === 'gemini') {
+                el.textContent = (sel === 'deepseek' ? '🔵 ' : '🟢 ') + (model || sel);
             } else {
                 el.textContent = model || 'модель';
             }
@@ -34801,7 +34814,7 @@ window.eitiLLMClearAll = async function() {
             if (!thread.length) {
                 var hint = document.createElement('div');
                 hint.style.cssText = 'opacity:0.5;font-size:12px;text-align:center;padding:12px 8px;';
-                hint.textContent = 'Спросите по этой заметке: резюме, переписать, найти смысл.';
+                hint.textContent = (typeof T === 'function') ? T('Спросите по этой заметке: резюме, переписать, найти смысл.') : 'Спросите по этой заметке: резюме, переписать, найти смысл.';
                 box.appendChild(hint);
                 return;
             }
