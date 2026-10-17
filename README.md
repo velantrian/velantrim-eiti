@@ -5,7 +5,7 @@
 **Персональный AI-ассистент с многослойной памятью**  
 _Клиентское PWA без backend и build step. Основной интерфейс — один HTML-файл._
 
-[![Version](https://img.shields.io/badge/version-13.7.15-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
+[![Version](https://img.shields.io/badge/version-13.7.16-gold?style=flat-square)](https://github.com/velantrian/velantrim-eiti/commits/main)
 [![No Build Step](https://img.shields.io/badge/build-none-brightgreen?style=flat-square)](#)
 [![PWA](https://img.shields.io/badge/PWA-ready-blue?style=flat-square)](#)
 [![Offline Core](https://img.shields.io/badge/offline-core-orange?style=flat-square)](#)
@@ -40,9 +40,16 @@ python3 -m http.server 8080
 
 ---
 
-## 🆕 Что нового в v13.7.15
+## 🆕 Что нового в v13.7.16
 
-**Исправления аудита PR #93 и старых дефектов `main`**
+**Ask AI в заметках (как Notion)**
+- ✨ Плавающая кнопка «Ask AI» в открытой заметке (Android 360–430px, тёмная и светлая темы).
+- 💬 Панель чата с контекстом текущей заметки: вопросы, резюме, переписывание; ответы через `_eitiUniversalAICall`.
+- ⚙️ Настройки «Notes AI»: выключатель LLM (по умолчанию ВЫКЛ — кнопка скрыта, запросов нет), модель (включая OpenRouter с логотипами) и размер панели.
+- 🔒 Настройки в `localStorage`; HTML ответов проходит через `eitiRenderMarkdown` / DOMPurify.
+
+### Выпуски v13.7.6–v13.7.15
+- **v13.7.15:** исправления аудита PR #93 и старых дефектов `main`.
 - 🧠 Архивный контекст теперь сохраняется в payload провайдера; поиск работает и в сборках SQLite без FTS5 через IndexedDB fallback.
 - 🎯 Единый детектор явных запросов к истории для русского, английского и немецкого; обычные темы и приветствия не запускают сканирование при выключенном автопоиске.
 - 🎙️ Grok Voice использует текст текущего хода; Qwen и Vision проходят через общий контекстный gate.
